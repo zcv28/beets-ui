@@ -106,6 +106,7 @@ The container user (`user:`) must be able to read the inbox and write to `/music
 beets-ui reads `/config/beets/config.yaml` exactly as the `beet` command does. Copy/move, tag writing, path formats, plugins and their options all come from there. Restart the container after changing it.
 
 - **beets 2.x needs `musicbrainz` in the plugin list.** If you list plugins and leave it out, lookups return no MusicBrainz candidates.
+- ReplayGain: add `replaygain` to `plugins:` and set `replaygain: {backend: ffmpeg}`. ffmpeg is bundled; the GStreamer backend is not.
 - Doujin sources: add `vocadb`, `touhoudb` and/or `utaitedb` to `plugins:` and their candidates appear on the review page. See [beets-vocadb](https://github.com/prTopi/beets-vocadb) for their options.
 - Artist pictures need each album artist to have their own folder, e.g. `paths: default: $albumartist/$album%aunique{}/$track $title` (the default). With a flat layout such as `$albumartist - $album/…` there is no artist folder to put the picture in, and the Artwork page says so.
 

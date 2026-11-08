@@ -28,3 +28,7 @@ fetchart:
 
 embedart:
   auto: no
+
+# ffmpeg is bundled: use it for ReplayGain (add "replaygain" to plugins).
+replaygain:
+  backend: ffmpeg
