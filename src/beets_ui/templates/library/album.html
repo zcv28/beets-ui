@@ -1,0 +1,68 @@
+{% extends "base.html" %}
+{% block title %}{{ album.album }}{% endblock %}
+{% block content %}
+<p><a href="/library">← Library</a></p>
+<div class="album-head">
+  <div class="art">
+    <a href="/library/album/{{ album.id }}/cover"><img class="cover" src="/library/album/{{ album.id }}/cover?size=600" alt=""></a>
+    <p><small>{% if cover.has %}{{ cover.size[0] if cover.size else '?' }}×{{ cover.size[1] if cover.size else '?' }}{% if cover.low %} <span class="warnc">low-res</span>{% endif %}{% else %}no cover file{% endif %} · <a href="/artwork/album/{{ album.id }}">change cover</a></small></p>
+  </div>
+  <div class="meta">
+    <h1>{{ album.album or '(untitled)' }}</h1>
+    <h3><a href="/library?q={{ ('albumartist:=' ~ album.albumartist)|q }}">{{ album.albumartist }}</a>{% if album.year %} · {{ album.year }}{% endif %}</h3>
+    <dl class="kv">
+      {% if album.label %}<dt>Label</dt><dd>{{ album.label }}{% if album.catalognum %} ({{ album.catalognum }}){% endif %}</dd>{% endif %}
+      {% if fields.genres %}<dt>Genres</dt><dd>{{ fields.genres }}</dd>{% endif %}
+      {% if album.albumtype %}<dt>Type</dt><dd>{{ album.albumtype }}</dd>{% endif %}
+      {% if album.country %}<dt>Country</dt><dd>{{ album.country }}</dd>{% endif %}
+      {% if album.mb_albumid %}<dt>MusicBrainz</dt><dd><a href="https://musicbrainz.org/release/{{ album.mb_albumid }}" target="_blank" rel="noopener noreferrer">{{ album.mb_albumid }}</a></dd>{% endif %}
+      {% if path %}<dt>Folder</dt><dd><code>{{ path }}</code></dd>{% endif %}
+      <dt>Added</dt><dd>{{ album.added|ts }}</dd>
+      <dt>Album ID</dt><dd>{{ album.id }}</dd>
+    </dl>
+    <div class="bar">
+      <a class="btn btn-sm btn-d" href="/console?cmd={{ ('mbsync album_id:' ~ album.id ~ ' -a')|q }}">mbsync</a>
+      <a class="btn btn-sm btn-d" href="/console?cmd={{ ('import -L -q album_id:' ~ album.id)|q }}">re-tag</a>
+      <a class="btn btn-sm btn-d" href="/console?cmd={{ ('fetchart -f album_id:' ~ album.id)|q }}">fetchart</a>
+      <a class="btn btn-sm btn-d" href="/console?cmd={{ ('embedart -y album_id:' ~ album.id)|q }}">embedart</a>
+      <a class="btn btn-sm btn-d" href="/console?cmd={{ ('replaygain -a album_id:' ~ album.id)|q }}">replaygain</a>
+      <a class="btn btn-sm btn-d" href="/console?cmd={{ ('lyrics album_id:' ~ album.id)|q }}">lyrics</a>
+    </div>
+  </div>
+</div>
+
+<h2>Tracks</h2>
+<div class="scroll"><table class="table">
+  <thead><tr><th class="num">#</th><th>Title</th><th>Artist</th><th class="num">Length</th><th class="hide-sm">Format</th></tr></thead>
+  <tbody>{% for it in items %}<tr><td class="num">{% if album.disctotal and album.disctotal > 1 %}{{ it.disc }}-{% endif %}{{ it.track }}</td><td><a href="/library/item/{{ it.id }}">{{ it.title }}</a></td><td>{{ it.artist }}</td><td class="num">{{ it.length|duration }}</td><td class="hide-sm">{{ it.format }} {{ (it.bitrate // 1000) if it.bitrate else '' }}{% if it.bitdepth %} · {{ it.bitdepth }}bit/{{ (it.samplerate / 1000)|round(1) }}kHz{% endif %}</td></tr>{% endfor %}</tbody>
+</table></div>
+
+<details>
+<summary><h2 style="display:inline">Edit album</h2></summary>
+<form method="post" action="/library/album/{{ album.id }}/edit">
+  <div class="fields">
+    {% for k, v in fields.items() %}<div><label for="f-{{ k }}">{{ k }}</label><input type="text" id="f-{{ k }}" name="{{ k }}" value="{{ v }}"></div>{% endfor %}
+  </div>
+  <label for="extra">Other fields, one <code>field=value</code> per line (<code>field!</code> deletes a flexible field)</label>
+  <textarea id="extra" name="extra" placeholder="mood=happy">{% for k, v in flex.items() %}{% if v is string or v is number %}{{ k }}={{ v }}
+{% endif %}{% endfor %}</textarea>
+  <div class="bar">
+    <label><input type="checkbox" name="write" value="1" checked> write tags to files</label>
+    <label><input type="checkbox" name="move" value="1"> move files to match the path format</label>
+    <span class="spacer"></span>
+    <button class="btn btn-sm btn-b">Save</button>
+  </div>
+</form>
+</details>
+
+<details>
+<summary><h2 style="display:inline">Remove</h2></summary>
+<form method="post" action="/library/album/{{ album.id }}/remove" onsubmit="return confirm(this.delete.checked ? 'Remove the album AND delete its files from disk?' : 'Remove the album from the library (files stay on disk)?')">
+  <div class="bar">
+    <label><input type="checkbox" name="delete" value="1"> also delete the files from disk</label>
+    <span class="spacer"></span>
+    <button class="btn btn-sm btn-c">Remove album</button>
+  </div>
+</form>
+</details>
+{% endblock %}

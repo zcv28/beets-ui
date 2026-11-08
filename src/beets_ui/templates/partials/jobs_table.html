@@ -1,0 +1,15 @@
+<div class="scroll"><table class="table">
+  <thead><tr><th class="num">#</th><th>Job</th><th>Status</th><th class="hide-sm">By</th><th class="hide-sm">Queued</th><th class="hide-sm">Took</th></tr></thead>
+  <tbody>
+  {% for j in jobs %}
+  <tr>
+    <td class="num">{{ j.id }}</td>
+    <td><a href="/jobs/{{ j.id }}">{{ j.title }}</a>{% if j.error %}<br><small class="warnc">{{ j.error[:200] }}</small>{% endif %}</td>
+    <td><span class="badge {{ j.status }}">{{ j.status }}</span></td>
+    <td class="hide-sm"><small>{{ j.user or '' }}</small></td>
+    <td class="hide-sm nowrap"><small>{{ j.created_at|ts }}</small></td>
+    <td class="hide-sm nowrap"><small>{% if j.finished_at and j.started_at %}{{ (j.finished_at - j.started_at)|duration }}{% endif %}</small></td>
+  </tr>
+  {% else %}<tr><td colspan="6" class="muted">No jobs yet.</td></tr>{% endfor %}
+  </tbody>
+</table></div>

@@ -1,0 +1,6 @@
+<div class="tabs">
+  <a href="/library" {% if tab == 'albums' %}class="on"{% endif %}>Albums</a>
+  <a href="/library/artists" {% if tab == 'artists' %}class="on"{% endif %}>Artists</a>
+  <a href="/library/tracks" {% if tab == 'tracks' and not singletons %}class="on"{% endif %}>Tracks</a>
+  <a href="/library/tracks?singletons=1" {% if tab == 'tracks' and singletons %}class="on"{% endif %}>Singletons</a>
+</div>

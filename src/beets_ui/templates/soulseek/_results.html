@@ -1,0 +1,38 @@
+<div id="results" {% if not done %}hx-get="/soulseek/s/{{ search_id }}/results?fmt={{ fmt }}&free={{ free }}" hx-trigger="every 2s" hx-swap="outerHTML"{% endif %}>
+<p class="muted">{% if not done %}<span class="loading">Searching</span> · {% endif %}{{ search.responseCount or 0 }} users responded · {{ groups|length }} folders shown</p>
+{% if groups %}
+<div class="scroll"><table class="table">
+  <thead><tr><th>Folder</th><th>Format</th><th class="num">kbps</th><th class="num">Files</th><th class="num">Size</th><th class="hide-sm">User</th><th class="num hide-sm">Speed</th><th class="num hide-sm">Queue</th><th></th></tr></thead>
+  <tbody>
+  {% for g in groups %}
+  <tr>
+    <td>
+      <details><summary><strong>{{ g.folder_name }}</strong></summary>
+        <small class="muted">{{ g.folder }}</small>
+        <ol>{% for f in g.files %}<li><small>{{ f.name }} · {{ f.size|size }}{% if f.length %} · {{ f.length|duration }}{% endif %}</small></li>{% endfor %}</ol>
+      </details>
+    </td>
+    <td>{{ g.format }}</td>
+    <td class="num">{{ g.bitrate or '' }}</td>
+    <td class="num">{{ g.files|length }}</td>
+    <td class="num nowrap">{{ g.size|size }}</td>
+    <td class="hide-sm"><small>{{ g.username }}</small>{% if g.locked %} <small class="warnc" title="some files are locked">🔒</small>{% endif %}</td>
+    <td class="num hide-sm nowrap"><small>{{ (g.speed or 0)|size }}/s</small></td>
+    <td class="num hide-sm">{% if g.free_slot %}<span class="pct good">free</span>{% else %}{{ g.queue }}{% endif %}</td>
+    <td>
+      {% if g.in_inbox %}<small class="muted">in inbox</small>{% endif %}
+      <form class="inline" method="post" action="/soulseek/download">
+        <input type="hidden" name="search_id" value="{{ search_id }}">
+        <input type="hidden" name="username" value="{{ g.username }}">
+        <input type="hidden" name="folder" value="{{ g.folder }}">
+        <button class="btn btn-sm btn-b">Download</button>
+      </form>
+    </td>
+  </tr>
+  {% endfor %}
+  </tbody>
+</table></div>
+{% elif done %}
+<div class="wip">No audio folders found. Try fewer words.</div>
+{% endif %}
+</div>

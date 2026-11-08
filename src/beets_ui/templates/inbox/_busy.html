@@ -1,0 +1,4 @@
+<div class="wip" hx-get="/inbox/folder/status?f={{ folder.path|q }}&was={{ folder.status }}" hx-trigger="every 2s" hx-swap="outerHTML">
+  <span class="badge {{ folder.status }}">{{ labels.get(folder.status, folder.status) }}</span>
+  <span class="loading">Working on it</span>{% if folder.job_id %} · <a href="/jobs/{{ folder.job_id }}">job #{{ folder.job_id }} log</a>{% endif %}
+</div>

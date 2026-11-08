@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+{% block title %}Artist pictures{% endblock %}
+{% block content %}
+<h1>Artwork</h1>
+{% set tab = 'artists' %}{% include "artwork/_tabs.html" %}
+<p class="muted">Artist pictures are saved as <code>{{ names|join('</code>, <code>')|safe }}</code> in each album artist's folder, which is where Jellyfin and most players look.</p>
+<form class="bar" method="get" action="/artwork/artists">
+  <select name="filter" onchange="this.form.submit()">
+    <option value="missing" {% if filter == 'missing' %}selected{% endif %}>missing pictures</option>
+    <option value="all" {% if filter == 'all' %}selected{% endif %}>all artists</option>
+    <option value="nofolder" {% if filter == 'nofolder' %}selected{% endif %}>no artist folder</option>
+  </select>
+  <input type="search" name="q" value="{{ q }}" placeholder="artist name">
+  <button class="btn btn-sm btn-a">Filter</button>
+</form>
+<details>
+  <summary><strong>Fill automatically</strong> <span class="muted">uses the first match from the sources, in order</span></summary>
+  <form method="post" action="/artwork/artists/fill">
+    {% include "artwork/_sources.html" %}
+    <div class="bar">
+      <label><input type="checkbox" name="overwrite" value="1"> replace existing pictures</label>
+      <span class="spacer"></span>
+      <button class="btn btn-sm btn-b">Fill missing pictures</button>
+    </div>
+  </form>
+</details>
+<p class="muted">{{ total }} artist{{ 's' if total != 1 }}</p>
+<div class="grid">
+  {% for a in rows %}
+  <a class="card" href="/artwork/artist?name={{ a.name|q }}">
+    <img loading="lazy" src="/artwork/artist/image?name={{ a.name|q }}" alt="">
+    <div class="t" title="{{ a.name }}">{{ a.name }}</div>
+    <div class="s">{{ a.albums|length }} album{{ 's' if a.albums|length != 1 }}{% if a.folder is none %} · <span class="warnc" title="{{ a.reason }}">no folder</span>{% elif not a.image %} · <span class="warnc">missing</span>{% endif %}</div>
+  </a>
+  {% else %}<div class="msg">Nothing to do here.</div>{% endfor %}
+</div>
+{% endblock %}

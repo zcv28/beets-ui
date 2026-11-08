@@ -1,0 +1,2 @@
+{% if trimmed %}<p class="muted">Showing the last part of the log.</p>{% endif %}
+<pre class="log">{{ log or ('Waiting for the job to start…' if job.status == 'queued' else '(no output)') }}</pre>

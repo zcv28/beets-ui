@@ -1,0 +1,20 @@
+{% if folders %}
+<div class="scroll">
+<table class="table">
+  <thead><tr><th>Folder</th><th>Status</th><th class="num">Best match</th><th class="hide-sm">Albums</th><th class="hide-sm">Updated</th></tr></thead>
+  <tbody>
+  {% for f in folders %}
+  <tr>
+    <td><a href="/inbox/folder?f={{ f.path|q }}">{{ f.path }}</a>{% if f.error %}<br><small>{{ f.error }}</small>{% endif %}</td>
+    <td><span class="badge {{ f.status }}">{{ labels.get(f.status, f.status) }}</span></td>
+    <td class="num">{% if f.best is not none %}<span class="pct {{ f.best|match_class }}">{{ '%.1f'|format(f.best) }}%</span>{% endif %}</td>
+    <td class="hide-sm">{{ f.tasks|length or '' }}</td>
+    <td class="hide-sm nowrap"><small>{{ f.updated_at|ts }}</small></td>
+  </tr>
+  {% endfor %}
+  </tbody>
+</table>
+</div>
+{% else %}
+<div class="msg">Nothing here. Drop album folders into the inbox (or download them from Soulseek) and they will show up.</div>
+{% endif %}

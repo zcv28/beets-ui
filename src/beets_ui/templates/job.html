@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+{% block title %}Job #{{ job.id }}{% endblock %}
+{% block content %}
+<p><a href="/jobs">← Jobs</a></p>
+<h1>#{{ job.id }} {{ job.title }}</h1>
+<div class="bar">
+  <span class="badge {{ job.status }}">{{ job.status }}</span>
+  <small class="muted">queued {{ job.created_at|ts }}{% if job.user %} by {{ job.user }}{% endif %}{% if job.finished_at and job.started_at %} · took {{ (job.finished_at - job.started_at)|duration }}{% endif %}</small>
+  <span class="spacer"></span>
+  {% if job.kind == 'console' %}<a class="btn btn-sm btn-d" href="/console?cmd={{ job.params.argv|join(' ')|q }}">Run again</a>{% endif %}
+  {% if job.params.folder %}<a class="btn btn-sm btn-d" href="/inbox/folder?f={{ job.params.folder|q }}">Open folder</a>{% endif %}
+  {% if job.status in ('queued', 'running') %}<form class="inline" method="post" action="/jobs/{{ job.id }}/cancel"><button class="btn btn-sm btn-c">{{ 'Cancel' if job.status == 'queued' else 'Interrupt' }}</button></form>{% endif %}
+</div>
+{% if job.error %}<div class="warn">{{ job.error }}</div>{% endif %}
+{% if job.status in ('queued', 'running') %}
+<div hx-get="/jobs/{{ job.id }}/log" hx-trigger="every 1s" hx-swap="innerHTML">{% include "partials/job_log.html" %}</div>
+{% else %}
+{% include "partials/job_log.html" %}
+{% endif %}
+{% endblock %}

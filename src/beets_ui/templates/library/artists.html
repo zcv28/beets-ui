@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+{% block title %}Artists{% endblock %}
+{% block content %}
+<h1>Library</h1>
+{% set tab = 'artists' %}{% include "library/_tabs.html" %}
+<div class="grid">
+  {% for a in artists %}
+  <div class="card">
+    <a href="/library?q={{ ('albumartist:=' ~ a.name)|q }}"><img loading="lazy" src="/artwork/artist/image?name={{ a.name|q }}" alt=""></a>
+    <div class="t" title="{{ a.name }}"><a href="/library?q={{ ('albumartist:=' ~ a.name)|q }}">{{ a.name }}</a></div>
+    <div class="s">{{ a.albums }} album{{ 's' if a.albums != 1 }} · <a href="/artwork/artist?name={{ a.name|q }}">picture</a></div>
+  </div>
+  {% else %}<div class="msg">The library is empty.</div>{% endfor %}
+</div>
+{% endblock %}

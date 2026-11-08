@@ -1,0 +1,24 @@
+{% set errors = cands|selectattr('error', 'defined')|list %}
+{% set images = cands|rejectattr('error', 'defined')|list %}
+{% for e in errors %}<div class="wip"><small>{{ e.error }}</small></div>{% endfor %}
+{% if images %}
+<form method="post" action="{{ action }}">
+  {% for k, v in hidden.items() %}<input type="hidden" name="{{ k }}" value="{{ v }}">{% endfor %}
+  <div class="grid">
+    {% for c in images %}
+    <label class="card pick">
+      <input type="radio" name="url" value="{{ c.url }}" {% if loop.first %}checked{% endif %}>
+      <img loading="lazy" src="{{ c.thumb }}" alt="" referrerpolicy="no-referrer">
+      <div class="t">{{ c.source }}</div>
+      <div class="s">{% if c.width %}{{ c.width }}×{{ c.height }}{% else %}size unknown{% endif %}{% if c.note %} · {{ c.note }}{% endif %} · <a href="{{ c.url }}" target="_blank" rel="noopener noreferrer">full</a></div>
+    </label>
+    {% endfor %}
+  </div>
+  <div class="bar right">
+    {% if embed %}<label><input type="checkbox" name="embed" value="1"> embed into files</label>{% endif %}
+    <button class="btn btn-sm btn-b">Use selected image</button>
+  </div>
+</form>
+{% else %}
+<div class="msg">No images found with the selected sources.</div>
+{% endif %}

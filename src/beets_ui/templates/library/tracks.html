@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% block title %}Tracks{% endblock %}
+{% block content %}
+<h1>Library</h1>
+{% set tab = 'tracks' %}{% include "library/_tabs.html" %}
+<form class="bar" method="get" action="/library/tracks">
+  <input type="hidden" name="singletons" value="{{ singletons }}">
+  <input type="search" name="q" value="{{ q }}" placeholder="beets query, e.g. artist:Foo title:bar format:FLAC">
+  <button class="btn btn-sm btn-a">Search</button>
+</form>
+{% if error %}<div class="warn">Query error: {{ error }}</div>{% endif %}
+<div class="scroll"><table class="table">
+  <thead><tr><th>Artist</th><th>Title</th><th>Album</th><th class="num">Length</th><th class="hide-sm">Format</th></tr></thead>
+  <tbody>{% for it in items %}<tr><td>{{ it.artist }}</td><td><a href="/library/item/{{ it.id }}">{{ it.title or '(untitled)' }}</a></td><td>{% if it.album_id %}<a href="/library/album/{{ it.album_id }}">{{ it.album }}</a>{% else %}<span class="muted">singleton</span>{% endif %}</td><td class="num">{{ it.length|duration }}</td><td class="hide-sm">{{ it.format }} {{ (it.bitrate // 1000) if it.bitrate else '' }}</td></tr>{% endfor %}</tbody>
+</table></div>
+{% if not items and not error %}<div class="msg">No tracks{% if q %} match this query{% endif %}.</div>{% endif %}
+<div class="bar">
+  {% if page > 1 %}<a class="btn btn-sm btn-d" href="?q={{ q|q }}&singletons={{ singletons }}&page={{ page - 1 }}">← Previous</a>{% endif %}
+  <span class="spacer"></span>
+  {% if more %}<a class="btn btn-sm btn-d" href="?q={{ q|q }}&singletons={{ singletons }}&page={{ page + 1 }}">Next →</a>{% endif %}
+</div>
+{% endblock %}

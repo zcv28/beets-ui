@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% block title %}{{ item.title }}{% endblock %}
+{% block content %}
+<p>{% if album %}<a href="/library/album/{{ album.id }}">← {{ album.album }}</a>{% else %}<a href="/library/tracks?singletons=1">← Singletons</a>{% endif %}</p>
+<h1>{{ item.title or '(untitled)' }}</h1>
+<h3>{{ item.artist }}</h3>
+<dl class="kv">
+  <dt>File</dt><dd><code>{{ item.path|fsdecode }}</code></dd>
+  <dt>Format</dt><dd>{{ item.format }} · {{ (item.bitrate // 1000) if item.bitrate else '?' }} kbps · {{ item.length|duration }}{% if item.bitdepth %} · {{ item.bitdepth }} bit{% endif %}{% if item.samplerate %} · {{ item.samplerate }} Hz{% endif %}</dd>
+  {% if item.mb_trackid %}<dt>MusicBrainz</dt><dd><a href="https://musicbrainz.org/recording/{{ item.mb_trackid }}" target="_blank" rel="noopener noreferrer">{{ item.mb_trackid }}</a></dd>{% endif %}
+  <dt>Item ID</dt><dd>{{ item.id }}</dd>
+</dl>
+<h2>Edit track</h2>
+<form method="post" action="/library/item/{{ item.id }}/edit">
+  <div class="fields">
+    {% for k, v in fields.items() if k != 'lyrics' %}<div><label for="f-{{ k }}">{{ k }}</label><input type="text" id="f-{{ k }}" name="{{ k }}" value="{{ v }}"></div>{% endfor %}
+  </div>
+  <label for="f-lyrics">lyrics</label>
+  <textarea id="f-lyrics" name="lyrics">{{ fields.lyrics }}</textarea>
+  <label for="extra">Other fields, one <code>field=value</code> per line (<code>field!</code> deletes a flexible field)</label>
+  <textarea id="extra" name="extra">{% for k, v in flex.items() %}{% if v is string or v is number %}{{ k }}={{ v }}
+{% endif %}{% endfor %}</textarea>
+  <div class="bar">
+    <label><input type="checkbox" name="write" value="1" checked> write tags to file</label>
+    <label><input type="checkbox" name="move" value="1"> move file to match the path format</label>
+    <span class="spacer"></span>
+    <button class="btn btn-sm btn-b">Save</button>
+  </div>
+</form>
+<h2>Remove</h2>
+<form method="post" action="/library/item/{{ item.id }}/remove" onsubmit="return confirm(this.delete.checked ? 'Remove the track AND delete the file?' : 'Remove the track from the library (file stays on disk)?')">
+  <div class="bar">
+    <label><input type="checkbox" name="delete" value="1"> also delete the file from disk</label>
+    <span class="spacer"></span>
+    <button class="btn btn-sm btn-c">Remove track</button>
+  </div>
+</form>
+{% endblock %}

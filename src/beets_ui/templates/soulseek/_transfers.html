@@ -1,0 +1,25 @@
+{% if error %}<div class="warn">{{ error }}</div>{% endif %}
+{% if rows %}
+<div class="scroll"><table class="table">
+  <thead><tr><th>Folder</th><th>State</th><th>Progress</th><th class="num">Size</th><th class="hide-sm">User</th><th></th></tr></thead>
+  <tbody>
+  {% for r in rows %}
+  <tr>
+    <td><details><summary>{{ r.folder_name }}</summary><ol>{% for f in r.files %}<li><small>{{ f.name }} · {{ f.state }} · {{ f.percent }}%</small></li>{% endfor %}</ol></details></td>
+    <td><span class="badge {{ {'done': 'done', 'failed': 'failed', 'downloading': 'running', 'queued': 'queued'}[r.state] }}">{{ r.state }}</span></td>
+    <td class="nowrap"><span class="progress"><span style="width: {{ r.percent }}%"></span></span> <small>{{ r.percent }}%</small></td>
+    <td class="num nowrap">{{ r.size|size }}</td>
+    <td class="hide-sm"><small>{{ r.username }}</small></td>
+    <td>{% if r.state in ('queued', 'downloading') %}
+      <form class="inline" method="post" action="/soulseek/transfers/cancel">
+        <input type="hidden" name="username" value="{{ r.username }}">
+        {% for f in r.files %}{% if 'Succeeded' not in f.state %}<input type="hidden" name="id" value="{{ f.id }}">{% endif %}{% endfor %}
+        <button class="link">cancel</button>
+      </form>{% endif %}</td>
+  </tr>
+  {% endfor %}
+  </tbody>
+</table></div>
+{% elif not error %}
+<div class="msg">No downloads.</div>
+{% endif %}

@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+{% block title %}{{ search.searchText }}{% endblock %}
+{% block content %}
+<h1>Soulseek</h1>
+{% set tab = 'search' %}{% include "soulseek/_tabs.html" %}
+<form method="post" action="/soulseek/search" class="bar">
+  <input type="search" name="q" value="{{ search.searchText }}" required minlength="3">
+  <button class="btn btn-sm btn-a">Search again</button>
+</form>
+<form method="get" class="bar">
+  <span class="muted">Filter:</span>
+  <select name="fmt" onchange="this.form.submit()">
+    <option value="">any format</option>
+    {% for f in ['lossless', 'flac', 'mp3', 'm4a', 'opus', 'ogg'] %}<option value="{{ f }}" {% if fmt == f %}selected{% endif %}>{{ f }}</option>{% endfor %}
+  </select>
+  <label><input type="checkbox" name="free" value="1" {% if free %}checked{% endif %} onchange="this.form.submit()"> free upload slot only</label>
+</form>
+{% include "soulseek/_results.html" %}
+{% endblock %}

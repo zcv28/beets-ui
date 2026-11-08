@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% block title %}Cover: {{ album.album }}{% endblock %}
+{% block content %}
+<p><a href="/artwork">← Album covers</a> · <a href="/library/album/{{ album.id }}">album page</a></p>
+<div class="album-head">
+  <div class="art"><img class="cover" src="/library/album/{{ album.id }}/cover?size=600" alt=""><p><small>{% if cover.has %}current: {{ cover.size[0] if cover.size else '?' }}×{{ cover.size[1] if cover.size else '?' }}{% else %}no cover file{% endif %}</small></p></div>
+  <div class="meta">
+    <h1>{{ album.album }}</h1>
+    <h3>{{ album.albumartist }}{% if album.year %} · {{ album.year }}{% endif %}</h3>
+    <h3>Upload your own</h3>
+    <form method="post" action="/artwork/album/{{ album.id }}/set" enctype="multipart/form-data">
+      <input type="file" name="upload" accept="image/jpeg,image/png,image/webp" required>
+      <div class="bar"><label><input type="checkbox" name="embed" value="1"> embed into files</label><button class="btn btn-sm btn-b">Upload</button></div>
+    </form>
+  </div>
+</div>
+<h2>Find covers</h2>
+<form hx-get="/artwork/album/{{ album.id }}/candidates" hx-target="#cands" hx-trigger="load, submit" hx-indicator="#cands">
+  {% include "artwork/_sources.html" %}
+  <div class="bar right"><button class="btn btn-sm btn-a">Search</button></div>
+</form>
+<div id="cands"><p class="loading muted">Searching</p></div>
+{% endblock %}

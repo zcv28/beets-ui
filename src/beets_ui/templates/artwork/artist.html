@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% block title %}{{ info.name }}{% endblock %}
+{% block content %}
+<p><a href="/artwork/artists">← Artist pictures</a> · <a href="/library?q={{ ('albumartist:=' ~ info.name)|q }}">albums</a></p>
+<div class="album-head">
+  <div class="art"><img class="cover" src="/artwork/artist/image?name={{ info.name|q }}&size=600" alt=""></div>
+  <div class="meta">
+    <h1>{{ info.name }}</h1>
+    <dl class="kv">
+      <dt>Albums</dt><dd>{{ info.albums|length }}</dd>
+      {% if info.mbid %}<dt>MusicBrainz</dt><dd><a href="https://musicbrainz.org/artist/{{ info.mbid }}" target="_blank" rel="noopener noreferrer">{{ info.mbid }}</a></dd>{% endif %}
+      <dt>Folder</dt><dd>{% if info.folder %}<code>{{ info.folder }}</code>{% else %}<span class="warnc">{{ info.reason }}</span>{% endif %}</dd>
+      <dt>Picture</dt><dd>{% if info.image %}<code>{{ info.image.name }}</code>{% else %}none{% endif %}</dd>
+    </dl>
+    {% if info.folder %}
+    <h3>Upload your own</h3>
+    <form method="post" action="/artwork/artist/set" enctype="multipart/form-data">
+      <input type="hidden" name="name" value="{{ info.name }}">
+      <input type="file" name="upload" accept="image/jpeg,image/png,image/webp" required>
+      <div class="bar"><button class="btn btn-sm btn-b">Upload</button></div>
+    </form>
+    {% else %}
+    <div class="wip">Pictures can only be saved when every album by this artist sits inside one folder that holds nothing else (for example a path format like <code>$albumartist/$album</code>).</div>
+    {% endif %}
+  </div>
+</div>
+{% if info.folder %}
+<h2>Find pictures</h2>
+<form hx-get="/artwork/artist/candidates" hx-target="#cands" hx-trigger="load, submit" hx-indicator="#cands">
+  <input type="hidden" name="name" value="{{ info.name }}">
+  {% include "artwork/_sources.html" %}
+  <div class="bar right"><button class="btn btn-sm btn-a">Search</button></div>
+</form>
+<div id="cands"><p class="loading muted">Searching</p></div>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,141 @@
+{% extends "base.html" %}
+{% block title %}{{ folder.path }}{% endblock %}
+{% block content %}
+<p><a href="/inbox">← Inbox</a></p>
+<h1>{{ folder.path }}</h1>
+<div class="bar">
+  <span class="badge {{ folder.status }}">{{ labels.get(folder.status, folder.status) }}</span>
+  <span class="muted">mode: {{ {'albums': 'albums', 'grouped': 'albums grouped by tags', 'tracks': 'individual tracks'}[folder.mode] }}</span>
+  {% if folder.job_id %}<a href="/jobs/{{ folder.job_id }}">last job #{{ folder.job_id }}</a>{% endif %}
+</div>
+
+{% if busy %}{% include "inbox/_busy.html" %}{% endif %}
+{% if folder.error and folder.status not in ('duplicate',) %}<div class="{{ 'warn' if folder.status == 'failed' else 'wip' }}">{{ folder.error }}</div>{% endif %}
+
+{% if folder.status == 'imported' %}
+<div class="ok-box">
+  Imported into the library. The source files are still in the inbox (beets copies by default).
+  <form class="inline" method="post" action="/inbox/folder/delete" onsubmit="return confirm('Delete {{ folder.path }} from the inbox?')">
+    <input type="hidden" name="f" value="{{ folder.path }}">
+    <button class="btn btn-sm btn-c">Delete source folder</button>
+  </form>
+</div>
+{% endif %}
+
+<details {% if not folder.tasks %}open{% endif %}>
+  <summary><strong>Search again / options</strong></summary>
+  <form method="post" action="/inbox/folder/preview">
+    <input type="hidden" name="f" value="{{ folder.path }}">
+    <div class="fields">
+      <div><label>Artist</label><input type="text" name="artist" placeholder="search artist"></div>
+      <div><label>Album / title</label><input type="text" name="album" placeholder="search album"></div>
+      <div><label>IDs (MusicBrainz, Discogs, … URL or ID)</label><input type="text" name="ids" placeholder="space or comma separated"></div>
+      <div><label>Import as</label>
+        <select name="mode">
+          <option value="albums" {% if folder.mode == 'albums' %}selected{% endif %}>albums (per directory)</option>
+          <option value="grouped" {% if folder.mode == 'grouped' %}selected{% endif %}>albums grouped by tags</option>
+          <option value="tracks" {% if folder.mode == 'tracks' %}selected{% endif %}>individual tracks (singletons)</option>
+        </select>
+      </div>
+    </div>
+    <div class="bar">
+      <label><input type="checkbox" name="merge" value="1" checked> keep current candidates</label>
+      <span class="spacer"></span>
+      <button class="btn btn-sm btn-a" {% if busy %}disabled{% endif %}>Look up</button>
+    </div>
+  </form>
+  <div class="bar">
+    {% if slskd_enabled and folder.tasks %}
+    <a class="btn btn-sm btn-d" href="/soulseek?q={{ (folder.tasks[0].cur_artist ~ ' ' ~ folder.tasks[0].cur_album)|q }}">Search Soulseek for this album</a>
+    {% endif %}
+    <span class="spacer"></span>
+    <form class="inline" method="post" action="/inbox/folder/delete" onsubmit="return confirm('Delete {{ folder.path }} and all its files from the inbox?')">
+      <input type="hidden" name="f" value="{{ folder.path }}">
+      <button class="btn btn-sm btn-c" {% if busy %}disabled{% endif %}>Delete folder</button>
+    </form>
+  </div>
+</details>
+
+{% if folder.tasks %}
+<form method="post" action="/inbox/folder/import">
+<input type="hidden" name="f" value="{{ folder.path }}">
+{% for task in folder.tasks %}
+{% set ti = loop.index0 %}
+{% set dec = folder.decisions.get(task.key, {}) %}
+{% set dup = folder.duplicates.get(task.key) %}
+<h2>{% if task.is_album %}{{ task.cur_artist or '?' }} – {{ task.cur_album or '?' }}{% else %}{{ task['items'][0].artist }} – {{ task['items'][0].title }}{% endif %}</h2>
+<p class="muted">{{ task['items']|length }} file(s){% if task['items'] %} · {{ task['items']|map(attribute='format')|unique|join(', ') }}{% endif %} · {{ task.paths[0]|replace(inbox_root ~ '/', '') }}</p>
+
+{% if dup %}
+<div class="warn">
+  <strong>Already in your library:</strong>
+  <ul>{% for e in dup.existing %}<li>{% if e.type == 'album' %}<a href="/library/album/{{ e.id }}">{{ e.albumartist }} – {{ e.album }}</a>{% else %}{{ e.albumartist }} – {{ e.album }}{% endif %} ({{ e.year or '?' }}, {{ e.tracks }} tracks, {{ e.format }} {{ e.bitrate }}kbps) <small>{{ e.path }}</small></li>{% endfor %}</ul>
+  <div class="bar">
+    <strong>Resolve:</strong>
+    {% for a in dup_actions %}<label><input type="radio" name="dup-{{ ti }}" value="{{ a }}" {% if loop.first %}required{% endif %}> {{ {'skip': 'skip new', 'keep': 'keep both', 'remove': 'replace old', 'merge': 'merge', 'upgrade': 'upgrade better tracks'}[a] }}</label>{% endfor %}
+  </div>
+</div>
+{% endif %}
+
+{% for c in task.candidates %}
+{% set ci = loop.index0 %}
+{% set chosen = dec.get('action') == 'apply' and dec.get('id') == c.id and dec.get('source') == c.source %}
+<details class="cand {% if chosen %}chosen{% endif %}" {% if chosen and task.is_album %}open{% endif %}>
+  <summary class="head">
+    <label><input type="radio" name="choice-{{ ti }}" value="c:{{ ci }}" {% if chosen %}checked{% endif %}></label>
+    <span class="pct {{ c.match|match_class }}">{{ '%.1f'|format(c.match) }}%</span>
+    <span><strong>{{ c.artist }} – {{ c.album if c.kind == 'album' else c.title }}</strong></span>
+    {% if c.kind == 'album' %}
+    <span class="muted">{{ c.year or '' }}{% if c.label %} · {{ c.label }}{% endif %}{% if c.catalognum %} · {{ c.catalognum }}{% endif %}{% if c.country %} · {{ c.country }}{% endif %}{% if c.media %} · {{ c.mediums ~ '×' if c.mediums and c.mediums > 1 }}{{ c.media }}{% endif %} · {{ c.track_count }} tracks</span>
+    {% else %}
+    <span class="muted">{{ c.album or '' }} · {{ c.length|duration }}</span>
+    {% endif %}
+    <span class="badge">{{ c.source }}</span>
+    {% if c.url %}<a href="{{ c.url }}" target="_blank" rel="noopener noreferrer">↗</a>{% endif %}
+    {% if c.penalties %}<small class="muted">differs: {{ c.penalties|join(', ') }}</small>{% endif %}
+  </summary>
+  {% if c.kind == 'album' %}
+  <div class="tracks scroll">
+    {% if c.disambig %}<p class="muted">{{ c.disambig }}</p>{% endif %}
+    <table class="table">
+      <thead><tr><th class="num">#</th><th>Current</th><th></th><th>New</th><th class="num">Length</th></tr></thead>
+      <tbody>
+      {% for t in c.tracks %}
+      <tr>
+        <td class="num">{% if t.medium and c.mediums and c.mediums > 1 %}{{ t.medium }}-{% endif %}{{ t.new_track }}</td>
+        <td>{{ t.cur_title }}</td>
+        <td class="arrow">→</td>
+        <td {% if t.title_changed %}class="changed"{% endif %}>{{ t.new_title }}{% if t.new_artist and t.new_artist != c.artist %} <small class="muted">({{ t.new_artist }})</small>{% endif %}</td>
+        <td class="num {% if t.length_off %}warnc{% endif %}">{{ t.cur_length|duration }}{% if t.length_off %} → {{ t.new_length|duration }}{% endif %}</td>
+      </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    {% if c.extra_tracks %}<div class="wip">Missing tracks ({{ c.extra_tracks|length }}): {{ c.extra_tracks|join(', ') }}</div>{% endif %}
+    {% if c.extra_items %}<div class="wip">Unmatched files ({{ c.extra_items|length }}): {{ c.extra_items|join(', ') }}</div>{% endif %}
+  </div>
+  {% endif %}
+</details>
+{% endfor %}
+{% if not task.candidates %}<div class="wip">No candidates. Search by artist/album or paste an ID above, or import as-is.</div>{% endif %}
+<div class="bar">
+  <label><input type="radio" name="choice-{{ ti }}" value="asis" {% if dec.get('action') == 'asis' %}checked{% endif %}> Import as-is (keep current tags)</label>
+  <label><input type="radio" name="choice-{{ ti }}" value="skip" {% if dec.get('action', 'skip') == 'skip' %}checked{% endif %}> Skip</label>
+</div>
+<details>
+  <summary class="muted">Current files</summary>
+  <div class="scroll"><table class="table">
+    <thead><tr><th class="num">#</th><th>Title</th><th>Artist</th><th>Album</th><th>File</th><th class="num">Length</th><th class="num">kbps</th></tr></thead>
+    <tbody>{% for it in task['items'] %}<tr><td class="num">{{ it.track or '' }}</td><td>{{ it.title }}</td><td>{{ it.artist }}</td><td>{{ it.album }}</td><td><small>{{ it.filename }}</small></td><td class="num">{{ it.length|duration }}</td><td class="num">{{ it.bitrate }}</td></tr>{% endfor %}</tbody>
+  </table></div>
+</details>
+{% endfor %}
+<hr>
+<div class="bar">
+  <span class="muted">Copy/move, tag writing and path format come from your beets config.</span>
+  <span class="spacer"></span>
+  <button class="btn btn-b" {% if busy %}disabled{% endif %}>Import</button>
+</div>
+</form>
+{% endif %}
+{% endblock %}

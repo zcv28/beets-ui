@@ -1,0 +1,30 @@
+# Default beets configuration written by beets-ui on first start.
+# Full reference: https://beets.readthedocs.io/en/stable/reference/config.html
+directory: /music
+library: /config/beets/library.db
+
+# In beets 2.x the MusicBrainz source is a plugin: keep it in this list.
+# Doujin sources bundled in the image: vocadb, utaitedb, touhoudb.
+plugins:
+  - musicbrainz
+  - fetchart
+  - embedart
+
+import:
+  copy: yes        # leave the originals in the inbox (delete them from the UI)
+  write: yes
+  log: /config/beets/import.log
+
+paths:
+  default: $albumartist/$album%aunique{}/$track $title
+  singleton: $albumartist/Non-Album/$artist - $title
+  comp: Compilations/$album%aunique{}/$track $title
+
+art_filename: cover
+
+fetchart:
+  auto: yes
+  sources: filesystem coverart itunes amazon albumart
+
+embedart:
+  auto: no

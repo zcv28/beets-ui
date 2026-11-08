@@ -1,0 +1,31 @@
+services:
+  beets-ui:
+    image: ghcr.io/zcv28/beets-ui:latest
+    container_name: beets-ui
+    restart: unless-stopped
+    # Run as the user that owns your music and slskd downloads.
+    user: "1000:1000"
+    ports:
+      - "8337:8337"
+    environment:
+      TZ: Europe/Rome
+      BEETSUI_PASSWORD: change-me          # used when LDAP is off
+      # BEETSUI_LDAP_ENABLED: "true"
+      # LDAP_URL: ldap://lldap:3890
+      # LDAP_BIND_DN: uid=beets-ui,ou=people,dc=example,dc=org
+      # LDAP_BIND_PASSWORD: secret
+      # LDAP_BASE_DN: ou=people,dc=example,dc=org
+      # LDAP_USER_FILTER: (&(uid={username})(memberOf=cn=music,ou=groups,dc=example,dc=org))
+      # SLSKD_URL: http://slskd:5030
+      # SLSKD_API_KEY: your-slskd-api-key
+      # FANARTTV_API_KEY: ""
+      # DISCOGS_TOKEN: ""
+      # EXTRA_PIP_PACKAGES: "beets-beatport4 requests-oauthlib"
+    volumes:
+      - ./config:/config                    # beets config + library.db, beets-ui state
+      - /srv/music:/music                   # sorted library (beets "directory")
+      - /srv/slskd/downloads:/inbox         # review inbox = slskd downloads folder
+    deploy:
+      resources:
+        limits:
+          memory: 512m
