@@ -84,5 +84,6 @@ jobs:
           done
           docker logs smoke
           [ "$ok" = 1 ]
-          docker exec smoke beet version
+          docker exec smoke beet version 2>&1 | tee version.txt
+          if grep -q "error loading plugin" version.txt; then echo "plugin failed to load"; exit 1; fi
           docker exec smoke ffmpeg -hide_banner -version | head -1
