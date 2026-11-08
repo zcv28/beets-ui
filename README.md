@@ -18,7 +18,7 @@ A small, self-hosted web frontend for [beets](https://beets.io). It runs in one 
 - **Jobs.** Every change to the library goes through a single queue, so nothing fights over the database, and each job keeps its log.
 - **Login.** A single password, or LDAP (lldap, OpenLDAP, Authentik and others).
 
-The UI uses the niki.moe theme, a dark variant of [min.css](https://mincss.com).
+The UI uses a dark variant of [min.css](https://mincss.com).
 
 ---
 
