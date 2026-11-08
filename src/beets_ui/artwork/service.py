@@ -184,35 +184,71 @@ class Artwork:
                 return p
         return None
 
-    def has_embedded(self, album: Any) -> bool:
-        """Whether the album's first track carries embedded art (cached by mtime)."""
+    def embedded_size(self, album: Any) -> tuple[int, int] | None:
+        """Size of the art embedded in the album's first track, cached by mtime.
+
+        Returns None without embedded art, (0, 0) when the size is unreadable.
+        """
         from mediafile import MediaFile
+        from PIL import Image
 
         items = list(album.items())
         if not items:
-            return False
+            return None
         path = os.fsdecode(items[0].path)
         try:
             mtime = os.stat(path).st_mtime_ns
         except OSError:
-            return False
+            return None
         key = (path, mtime)
         if key not in self._embedded_cache:
+            size: tuple[int, int] | None = None
             try:
-                self._embedded_cache[key] = bool(MediaFile(path).images)
-            except Exception:  # noqa: BLE001 - unreadable file: treat as no art
-                self._embedded_cache[key] = False
+                images = MediaFile(path).images
+                if images:
+                    size = (0, 0)
+                    with Image.open(io.BytesIO(images[0].data)) as im:
+                        size = im.size
+            except Exception:  # noqa: BLE001 - unreadable file or image
+                pass
+            self._embedded_cache[key] = size
         return self._embedded_cache[key]
 
+    def has_embedded(self, album: Any) -> bool:
+        return self.embedded_size(album) is not None
+
+    def embed_only(self) -> bool:
+        """True when beets' embedart deletes cover files after embedding them.
+
+        With ``embedart: {auto: yes, remove_art_file: yes}`` art lives only
+        inside the audio files, so embedded art is a complete cover and no
+        cover file will ever stay on disk.
+        """
+        if "embedart" not in beets_ctx.plugin_names():
+            return False
+        try:
+            return bool(config["embedart"]["auto"].get(bool)) and bool(
+                config["embedart"]["remove_art_file"].get(bool)
+            )
+        except Exception:  # noqa: BLE001
+            return False
+
     def cover_status(self, album: Any, check_embedded: bool = True) -> dict[str, Any]:
-        """``has``: a cover file exists; ``embedded``: art is only inside the files."""
+        """``has``: a cover file exists; ``embedded``: art only inside the files.
+
+        ``size`` is the cover file's size, or the embedded image's size.
+        """
         p = self.cover_path(album)
-        if p is None:
-            embedded = check_embedded and self.has_embedded(album)
-            return {"has": False, "embedded": embedded, "size": None, "low": not embedded}
-        size = image_size(p)
-        low = bool(size and min(size) < self.settings.min_cover_px)
-        return {"has": True, "embedded": False, "size": size, "low": low}
+        if p is not None:
+            size = image_size(p)
+            low = bool(size and min(size) < self.settings.min_cover_px)
+            return {"has": True, "embedded": False, "size": size, "low": low}
+        esize = self.embedded_size(album) if check_embedded else None
+        if esize is None:
+            return {"has": False, "embedded": False, "size": None, "low": True}
+        known = esize if any(esize) else None
+        low = bool(known and min(known) < self.settings.min_cover_px)
+        return {"has": False, "embedded": True, "size": known, "low": low}
 
     def thumbnail(self, src: Path, px: int = 300) -> Path:
         from PIL import Image
@@ -252,7 +288,9 @@ class Artwork:
             raise ArtworkError(f"download failed: {e}") from e
         return r.content
 
-    def save_album_cover(self, album: Any, data: bytes, embed: bool = False) -> Path:
+    def save_album_cover(self, album: Any, data: bytes, embed: bool = False) -> Path | None:
+        """Set the album's cover. Returns the cover file, or None when beets'
+        embedart (``remove_art_file``) embedded it and deleted the file."""
         ext, _ = validate_image(data)
         fd, tmp = tempfile.mkstemp(suffix=f".{ext}", dir=self.settings.data_dir)
         with os.fdopen(fd, "wb") as f:
@@ -265,9 +303,10 @@ class Artwork:
             raise _write_error(dest, getattr(e, "reason", None) or e) from e
         finally:
             Path(tmp).unlink(missing_ok=True)
-        if embed:
+        if embed and album.artpath:
             self.embed(album)
-        return Path(os.fsdecode(album.artpath))
+        self._embedded_cache.clear()
+        return Path(os.fsdecode(album.artpath)) if album.artpath else None
 
     def embed(self, album: Any) -> None:
         try:
@@ -367,7 +406,8 @@ class Artwork:
             raise ArtworkError("album not found")
         data = self._params_image(ctx)
         path = self.save_album_cover(album, data, embed=bool(ctx.params.get("embed")))
-        ctx.log(f"Saved cover for {album.albumartist} - {album.album} to {path}")
+        where = path if path else "the audio files (embedart removed the cover file)"
+        ctx.log(f"Saved cover for {album.albumartist} - {album.album} to {where}")
 
     def _job_set_artist(self, ctx: JobContext) -> None:
         name = ctx.params["artist"]
@@ -395,42 +435,48 @@ class Artwork:
         sources = ctx.params.get("sources") or None
         embed = bool(ctx.params.get("embed"))
         include_low = bool(ctx.params.get("low"))
-        extract = ctx.params.get("extract", True)
+        embed_only = self.embed_only()
+        extract = bool(ctx.params.get("extract", True)) and not embed_only
+        if embed_only:
+            ctx.log(
+                "embedart is set to embed covers and remove the files (remove_art_file), "
+                "so art embedded in the files counts as a complete cover."
+            )
         lib = beets_ctx.lib()
         done = extracted = failed = 0
         for album in lib.albums():
-            st = self.cover_status(album)
-            if st["has"] and not (include_low and st["low"]):
-                continue
             label = f"{album.albumartist} - {album.album}"
-            if st["embedded"]:
-                if not extract:
+            try:
+                st = self.cover_status(album)
+                complete = st["has"] or st["embedded"]
+                if complete and not (include_low and st["low"]):
+                    if st["embedded"] and not st["has"] and extract:
+                        data = self.embedded_cover(album)
+                        if data:
+                            self.save_album_cover(album, data)
+                            ctx.log(f"✓ {label} (extracted embedded art to a cover file)")
+                            extracted += 1
                     continue
-                data = self.embedded_cover(album)
-                if data:
+                cands = [c for c in self.find_album_covers(album, sources) if "error" not in c]
+                if include_low and st["size"]:
+                    cands = [c for c in cands if not c.get("width") or c["width"] > min(st["size"])]
+                for c in cands:
                     try:
-                        self.save_album_cover(album, data)
-                        ctx.log(f"✓ {label} (extracted embedded art)")
-                        extracted += 1
-                        continue
+                        path = self.save_album_cover(album, self.download(c["url"]), embed=embed)
+                        ctx.log(f"✓ {label} ({c['source']}{'' if path else ', embedded'})")
+                        done += 1
+                        break
                     except ArtworkError as e:
-                        ctx.log(f"  embedded art unusable: {e}")
-            cands = [c for c in self.find_album_covers(album, sources) if "error" not in c]
-            if include_low and st["size"]:
-                cands = [c for c in cands if not c.get("width") or c["width"] > min(st["size"])]
-            for c in cands:
-                try:
-                    self.save_album_cover(album, self.download(c["url"]), embed=embed)
-                    ctx.log(f"✓ {label} ({c['source']})")
-                    done += 1
-                    break
-                except ArtworkError as e:
-                    ctx.log(f"  {c['source']}: {e}")
-            else:
-                ctx.log(f"✗ {label}: nothing found")
+                        ctx.log(f"  {c['source']}: {e}")
+                else:
+                    ctx.log(f"✗ {label}: nothing found")
+                    failed += 1
+            except Exception as e:  # noqa: BLE001 - one bad album must not stop the job
+                ctx.log(f"✗ {label}: {type(e).__name__}: {e}")
                 failed += 1
         ctx.log(
-            f"Done: {done} covers downloaded, {extracted} extracted from files, {failed} not found"
+            f"Done: {done} covers downloaded, {extracted} extracted from files, "
+            f"{failed} not found or failed"
         )
 
     # ------------------------------------------------- artist auto-pick

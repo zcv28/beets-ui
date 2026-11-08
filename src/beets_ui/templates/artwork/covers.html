@@ -32,7 +32,7 @@
   <a class="card" href="/artwork/album/{{ a.id }}">
     <img loading="lazy" src="/library/album/{{ a.id }}/cover?size=300" alt="">
     <div class="t" title="{{ a.album }}">{{ a.album or '(untitled)' }}</div>
-    <div class="s">{{ a.albumartist }} · {% if st.has %}{{ st.size[0] if st.size else '?' }}px{% if st.low %} <span class="warnc">low</span>{% endif %}{% elif st.embedded %}<span class="changed">embedded only</span>{% else %}<span class="warnc">no cover</span>{% endif %}</div>
+    <div class="s">{{ a.albumartist }} · {% if st.has %}{{ st.size[0] if st.size else '?' }}px{% if st.low %} <span class="warnc">low</span>{% endif %}{% elif st.embedded %}embedded{% if st.size %} {{ st.size[0] }}px{% endif %}{% if st.low %} <span class="warnc">low</span>{% endif %}{% else %}<span class="warnc">no cover</span>{% endif %}</div>
   </a>
   {% else %}<div class="msg">Nothing to do here.</div>{% endfor %}
 </div>

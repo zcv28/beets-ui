@@ -6,6 +6,7 @@ from __future__ import annotations
 import io
 import os
 import threading
+from pathlib import Path
 
 import httpx
 import pytest
@@ -98,7 +99,7 @@ def test_embedded_only_cover_and_extract(env, fake_source, artwork):
     album = beets_ctx.lib().albums()[0]
 
     st = artwork.cover_status(album)
-    assert st == {"has": False, "embedded": True, "size": None, "low": False}
+    assert st == {"has": False, "embedded": True, "size": (700, 700), "low": False}
 
     from beets_ui.jobs import JobContext
 
@@ -384,3 +385,51 @@ def test_unwritable_artist_folder_is_reported_not_fatal(env, fake_source, artwor
         assert artwork.artist_info("Writable")["image"] is not None
     finally:
         locked.chmod(0o755)
+
+
+def test_embedart_remove_art_file_setup(env, fake_source, artwork, monkeypatch):
+    """embedart auto + remove_art_file: the cover file vanishes during set_art."""
+    from beets import plugins
+    from mediafile import Image, MediaFile
+
+    from beets_ui.jobs import JobContext
+
+    import_asis(env, "a", artist="Embed", album="Only")
+    album = beets_ctx.lib().albums()[0]
+    real_send = plugins.send
+
+    def fake_send(event, **kw):
+        if event == "art_set":  # what embedart does with remove_art_file: yes
+            a = kw["album"]
+            art = os.fsdecode(a.artpath)
+            for item in a.items():
+                mf = MediaFile(os.fsdecode(item.path))
+                mf.images = [Image(data=Path(art).read_bytes())]
+                mf.save()
+            os.remove(art)
+            a.artpath = None
+            a.store()
+            return []
+        return real_send(event, **kw)
+
+    monkeypatch.setattr(plugins, "send", fake_send)
+    monkeypatch.setattr(artwork, "embed_only", lambda: True)
+    monkeypatch.setattr(
+        artwork, "find_album_covers", lambda a, s=None: [{"url": "https://x/c.jpg", "source": "X"}]
+    )
+    monkeypatch.setattr(artwork, "download", lambda url: png(800, 800))
+
+    assert artwork.save_album_cover(album, png(800, 800)) is None
+    st = artwork.cover_status(beets_ctx.lib().get_album(album.id))
+    assert st["embedded"] and st["size"] == (800, 800) and not st["low"]
+
+    # A second album without art: the fill job downloads, beets embeds, no crash.
+    import_asis(env, "b", artist="Embed", album="Two")
+    job_id = artwork.state.create_job("covers-fill", "t", {"extract": True})
+    ctx = JobContext(artwork.state, job_id, {"extract": True})
+    artwork._job_fill_covers(ctx)
+    ctx.flush()
+    log = artwork.state.job(job_id)["log"]
+    assert "Embed - Two (X, embedded)" in log
+    assert "extracted" not in log.split("Done:")[0]  # embedded art counts as complete
+    assert "1 covers downloaded" in log

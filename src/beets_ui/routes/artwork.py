@@ -60,7 +60,7 @@ def covers(request: Request, filter: str = "missing", q: str = "", page: int = 1
             continue
         if filter == "nofile" and st["has"]:
             continue  # no cover file, with or without embedded art
-        if filter == "low" and st["has"] and not st["low"]:
+        if filter == "low" and (st["has"] or st["embedded"]) and not st["low"]:
             continue  # "low" shows missing and low-resolution covers
         rows.append((a, st))
     per = 60
