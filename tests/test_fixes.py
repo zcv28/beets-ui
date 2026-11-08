@@ -354,3 +354,33 @@ def test_pick_resolves_loose_matches_by_exact_spelling(artwork):
     assert pick["status"] == "name" and pick["candidates"][0].url == "https://d/bôa.jpg"
     # "boa" is spelled exactly by two different artists here -> still ambiguous
     assert artwork.pick_artist_image("boa")["status"] == "ambiguous"
+
+
+def test_unwritable_artist_folder_is_reported_not_fatal(env, fake_source, artwork, monkeypatch):
+    from beets_ui.artwork.service import ArtworkError
+    from beets_ui.jobs import JobContext
+
+    if os.geteuid() == 0:
+        pytest.skip("root ignores directory permissions")
+    import_asis(env, "a", artist="ヨルシカ", album="One")
+    import_asis(env, "b", artist="Writable", album="Two")
+    locked = beets_ctx.library_dir() / "ヨルシカ"
+    locked.chmod(0o555)
+    try:
+        with pytest.raises(ArtworkError, match=r"Permission denied.*runs as uid"):
+            artwork.save_artist_image("ヨルシカ", png())
+        assert not (locked / "folder.jpg.tmp").exists()
+
+        src = FakeSource("src", [])
+        src.artist_images = lambda q: [ImageCandidate("https://x/1.jpg", "src", entity="1")]
+        _with_sources(artwork, src)
+        monkeypatch.setattr(artwork, "download", lambda url: png())
+        job_id = artwork.state.create_job("artists-fill", "t", {})
+        ctx = JobContext(artwork.state, job_id, {})
+        artwork._job_fill_artists(ctx)  # must not raise
+        ctx.flush()
+        log = artwork.state.job(job_id)["log"]
+        assert "Permission denied" in log
+        assert artwork.artist_info("Writable")["image"] is not None
+    finally:
+        locked.chmod(0o755)

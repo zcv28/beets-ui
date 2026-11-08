@@ -36,6 +36,16 @@ class ArtworkError(Exception):
     pass
 
 
+def _write_error(path: Path | str, err: Exception) -> ArtworkError:
+    """Explain a failed write, including which user the container runs as."""
+    reason = getattr(err, "strerror", None) or str(err)
+    who = f"uid {os.getuid()}:{os.getgid()}" if hasattr(os, "getuid") else "this user"
+    hint = ""
+    if isinstance(err, PermissionError) or "ermission" in str(err):
+        hint = f" - beets-ui runs as {who}; make the folder writable for it"
+    return ArtworkError(f"cannot write {path}: {reason}{hint}")
+
+
 def image_size(path: Path | str) -> tuple[int, int] | None:
     from PIL import Image
 
@@ -250,6 +260,9 @@ class Artwork:
         try:
             album.set_art(os.fsencode(tmp), copy=True)
             album.store()
+        except Exception as e:  # beets wraps OSError in FilesystemError
+            dest = os.fsdecode(album.art_destination(os.fsencode(tmp)))
+            raise _write_error(dest, getattr(e, "reason", None) or e) from e
         finally:
             Path(tmp).unlink(missing_ok=True)
         if embed:
@@ -337,8 +350,12 @@ class Artwork:
         for fn in self.settings.artist_image_names:
             target = folder / fn
             tmp = target.with_suffix(target.suffix + ".tmp")
-            tmp.write_bytes(data)
-            tmp.replace(target)
+            try:
+                tmp.write_bytes(data)
+                tmp.replace(target)
+            except OSError as e:
+                tmp.unlink(missing_ok=True)
+                raise _write_error(target, e) from e
             written.append(target)
         return written
 
