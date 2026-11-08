@@ -31,26 +31,38 @@ a:hover { text-decoration: underline; }
 .msg, .wip, .warn { padding: .9em 1.2em; margin: .8em 0; }
 .ok-box { padding: .9em 1.2em; margin: .8em 0; background: rgb(44, 54, 47); border-left: 5px solid var(--green); }
 
-.btn { font-size: 15px; padding: 8px 18px 9px; }
-.btn-sm { font-size: 13px; padding: 5px 10px 6px; }
+/* Buttons and form controls share one height and centre their content, so
+   they line up in a row (min.css sizes them independently). */
+.btn {
+    display: inline-flex; align-items: center; justify-content: center; gap: .35em;
+    box-sizing: border-box; min-height: 40px; padding: 0 20px; margin: 0;
+    font-size: 15px; line-height: 1.2; text-align: center; vertical-align: middle; white-space: nowrap;
+}
+.btn-sm { min-height: 36px; padding: 0 16px; font-size: 14px; border-radius: 4px; }
 .btn-d { background: #555; }
 .btn-d:hover { background: #666; }
 button.link { background: none; border: 0; color: var(--link); cursor: pointer; padding: 0; font: inherit; }
 button.link:hover { text-decoration: underline; }
 .btn[disabled] { opacity: .5; cursor: not-allowed; }
 
-input, select, textarea { color: var(--fg); background: var(--bg-deep); border-color: #555; }
+input, select, textarea { color: var(--fg); background: var(--bg-deep); border-color: #555; box-sizing: border-box; }
+input, select { min-height: 36px; vertical-align: middle; }
+input[type=checkbox], input[type=radio] { min-height: 0; margin: 0 .3em 0 0; vertical-align: -2px; }
+input[type=file] { min-height: 0; padding: 6px; }
 input[type=text], input[type=search], input[type=password], textarea { width: 100%; box-sizing: border-box; }
 input[type=checkbox], input[type=radio] { accent-color: var(--link); }
 label { cursor: pointer; }
 textarea { min-height: 6em; font-family: ui-monospace, monospace; }
 
-.bar { display: flex; flex-wrap: wrap; gap: .5em; align-items: center; margin: .6em 0; }
+.bar { display: flex; flex-wrap: wrap; gap: .6em; align-items: center; margin: .8em 0; }
+.bar > * { margin: 0; }
 .bar > input[type=text], .bar > input[type=search] { flex: 1 1 16em; width: auto; }
 .bar.right { justify-content: flex-end; }
 .spacer { flex: 1; }
 .inline { display: inline; margin: 0; }
-form.inline > * { display: inline; margin: 0; }
+form.inline { display: inline-flex; align-items: center; gap: .5em; margin: 0; vertical-align: middle; }
+form.inline > * { margin: 0; }
+form.inline > input[type=hidden] { display: none; }
 
 .table { border-collapse: collapse; margin: .5em 0 1em; }
 .table th { border-bottom: 1px solid var(--line); color: var(--muted); font-weight: normal; font-size: 14px; }

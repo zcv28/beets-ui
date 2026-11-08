@@ -12,7 +12,9 @@ A small, self-hosted web frontend for [beets](https://beets.io). It runs in one 
 - **Artwork.**
   - Album covers: find, choose, upload or fill in automatically, with an optional embed into the files.
   - Artist and circle pictures, saved as `folder.jpg` in each artist folder, which is where Jellyfin and most players look for them.
-  - Sources: Cover Art Archive, fanart.tv, TheAudioDB, Deezer, iTunes, Discogs, **VocaDB**, **UtaiteDB** and **TouhouDB**.
+  - Sources: Cover Art Archive, fanart.tv, Wikimedia Commons (through the artist's MusicBrainz ID), TheAudioDB, Deezer, iTunes, Discogs, **VocaDB**, **UtaiteDB** and **TouhouDB**.
+  - **Fill automatically** works through every artist on its own. A picture found through the MusicBrainz ID is used straight away. A name search is used when exactly one artist has that spelling. Shared names (e.g. "since") are left for you under *needs review*.
+  - Albums whose art is only embedded in the files show as *embedded only*, and the fill job can extract that art to a cover file.
 - **Soulseek.** Search and download through your existing [slskd](https://github.com/slskd/slskd), one folder at a time. Finished downloads land in the inbox for review.
 - **Console.** Run any non-interactive `beet` command (`update`, `move`, `fetchart`, `replaygain`, `convert`, `mbsync`, plugin commands and so on) and follow its output live. Anything beets can do is reachable from here.
 - **Jobs.** Every change to the library goes through a single queue, so nothing fights over the database, and each job keeps its log.
@@ -91,7 +93,7 @@ The container user (`user:`) must be able to read the inbox and write to `/music
 | `LDAP_START_TLS` | `false` | Upgrade a plain `ldap://` connection with StartTLS. |
 | `SLSKD_URL` / `SLSKD_API_KEY` | — | Turns on the Soulseek page. |
 | `BEETSUI_COVER_SOURCES` | `coverartarchive,fanarttv,theaudiodb,deezer,itunes,discogs,vocadb,touhoudb,utaitedb` | Album cover sources, tried in order. |
-| `BEETSUI_ARTIST_SOURCES` | `fanarttv,theaudiodb,deezer,discogs,vocadb,touhoudb,utaitedb` | Artist/circle picture sources, tried in order. |
+| `BEETSUI_ARTIST_SOURCES` | `fanarttv,wikidata,theaudiodb,deezer,discogs,vocadb,touhoudb,utaitedb` | Artist/circle picture sources, tried in order. |
 | `BEETSUI_ARTIST_IMAGE_NAME` | `folder.jpg` | File name(s) for artist pictures; a comma-separated list writes several (e.g. `folder.jpg,artist.jpg`). |
 | `BEETSUI_ARTWORK_OVERWRITE` | `false` | Default for "replace existing pictures" when filling artist images. |
 | `BEETSUI_MIN_COVER_PX` | `500` | Covers smaller than this count as low-resolution. |
@@ -159,13 +161,13 @@ Tags: `latest` (main branch), `X.Y.Z` / `X.Y` (releases), `sha-<commit>`.
 
 ## Using it
 
-1. **Inbox.** New folders show up as *New*, get looked up, and become *Ready* (with the best match %) or *Needs attention*. Open one:
+1. **Inbox.** New folders show up as *New*, get looked up, and become *Ready* (with the best match %) or *Needs attention*. Expand a row to see its files. Folders that are already in your library (same MusicBrainz album ID, or same album artist and album name) are marked with a link to the album; delete them one by one or all at once with **Delete imported**. Open a folder to review it:
    - Every candidate shows match %, source, year, label, catalog number and what differs. Expand it to see a track-by-track diff (changed titles in yellow, length mismatches in red).
    - Choose a candidate, *as-is* or *skip* for each album in the folder, then press **Import**.
    - Nothing good? Use **Search again** with artist/album, or paste MusicBrainz/Discogs IDs or URLs, and tick *keep current candidates* to add the results to the list. You can also switch the folder to *albums grouped by tags* or *individual tracks*.
    - If beets finds the album already in your library, the folder becomes *Duplicate*. Pick what to do and press Import again.
 2. **Library.** Search with [beets queries](https://beets.readthedocs.io/en/stable/reference/query.html) (`albumartist:Foo year:2000..2010`, `format:FLAC`, …). On an album page you can edit fields, write tags, move files, remove the album, or jump to the console with `mbsync`, `fetchart`, `replaygain` and similar commands filled in.
-3. **Artwork.** *Album covers* lists albums with missing (or low-resolution) covers. *Artist pictures* lists artists without a picture. Pick an image per item or let **Fill automatically** work through all of them as a job.
+3. **Artwork.** *Album covers* lists albums with missing (or low-resolution) covers. *Artist pictures* lists artists without a picture. Run **Fill automatically** first, then open *needs review* for the few artists it was unsure about (matched by name, several artists with the same name, or not found) and pick or upload those by hand.
 4. **Console.** Type a command without the leading `beet`. Commands that prompt can't be answered, so use `-y`/`-q` (e.g. `import -q -L <query>` to re-tag library albums).
 
 Not supported:

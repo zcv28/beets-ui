@@ -32,16 +32,26 @@ def _summary(rows: list[dict]) -> dict:
     return out
 
 
+def _deletable(row: dict) -> bool:
+    return row["status"] not in BUSY and (row["status"] == "imported" or bool(row["library"]))
+
+
+def _filter(rows: list[dict], status: str) -> list[dict]:
+    if status == "inlib":
+        return [r for r in rows if _deletable(r)]
+    return [r for r in rows if not status or r["status"] == status]
+
+
 @router.get("")
 def inbox_page(request: Request, status: str = ""):
     rows = request.app.state.state.folders()
-    shown = [r for r in rows if not status or r["status"] == status]
     return render(
         request,
         "inbox/index.html",
         nav="inbox",
-        folders=shown,
+        folders=_filter(rows, status),
         summary=_summary(rows),
+        imported=sum(1 for r in rows if _deletable(r)),
         labels=STATUS_LABELS,
         status=status,
         settings=request.app.state.settings,
@@ -51,8 +61,20 @@ def inbox_page(request: Request, status: str = ""):
 @router.get("/table")
 def inbox_table(request: Request, status: str = ""):
     rows = request.app.state.state.folders()
-    shown = [r for r in rows if not status or r["status"] == status]
-    return partial(request, "inbox/_table.html", folders=shown, labels=STATUS_LABELS)
+    return partial(
+        request,
+        "inbox/_table.html",
+        folders=_filter(rows, status),
+        labels=STATUS_LABELS,
+        status=status,
+    )
+
+
+@router.post("/delete-imported")
+def delete_imported(request: Request):
+    deleted = request.app.state.inbox.delete_imported()
+    flash(request, f"Deleted {len(deleted)} imported folder(s) from the inbox.")
+    return redirect("/inbox")
 
 
 @router.post("/scan")
@@ -161,15 +183,16 @@ async def folder_import(request: Request):
 
 
 @router.post("/folder/delete")
-def folder_delete(request: Request, f: str = Form(...)):
+def folder_delete(request: Request, f: str = Form(...), back: str = Form("")):
     row = _folder_or_404(request, f)
+    to_list = back.startswith("/inbox") and not back.startswith("//")
     if row["status"] in BUSY:
         flash(request, "Cannot delete a folder that is being processed.", "warn")
-        return redirect(_furl(f))
+        return redirect(back if to_list else _furl(f))
     try:
         request.app.state.inbox.delete_source(f)
     except (OSError, ValueError) as e:
-        flash(request, f"Could not delete: {e}", "warn")
-        return redirect(_furl(f))
+        flash(request, f"Could not delete {f}: {e}", "warn")
+        return redirect(back if to_list else _furl(f))
     flash(request, f"Deleted {f} from the inbox.")
-    return redirect("/inbox")
+    return redirect(back if to_list else "/inbox")

@@ -11,6 +11,7 @@
       {% if info.mbid %}<dt>MusicBrainz</dt><dd><a href="https://musicbrainz.org/artist/{{ info.mbid }}" target="_blank" rel="noopener noreferrer">{{ info.mbid }}</a></dd>{% endif %}
       <dt>Folder</dt><dd>{% if info.folder %}<code>{{ info.folder }}</code>{% else %}<span class="warnc">{{ info.reason }}</span>{% endif %}</dd>
       <dt>Picture</dt><dd>{% if info.image %}<code>{{ info.image.name }}</code>{% else %}none{% endif %}</dd>
+      {% if info.auto %}<dt>Auto-fill</dt><dd>{{ {'id': 'found by MusicBrainz ID', 'name': 'matched by name, check it is the right artist', 'ambiguous': 'several artists share this name, pick one below', 'notfound': 'nothing found', 'manual': 'set by hand', 'nofolder': 'no artist folder'}.get(info.auto.status, info.auto.status) }}{% if info.auto.source %} ({{ info.auto.source }}){% endif %}{% if info.auto.note %}<br><small class="muted">{{ info.auto.note }}</small>{% endif %}</dd>{% endif %}
     </dl>
     {% if info.folder %}
     <h3>Upload your own</h3>

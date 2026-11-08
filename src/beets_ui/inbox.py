@@ -51,26 +51,102 @@ STATUS_LABELS = {
 }
 
 
-def folder_signature(path: Path) -> tuple[str, int]:
-    """Cheap change detector: number of files, total size, newest mtime."""
+MAX_LISTED_FILES = 500
+MAX_TAGGED_FILES = 60
+
+
+def scan_folder(path: Path) -> tuple[str, list[dict[str, Any]]]:
+    """Return a cheap change signature and the folder's file listing."""
     count = size = 0
     newest = 0.0
-    audio = 0
-    for root, dirs, files in os.walk(path):
-        dirs[:] = [d for d in dirs if not d.startswith(".")]
-        for f in files:
+    files: list[dict[str, Any]] = []
+    for root, dirs, names in os.walk(path):
+        dirs[:] = sorted(d for d in dirs if not d.startswith("."))
+        for f in sorted(names):
             if f.startswith("."):
                 continue
+            full = os.path.join(root, f)
             try:
-                st = os.stat(os.path.join(root, f))
+                st = os.stat(full)
             except OSError:
                 continue
             count += 1
             size += st.st_size
             newest = max(newest, st.st_mtime)
-            if os.path.splitext(f)[1].lower() in AUDIO_EXT:
-                audio += 1
-    return f"{count}:{size}:{int(newest)}", audio
+            if len(files) < MAX_LISTED_FILES:
+                files.append(
+                    {
+                        "path": os.path.relpath(full, path),
+                        "size": st.st_size,
+                        "audio": os.path.splitext(f)[1].lower() in AUDIO_EXT,
+                    }
+                )
+    return f"{count}:{size}:{int(newest)}", files
+
+
+def folder_signature(path: Path) -> tuple[str, int]:
+    sig, files = scan_folder(path)
+    return sig, sum(1 for f in files if f["audio"])
+
+
+def read_tag_keys(path: Path, files: list[dict[str, Any]]) -> dict[str, Any]:
+    """Tags used to recognise a folder that is already in the library."""
+    from mediafile import MediaFile
+
+    ids: set[str] = set()
+    pairs: set[tuple[str, str]] = set()
+    for f in [f for f in files if f["audio"]][:MAX_TAGGED_FILES]:
+        try:
+            mf = MediaFile(str(path / f["path"]))
+        except Exception:  # noqa: BLE001 - unreadable/unsupported file
+            continue
+        if mf.mb_albumid:
+            ids.add(mf.mb_albumid)
+        artist = mf.albumartist or mf.artist
+        if artist and mf.album:
+            pairs.add((artist, mf.album))
+    return {"ids": sorted(ids), "pairs": sorted(pairs)}
+
+
+def library_matches(tagkeys: dict[str, Any], tasks: list[dict[str, Any]]) -> list[dict]:
+    """Library albums that this inbox folder appears to contain already.
+
+    Matches on MusicBrainz album IDs (from the file tags or a confident lookup
+    candidate) and on album artist + album name, ignoring case.
+    """
+    from . import beets_ctx
+
+    ids = {i: "MusicBrainz ID in tags" for i in tagkeys.get("ids", [])}
+    for t in tasks:
+        cands = t.get("candidates") or []
+        if cands and cands[0].get("id") and (cands[0].get("match") or 0) >= 90:
+            ids.setdefault(cands[0]["id"], "best lookup match")
+    found: dict[int, dict[str, Any]] = {}
+    lib = beets_ctx.lib()
+    with lib.transaction() as tx:
+        for mbid, how in ids.items():
+            for row in tx.query(
+                "SELECT id, albumartist, album FROM albums WHERE mb_albumid = ?", (mbid,)
+            ):
+                found.setdefault(
+                    row[0], {"id": row[0], "albumartist": row[1], "album": row[2], "how": how}
+                )
+        for artist, album in tagkeys.get("pairs", []):
+            for row in tx.query(
+                "SELECT id, albumartist, album FROM albums "
+                "WHERE lower(albumartist) = lower(?) AND lower(album) = lower(?)",
+                (artist, album),
+            ):
+                found.setdefault(
+                    row[0],
+                    {
+                        "id": row[0],
+                        "albumartist": row[1],
+                        "album": row[2],
+                        "how": "same artist and album name",
+                    },
+                )
+    return list(found.values())
 
 
 def is_within(path: Path, root: Path) -> bool:
@@ -117,10 +193,17 @@ class Inbox:
                 continue
             rel = entry.name
             seen.add(rel)
-            sig, _ = folder_signature(entry)
+            sig, files = scan_folder(entry)
             row = self.state.folder(rel)
             if row is None:
-                self.state.upsert_folder(rel, status="new", signature=sig, changed_at=now)
+                self.state.upsert_folder(
+                    rel,
+                    status="new",
+                    signature=sig,
+                    changed_at=now,
+                    files=files,
+                    tagkeys=read_tag_keys(entry, files),
+                )
                 continue
             if row["signature"] != sig and row["status"] not in (
                 "queued",
@@ -138,14 +221,47 @@ class Inbox:
                     best=None,
                     duplicates={},
                     error=None,
+                    files=files,
+                    tagkeys=read_tag_keys(entry, files),
                 )
+            elif not row["files"] and files:
+                # Folder recorded before file listings existed.
+                self.state.upsert_folder(rel, files=files, tagkeys=read_tag_keys(entry, files))
         for row in self.state.folders():
             if row["path"] not in seen and row["status"] not in ("previewing", "importing"):
                 self.state.delete_folder(row["path"])
+        self.refresh_library_matches()
         if self.settings.auto_preview:
             for row in self.state.folders():
                 if row["status"] == "new" and now - row["changed_at"] >= self.settings.debounce:
                     self.queue_preview(row["path"])
+
+    def refresh_library_matches(self, only: str | None = None) -> None:
+        """Re-check which inbox folders are already in the library (cheap SQL)."""
+        for row in self.state.folders():
+            if only and row["path"] != only:
+                continue
+            try:
+                matches = library_matches(row["tagkeys"], row["tasks"])
+            except Exception:  # noqa: BLE001 - never let this break a scan
+                log.exception("library check failed for %s", row["path"])
+                continue
+            if matches != row["library"]:
+                self.state.upsert_folder(row["path"], library=matches)
+
+    def delete_imported(self) -> list[str]:
+        """Delete every idle inbox folder that is imported or already in the library."""
+        deleted = []
+        for row in self.state.folders():
+            if row["status"] in ("queued", "previewing", "importing"):
+                continue
+            if row["status"] == "imported" or row["library"]:
+                try:
+                    self.delete_source(row["path"])
+                    deleted.append(row["path"])
+                except (OSError, ValueError):
+                    log.exception("could not delete %s", row["path"])
+        return deleted
 
     def start_watcher(self) -> None:
         self._thread = threading.Thread(target=self._watch, name="beets-ui-inbox", daemon=True)
@@ -231,6 +347,7 @@ class Inbox:
             duplicates={},
             decisions=_default_decisions(tasks),
         )
+        self.refresh_library_matches(only=rel)
         for t in tasks:
             ctx.log(
                 f"  {t['cur_artist']} - {t['cur_album']}: {len(t['candidates'])} candidates"
@@ -277,8 +394,11 @@ class Inbox:
             shutil.rmtree(path, ignore_errors=True)
             self.state.delete_folder(rel)
             return
-        sig, _ = folder_signature(path) if path.exists() else ("", 0)
-        self.state.upsert_folder(rel, status="imported", signature=sig, error=None, duplicates={})
+        sig, files = scan_folder(path) if path.exists() else ("", [])
+        self.state.upsert_folder(
+            rel, status="imported", signature=sig, files=files, error=None, duplicates={}
+        )
+        self.refresh_library_matches(only=rel)
 
 
 def _default_decisions(tasks: list[dict[str, Any]]) -> dict[str, Any]:

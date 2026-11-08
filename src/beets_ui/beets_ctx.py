@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import Any
 
 from beets import config, plugins
+from beets import context as beets_context
 from beets import library as beets_library
 
 log = logging.getLogger("beets_ui")
@@ -46,8 +47,18 @@ def init(beetsdir: Path | str | None = None, load_plugins: bool = True) -> beets
 
 
 def lib() -> beets_library.Library:
+    """Return the library, making sure this thread can resolve its paths.
+
+    beets >= 2.13 stores paths relative to the music directory and expands
+    them through a ContextVar that ``Library()`` only sets on the thread that
+    opened it. Request threads and the job thread start with an empty
+    context, so without this every ``item.path``/``album.artpath`` read there
+    would come back relative (and every file operation would miss).
+    """
     if _lib is None:
         raise RuntimeError("beets has not been initialised")
+    if beets_context.get_music_dir() != _lib.directory:
+        beets_context.set_music_dir(_lib.directory)
     return _lib
 
 

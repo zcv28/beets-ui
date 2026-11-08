@@ -5,7 +5,7 @@
 <div class="album-head">
   <div class="art">
     <a href="/library/album/{{ album.id }}/cover"><img class="cover" src="/library/album/{{ album.id }}/cover?size=600" alt=""></a>
-    <p><small>{% if cover.has %}{{ cover.size[0] if cover.size else '?' }}×{{ cover.size[1] if cover.size else '?' }}{% if cover.low %} <span class="warnc">low-res</span>{% endif %}{% else %}no cover file{% endif %} · <a href="/artwork/album/{{ album.id }}">change cover</a></small></p>
+    <p><small>{% if cover.has %}{{ cover.size[0] if cover.size else '?' }}×{{ cover.size[1] if cover.size else '?' }}{% if cover.low %} <span class="warnc">low-res</span>{% endif %}{% elif cover.embedded %}embedded in files only{% else %}no cover{% endif %} · <a href="/artwork/album/{{ album.id }}">change cover</a></small></p>
   </div>
   <div class="meta">
     <h1>{{ album.album or '(untitled)' }}</h1>

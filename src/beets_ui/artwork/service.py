@@ -17,7 +17,15 @@ from beets.dbcore.query import MatchQuery, PathQuery
 from .. import beets_ctx
 from ..jobs import JobContext, JobQueue
 from ..settings import Settings
-from .sources import SOURCES, AlbumQuery, ArtistQuery, ImageCandidate, Source, make_client
+from .sources import (
+    SOURCES,
+    AlbumQuery,
+    ArtistQuery,
+    ImageCandidate,
+    Source,
+    make_client,
+    strict_name,
+)
 
 log = logging.getLogger("beets_ui.artwork")
 
@@ -78,6 +86,8 @@ class Artwork:
     ):
         self.settings = settings
         self.jobs = jobs
+        self.state = jobs.state
+        self._embedded_cache: dict[tuple[str, int], bool] = {}
         self.client = make_client(transport)
         keys = {
             "fanarttv": settings.fanarttv_api_key,
@@ -164,13 +174,35 @@ class Artwork:
                 return p
         return None
 
-    def cover_status(self, album: Any) -> dict[str, Any]:
+    def has_embedded(self, album: Any) -> bool:
+        """Whether the album's first track carries embedded art (cached by mtime)."""
+        from mediafile import MediaFile
+
+        items = list(album.items())
+        if not items:
+            return False
+        path = os.fsdecode(items[0].path)
+        try:
+            mtime = os.stat(path).st_mtime_ns
+        except OSError:
+            return False
+        key = (path, mtime)
+        if key not in self._embedded_cache:
+            try:
+                self._embedded_cache[key] = bool(MediaFile(path).images)
+            except Exception:  # noqa: BLE001 - unreadable file: treat as no art
+                self._embedded_cache[key] = False
+        return self._embedded_cache[key]
+
+    def cover_status(self, album: Any, check_embedded: bool = True) -> dict[str, Any]:
+        """``has``: a cover file exists; ``embedded``: art is only inside the files."""
         p = self.cover_path(album)
         if p is None:
-            return {"has": False, "size": None, "low": True}
+            embedded = check_embedded and self.has_embedded(album)
+            return {"has": False, "embedded": embedded, "size": None, "low": not embedded}
         size = image_size(p)
         low = bool(size and min(size) < self.settings.min_cover_px)
-        return {"has": True, "size": size, "low": low}
+        return {"has": True, "embedded": False, "size": size, "low": low}
 
     def thumbnail(self, src: Path, px: int = 300) -> Path:
         from PIL import Image
@@ -325,6 +357,12 @@ class Artwork:
         data = self._params_image(ctx)
         for p in self.save_artist_image(name, data):
             ctx.log(f"Saved {p}")
+        self.state.set_artist_art(
+            name,
+            "manual",
+            source="upload" if ctx.params.get("upload") else "picked",
+            url=ctx.params.get("url") or "",
+        )
 
     def _params_image(self, ctx: JobContext) -> bytes:
         if ctx.params.get("upload"):
@@ -340,13 +378,26 @@ class Artwork:
         sources = ctx.params.get("sources") or None
         embed = bool(ctx.params.get("embed"))
         include_low = bool(ctx.params.get("low"))
+        extract = ctx.params.get("extract", True)
         lib = beets_ctx.lib()
-        done = failed = 0
+        done = extracted = failed = 0
         for album in lib.albums():
             st = self.cover_status(album)
             if st["has"] and not (include_low and st["low"]):
                 continue
             label = f"{album.albumartist} - {album.album}"
+            if st["embedded"]:
+                if not extract:
+                    continue
+                data = self.embedded_cover(album)
+                if data:
+                    try:
+                        self.save_album_cover(album, data)
+                        ctx.log(f"✓ {label} (extracted embedded art)")
+                        extracted += 1
+                        continue
+                    except ArtworkError as e:
+                        ctx.log(f"  embedded art unusable: {e}")
             cands = [c for c in self.find_album_covers(album, sources) if "error" not in c]
             if include_low and st["size"]:
                 cands = [c for c in cands if not c.get("width") or c["width"] > min(st["size"])]
@@ -361,40 +412,98 @@ class Artwork:
             else:
                 ctx.log(f"✗ {label}: nothing found")
                 failed += 1
-        ctx.log(f"Done: {done} covers saved, {failed} not found")
+        ctx.log(
+            f"Done: {done} covers downloaded, {extracted} extracted from files, {failed} not found"
+        )
+
+    # ------------------------------------------------- artist auto-pick
+
+    def pick_artist_image(
+        self, name: str, mbid: str = "", sources: list[str] | None = None
+    ) -> dict[str, Any]:
+        """Choose an artist picture without asking, when that is safe.
+
+        * A picture found through the MusicBrainz artist ID wins outright.
+        * Otherwise the first source whose name search finds exactly one
+          artist with that name is used (status "name": worth a glance).
+        * A source that finds several different artists with the same name
+          is ambiguous and is never used automatically.
+        """
+        q = ArtistQuery(name=name, mb_artistid=mbid)
+        by_name: list[ImageCandidate] = []
+        notes: list[str] = []
+        for src in self.enabled("artist", sources):
+            try:
+                res = src.artist_images(q)
+            except Exception as e:  # noqa: BLE001
+                notes.append(f"{src.label}: error {e}")
+                continue
+            if not res:
+                continue
+            trusted = [c for c in res if c.match == "id"]
+            if trusted:
+                return {"status": "id", "candidates": trusted + by_name, "note": src.label}
+            entities = {c.entity for c in res if c.entity}
+            if len(entities) > 1:
+                # Several artists match loosely (e.g. "bôa", "boa", "BoA"): use the
+                # one spelled exactly like ours, if there is exactly one such.
+                exact = [c for c in res if c.name and strict_name(c.name) == strict_name(name)]
+                if len({c.entity for c in exact}) == 1:
+                    by_name.append(exact[0])
+                    continue
+                notes.append(f"{src.label}: {len(entities)} different artists with this name")
+                continue
+            by_name.append(res[0])
+        if by_name:
+            return {"status": "name", "candidates": by_name, "note": by_name[0].source}
+        if any("different artists" in n for n in notes):
+            return {"status": "ambiguous", "candidates": [], "note": "; ".join(notes)}
+        return {"status": "notfound", "candidates": [], "note": "; ".join(notes)}
 
     def _job_fill_artists(self, ctx: JobContext) -> None:
         sources = ctx.params.get("sources") or None
         overwrite = bool(ctx.params.get("overwrite", self.settings.artwork_overwrite))
-        done = failed = skipped = 0
+        retry = bool(ctx.params.get("retry"))
+        previous = self.state.artist_art()
+        counts = {"id": 0, "name": 0, "ambiguous": 0, "notfound": 0, "nofolder": 0, "kept": 0}
         for a in self.artists():
-            info = self.artist_info(a["name"])
+            name = a["name"]
+            info = self.artist_info(name)
             if info["folder"] is None:
-                skipped += 1
+                counts["nofolder"] += 1
+                self.state.set_artist_art(name, "nofolder", note=info["reason"])
                 continue
             if info["image"] and not overwrite:
+                counts["kept"] += 1
                 continue
-            q = ArtistQuery(name=a["name"], mb_artistid=info["mbid"])
-            cands = [
-                c
-                for c in self._collect(
-                    self.enabled("artist", sources), "artist_images", q, first_only=True
-                )
-                if "error" not in c
-            ]
-            for c in cands:
+            prev = previous.get(name, {}).get("status")
+            if prev in ("ambiguous", "notfound") and not retry and not overwrite:
+                counts[prev] += 1
+                continue
+            pick = self.pick_artist_image(name, info["mbid"], sources)
+            status = pick["status"]
+            saved = None
+            for c in pick["candidates"]:
                 try:
-                    self.save_artist_image(a["name"], self.download(c["url"]))
-                    ctx.log(f"✓ {a['name']} ({c['source']})")
-                    done += 1
+                    self.save_artist_image(name, self.download(c.url))
+                    saved = c
                     break
                 except ArtworkError as e:
-                    ctx.log(f"  {c['source']}: {e}")
+                    ctx.log(f"  {name}: {c.source}: {e}")
+            if pick["candidates"] and saved is None:
+                status = "notfound"
+            counts[status] += 1
+            if saved is not None:
+                how = "MusicBrainz ID" if status == "id" else "name match, check it"
+                ctx.log(f"✓ {name}: {saved.source} ({how})")
+                self.state.set_artist_art(name, status, source=saved.source, url=saved.url)
             else:
-                ctx.log(f"✗ {a['name']}: nothing found")
-                failed += 1
+                ctx.log(f"✗ {name}: {status}{(' - ' + pick['note']) if pick['note'] else ''}")
+                self.state.set_artist_art(name, status, note=pick["note"])
         ctx.log(
-            f"Done: {done} images saved, {failed} not found, {skipped} without an artist folder"
+            "Done: {id} by MusicBrainz ID, {name} by name (review these), {ambiguous} ambiguous, "
+            "{notfound} not found, {nofolder} without an artist folder, {kept} already had "
+            "a picture".format(**counts)
         )
 
 

@@ -41,9 +41,25 @@ CREATE TABLE IF NOT EXISTS jobs (
     user TEXT
 );
 CREATE INDEX IF NOT EXISTS jobs_status ON jobs(status);
+CREATE TABLE IF NOT EXISTS artist_art (
+    name TEXT PRIMARY KEY,
+    status TEXT NOT NULL,
+    source TEXT NOT NULL DEFAULT '',
+    url TEXT NOT NULL DEFAULT '',
+    note TEXT NOT NULL DEFAULT '',
+    updated_at REAL NOT NULL
+);
 """
 
-FOLDER_JSON = ("tasks", "duplicates", "decisions")
+# Columns added after the first release: (name, definition).
+FOLDER_MIGRATIONS = (
+    ("files", "TEXT NOT NULL DEFAULT '[]'"),
+    ("tagkeys", "TEXT NOT NULL DEFAULT '{}'"),
+    ("library", "TEXT NOT NULL DEFAULT '[]'"),
+)
+
+FOLDER_JSON = ("tasks", "duplicates", "decisions", "files", "tagkeys", "library")
+FOLDER_JSON_LISTS = ("tasks", "files", "library")
 
 
 class State:
@@ -56,6 +72,10 @@ class State:
         with self._lock:
             self._conn.execute("PRAGMA journal_mode=WAL")
             self._conn.executescript(SCHEMA)
+            cols = {r[1] for r in self._conn.execute("PRAGMA table_info(folders)")}
+            for name, definition in FOLDER_MIGRATIONS:
+                if name not in cols:
+                    self._conn.execute(f"ALTER TABLE folders ADD COLUMN {name} {definition}")
             # Jobs interrupted by a restart can never finish.
             self._conn.execute(
                 "UPDATE jobs SET status='failed', error='interrupted by restart', "
@@ -79,7 +99,7 @@ class State:
             return None
         d = dict(row)
         for k in FOLDER_JSON:
-            d[k] = json.loads(d[k] or ("[]" if k == "tasks" else "{}"))
+            d[k] = json.loads(d[k] or ("[]" if k in FOLDER_JSON_LISTS else "{}"))
         return d
 
     def folders(self) -> list[dict[str, Any]]:
@@ -153,4 +173,21 @@ class State:
             "DELETE FROM jobs WHERE id NOT IN (SELECT id FROM jobs ORDER BY id DESC LIMIT ?) "
             "AND status NOT IN ('queued','running')",
             (keep,),
+        )
+
+    # -------------------------------------------------------------- artist art
+
+    def artist_art(self) -> dict[str, dict[str, Any]]:
+        rows = self._exec("SELECT * FROM artist_art").fetchall()
+        return {r["name"]: dict(r) for r in rows}
+
+    def set_artist_art(
+        self, name: str, status: str, source: str = "", url: str = "", note: str = ""
+    ) -> None:
+        self._exec(
+            "INSERT INTO artist_art (name, status, source, url, note, updated_at) "
+            "VALUES (?,?,?,?,?,?) ON CONFLICT(name) DO UPDATE SET status=excluded.status, "
+            "source=excluded.source, url=excluded.url, note=excluded.note, "
+            "updated_at=excluded.updated_at",
+            (name, status, source, url, note[:500], time.time()),
         )

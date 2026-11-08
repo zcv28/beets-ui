@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import datetime as dt
+import hashlib
 import os
 import time
 from pathlib import Path
@@ -65,6 +66,7 @@ templates.env.filters.update(
     match_class=match_class,
     q=lambda s: quote(str(s), safe=""),
     fsdecode=fsdecode,
+    uid=lambda s: hashlib.md5(str(s).encode()).hexdigest()[:12],
 )
 templates.env.globals["version"] = __version__
 

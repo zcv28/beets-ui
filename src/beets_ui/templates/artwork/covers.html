@@ -5,7 +5,8 @@
 {% set tab = 'covers' %}{% include "artwork/_tabs.html" %}
 <form class="bar" method="get" action="/artwork">
   <select name="filter" onchange="this.form.submit()">
-    <option value="missing" {% if filter == 'missing' %}selected{% endif %}>missing covers</option>
+    <option value="missing" {% if filter == 'missing' %}selected{% endif %}>no cover at all</option>
+    <option value="nofile" {% if filter == 'nofile' %}selected{% endif %}>no cover file (incl. embedded only)</option>
     <option value="low" {% if filter == 'low' %}selected{% endif %}>missing or smaller than {{ min_px }}px</option>
     <option value="all" {% if filter == 'all' %}selected{% endif %}>all albums</option>
   </select>
@@ -18,7 +19,8 @@
     {% include "artwork/_sources.html" %}
     <div class="bar">
       <label><input type="checkbox" name="low" value="1" {% if filter == 'low' %}checked{% endif %}> also replace covers under {{ min_px }}px</label>
-      <label><input type="checkbox" name="embed" value="1"> embed into files</label>
+      <label><input type="checkbox" name="extract" value="1" checked> use art embedded in the files first</label>
+      <label><input type="checkbox" name="embed" value="1"> embed downloaded covers into files</label>
       <span class="spacer"></span>
       <button class="btn btn-sm btn-b">Fill missing covers</button>
     </div>
@@ -30,7 +32,7 @@
   <a class="card" href="/artwork/album/{{ a.id }}">
     <img loading="lazy" src="/library/album/{{ a.id }}/cover?size=300" alt="">
     <div class="t" title="{{ a.album }}">{{ a.album or '(untitled)' }}</div>
-    <div class="s">{{ a.albumartist }} · {% if st.has %}{{ st.size[0] if st.size else '?' }}px{% if st.low %} <span class="warnc">low</span>{% endif %}{% else %}<span class="warnc">no cover</span>{% endif %}</div>
+    <div class="s">{{ a.albumartist }} · {% if st.has %}{{ st.size[0] if st.size else '?' }}px{% if st.low %} <span class="warnc">low</span>{% endif %}{% elif st.embedded %}<span class="changed">embedded only</span>{% else %}<span class="warnc">no cover</span>{% endif %}</div>
   </a>
   {% else %}<div class="msg">Nothing to do here.</div>{% endfor %}
 </div>

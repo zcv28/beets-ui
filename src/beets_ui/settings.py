@@ -41,7 +41,7 @@ def _list(name: str, default: str) -> list[str]:
 DEFAULT_COVER_SOURCES = (
     "coverartarchive,fanarttv,theaudiodb,deezer,itunes,discogs,vocadb,touhoudb,utaitedb"
 )
-DEFAULT_ARTIST_SOURCES = "fanarttv,theaudiodb,deezer,discogs,vocadb,touhoudb,utaitedb"
+DEFAULT_ARTIST_SOURCES = "fanarttv,wikidata,theaudiodb,deezer,discogs,vocadb,touhoudb,utaitedb"
 
 
 @dataclass

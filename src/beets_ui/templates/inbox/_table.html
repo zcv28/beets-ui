@@ -1,15 +1,34 @@
 {% if folders %}
 <div class="scroll">
 <table class="table">
-  <thead><tr><th>Folder</th><th>Status</th><th class="num">Best match</th><th class="hide-sm">Albums</th><th class="hide-sm">Updated</th></tr></thead>
+  <thead><tr><th>Folder</th><th>Status</th><th class="num">Best match</th><th>In library</th><th class="hide-sm">Updated</th><th></th></tr></thead>
   <tbody>
   {% for f in folders %}
+  {% set audio = f.files|selectattr('audio')|list %}
   <tr>
-    <td><a href="/inbox/folder?f={{ f.path|q }}">{{ f.path }}</a>{% if f.error %}<br><small>{{ f.error }}</small>{% endif %}</td>
+    <td>
+      <a href="/inbox/folder?f={{ f.path|q }}"><strong>{{ f.path }}</strong></a>
+      {% if f.error %}<br><small>{{ f.error }}</small>{% endif %}
+      {% if f.files %}
+      <details class="files" id="files-{{ f.path|uid }}" hx-preserve>
+        <summary><small class="muted">{{ audio|length }} audio file{{ 's' if audio|length != 1 }} · {{ f.files|length }} total · {{ f.files|sum(attribute='size')|size }}</small></summary>
+        <ul>{% for file in f.files %}<li><small>{% if not file.audio %}<span class="muted">{% endif %}{{ file.path }}{% if not file.audio %}</span>{% endif %} <span class="muted">{{ file.size|size }}</span></small></li>{% endfor %}</ul>
+      </details>
+      {% endif %}
+    </td>
     <td><span class="badge {{ f.status }}">{{ labels.get(f.status, f.status) }}</span></td>
     <td class="num">{% if f.best is not none %}<span class="pct {{ f.best|match_class }}">{{ '%.1f'|format(f.best) }}%</span>{% endif %}</td>
-    <td class="hide-sm">{{ f.tasks|length or '' }}</td>
+    <td>{% for a in f.library %}<a href="/library/album/{{ a.id }}" title="{{ a.how }}"><span class="badge done">✓</span> {{ a.albumartist }} – {{ a.album }}</a>{% if not loop.last %}<br>{% endif %}{% endfor %}</td>
     <td class="hide-sm nowrap"><small>{{ f.updated_at|ts }}</small></td>
+    <td class="nowrap">
+      {% if f.status not in ('queued', 'previewing', 'importing') and (f.status == 'imported' or f.library) %}
+      <form class="inline" method="post" action="/inbox/folder/delete" onsubmit='return confirm("Delete " + {{ f.path|tojson }} + " from the inbox?")'>
+        <input type="hidden" name="f" value="{{ f.path }}">
+        <input type="hidden" name="back" value="/inbox{% if status %}?status={{ status }}{% endif %}">
+        <button class="btn btn-sm btn-c">Delete</button>
+      </form>
+      {% endif %}
+    </td>
   </tr>
   {% endfor %}
   </tbody>

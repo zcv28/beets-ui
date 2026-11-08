@@ -3,7 +3,7 @@
 {% block content %}
 <p><a href="/artwork">← Album covers</a> · <a href="/library/album/{{ album.id }}">album page</a></p>
 <div class="album-head">
-  <div class="art"><img class="cover" src="/library/album/{{ album.id }}/cover?size=600" alt=""><p><small>{% if cover.has %}current: {{ cover.size[0] if cover.size else '?' }}×{{ cover.size[1] if cover.size else '?' }}{% else %}no cover file{% endif %}</small></p></div>
+  <div class="art"><img class="cover" src="/library/album/{{ album.id }}/cover?size=600" alt=""><p><small>{% if cover.has %}current: {{ cover.size[0] if cover.size else '?' }}×{{ cover.size[1] if cover.size else '?' }}{% elif cover.embedded %}embedded in files only{% else %}no cover{% endif %}</small></p></div>
   <div class="meta">
     <h1>{{ album.album }}</h1>
     <h3>{{ album.albumartist }}{% if album.year %} · {{ album.year }}{% endif %}</h3>

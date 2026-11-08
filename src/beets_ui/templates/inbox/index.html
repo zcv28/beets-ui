@@ -3,12 +3,18 @@
 {% block content %}
 <h1>Inbox</h1>
 <p class="muted">Review folder: <code>{{ settings.inbox }}</code>. Each sub-folder is looked up{% if settings.auto_preview %} automatically once it has been unchanged for {{ settings.debounce }}s{% endif %} and waits for you to review it.</p>
+<div class="tabs">
+  <a href="/inbox" {% if not status %}class="on"{% endif %}>All</a>
+  {% for st, n in summary|dictsort %}<a href="/inbox?status={{ st }}" {% if status == st %}class="on"{% endif %}>{{ labels.get(st, st) }} ({{ n }})</a>{% endfor %}
+  {% if imported %}<a href="/inbox?status=inlib" {% if status == 'inlib' %}class="on"{% endif %}>Already in library ({{ imported }})</a>{% endif %}
+</div>
 <div class="bar">
-  <div class="tabs">
-    <a href="/inbox" {% if not status %}class="on"{% endif %}>All</a>
-    {% for st, n in summary|dictsort %}<a href="/inbox?status={{ st }}" {% if status == st %}class="on"{% endif %}>{{ labels.get(st, st) }} ({{ n }})</a>{% endfor %}
-  </div>
   <span class="spacer"></span>
+  {% if imported %}
+  <form class="inline" method="post" action="/inbox/delete-imported" onsubmit="return confirm('Delete {{ imported }} folder(s) that are imported or already in the library? Their files are removed from the inbox.')">
+    <button class="btn btn-sm btn-c">Delete imported ({{ imported }})</button>
+  </form>
+  {% endif %}
   <form class="inline" method="post" action="/inbox/preview-all"><button class="btn btn-sm btn-d">Look up new</button></form>
   <form class="inline" method="post" action="/inbox/scan"><button class="btn btn-sm btn-a">Rescan</button></form>
 </div>

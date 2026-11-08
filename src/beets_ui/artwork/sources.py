@@ -31,6 +31,12 @@ class ImageCandidate:
     width: int | None = None
     height: int | None = None
     note: str = ""
+    # "id": found through a MusicBrainz ID (trusted); "name": name search.
+    match: str = "name"
+    # The source's own id for the artist/album, used to spot ambiguous names.
+    entity: str = ""
+    # The artist name as the source spells it.
+    name: str = ""
 
     def as_dict(self) -> dict[str, Any]:
         d = asdict(self)
@@ -56,11 +62,30 @@ class ArtistQuery:
     mb_artistid: str = ""
 
 
+def _fold_latin_accents(s: str) -> str:
+    """Drop accents from Latin letters only (bôa == boa).
+
+    Combining marks on other scripts are kept, so e.g. Japanese ガ and カ stay
+    different.
+    """
+    out: list[str] = []
+    for ch in unicodedata.normalize("NFKD", s):
+        if unicodedata.combining(ch) and out and ord(out[-1]) < 0x250:
+            continue
+        out.append(ch)
+    return unicodedata.normalize("NFKC", "".join(out))
+
+
 def norm(s: str | None) -> str:
-    """Normalise a name for comparison: NFKC, casefold, strip punctuation."""
-    s = unicodedata.normalize("NFKC", s or "").casefold()
-    s = re.sub(r"[\s\-_.,:;!?'\"()\[\]{}・／/&＆+]+", "", s)
+    """Normalise a name for comparison: width, case, Latin accents, punctuation."""
+    s = _fold_latin_accents(unicodedata.normalize("NFKC", s or "")).casefold()
+    s = re.sub(r"[\s\-_.,:;!?'\"()\[\]{}・／/&＆+~〜]+", "", s)
     return s
+
+
+def strict_name(s: str | None) -> str:
+    """Exact-spelling comparison key: only width, case and outer spaces ignored."""
+    return unicodedata.normalize("NFKC", s or "").casefold().strip()
 
 
 def names_match(a: str, b: str) -> bool:
@@ -177,6 +202,8 @@ class FanartTv(Source):
                     source=self.label,
                     width=int(img.get("width") or 1000),
                     height=int(img.get("height") or 1000),
+                    match="id",
+                    entity=q.mb_artistid,
                 )
             )
         return out
@@ -212,9 +239,11 @@ class TheAudioDB(Source):
 
     def artist_images(self, q: ArtistQuery) -> list[ImageCandidate]:
         artists = []
+        how = "id"
         if q.mb_artistid:
             artists = (self._api("artist-mb.php", i=q.mb_artistid) or {}).get("artists") or []
         if not artists and q.name:
+            how = "name"
             res = self._api("search.php", s=q.name) or {}
             artists = [
                 a for a in (res.get("artists") or []) if names_match(a.get("strArtist", ""), q.name)
@@ -229,6 +258,9 @@ class TheAudioDB(Source):
                             thumb=a[field] + "/preview",
                             source=self.label,
                             note="wide" if "Wide" in field else "",
+                            match=how,
+                            entity=str(a.get("idArtist") or ""),
+                            name=a.get("strArtist", ""),
                         )
                     )
         return out
@@ -280,6 +312,9 @@ class Deezer(Source):
                         source=self.label,
                         width=1000,
                         height=1000,
+                        entity=str(a.get("id") or ""),
+                        name=a.get("name", ""),
+                        note=f"{a.get('nb_fan', 0)} fans" if a.get("nb_fan") else "",
                     )
                 )
         return out
@@ -373,10 +408,18 @@ class Discogs(Source):
 
     def artist_images(self, q: ArtistQuery) -> list[ImageCandidate]:
         res = self._get("database/search", q=q.name, type="artist", per_page=5) or {}
-        for r in res.get("results", []):
-            if names_match(r.get("title", ""), q.name) and r.get("id"):
-                return self._images(self._get(f"artists/{r['id']}") or {}, self.label)
-        return []
+        out: list[ImageCandidate] = []
+        matches = [
+            r
+            for r in res.get("results", [])
+            if names_match(r.get("title", ""), q.name) and r.get("id")
+        ]
+        for r in matches[:2]:
+            for c in self._images(self._get(f"artists/{r['id']}") or {}, self.label):
+                c.entity = str(r["id"])
+                c.name = r.get("title", "")
+                out.append(c)
+        return out
 
 
 class VocaDBFamily(Source):
@@ -447,7 +490,12 @@ class VocaDBFamily(Source):
             if url:
                 out.append(
                     ImageCandidate(
-                        url=url, thumb=thumb, source=self.label, note=a.get("artistType", "")
+                        url=url,
+                        thumb=thumb,
+                        source=self.label,
+                        note=a.get("artistType", ""),
+                        entity=str(a.get("id") or ""),
+                        name=a.get("name", ""),
                     )
                 )
         return out
@@ -465,11 +513,69 @@ class TouhouDB(VocaDBFamily):
     name, label, base = "touhoudb", "TouhouDB", "https://touhoudb.com"
 
 
+class Wikimedia(Source):
+    """Artist photos from Wikimedia Commons, found through MusicBrainz.
+
+    Uses the artist's MusicBrainz ID: the "image" URL relation if present,
+    otherwise the Wikidata item's P18 (image) property. No API key needed.
+    """
+
+    name, label, albums = "wikidata", "Wikimedia (via MusicBrainz)", False
+    min_interval = 1.1  # MusicBrainz allows one request per second
+
+    @staticmethod
+    def _file_url(filename: str, width: int) -> str:
+        from urllib.parse import quote
+
+        name = filename.replace(" ", "_")
+        return f"https://commons.wikimedia.org/wiki/Special:FilePath/{quote(name)}?width={width}"
+
+    def artist_images(self, q: ArtistQuery) -> list[ImageCandidate]:
+        if not q.mb_artistid:
+            return []
+        data = self.get(
+            f"https://musicbrainz.org/ws/2/artist/{q.mb_artistid}",
+            params={"inc": "url-rels", "fmt": "json"},
+        )
+        filename = ""
+        wikidata = ""
+        for rel in (data or {}).get("relations", []):
+            url = (rel.get("url") or {}).get("resource", "")
+            if rel.get("type") == "image" and "/File:" in url:
+                filename = url.split("/File:", 1)[1]
+            elif rel.get("type") == "wikidata" and "/wiki/Q" in url:
+                wikidata = url.rsplit("/", 1)[1]
+        if not filename and wikidata:
+            ent = self.get(f"https://www.wikidata.org/wiki/Special:EntityData/{wikidata}.json")
+            claims = ((ent or {}).get("entities", {}).get(wikidata) or {}).get("claims", {})
+            for claim in claims.get("P18", []):
+                value = ((claim.get("mainsnak") or {}).get("datavalue") or {}).get("value")
+                if value:
+                    filename = value
+                    break
+        if not filename:
+            return []
+        from urllib.parse import unquote
+
+        filename = unquote(filename)
+        return [
+            ImageCandidate(
+                url=self._file_url(filename, 1500),
+                thumb=self._file_url(filename, 300),
+                source=self.label,
+                note=filename,
+                match="id",
+                entity=q.mb_artistid,
+            )
+        ]
+
+
 SOURCES: dict[str, type[Source]] = {
     cls.name: cls
     for cls in (
         CoverArtArchive,
         FanartTv,
+        Wikimedia,
         TheAudioDB,
         Deezer,
         ITunes,

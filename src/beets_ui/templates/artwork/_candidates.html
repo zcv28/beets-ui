@@ -9,7 +9,7 @@
     <label class="card pick">
       <input type="radio" name="url" value="{{ c.url }}" {% if loop.first %}checked{% endif %}>
       <img loading="lazy" src="{{ c.thumb }}" alt="" referrerpolicy="no-referrer">
-      <div class="t">{{ c.source }}</div>
+      <div class="t">{{ c.source }} {% if c.match == 'id' %}<span class="badge done" title="found through the MusicBrainz ID">MBID</span>{% else %}<span class="badge" title="found by name search">name</span>{% endif %}</div>
       <div class="s">{% if c.width %}{{ c.width }}×{{ c.height }}{% else %}size unknown{% endif %}{% if c.note %} · {{ c.note }}{% endif %} · <a href="{{ c.url }}" target="_blank" rel="noopener noreferrer">full</a></div>
     </label>
     {% endfor %}

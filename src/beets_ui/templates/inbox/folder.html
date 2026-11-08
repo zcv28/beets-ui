@@ -12,14 +12,27 @@
 {% if busy %}{% include "inbox/_busy.html" %}{% endif %}
 {% if folder.error and folder.status not in ('duplicate',) %}<div class="{{ 'warn' if folder.status == 'failed' else 'wip' }}">{{ folder.error }}</div>{% endif %}
 
-{% if folder.status == 'imported' %}
+{% if folder.status == 'imported' or folder.library %}
 <div class="ok-box">
-  Imported into the library. The source files are still in the inbox (beets copies by default).
-  <form class="inline" method="post" action="/inbox/folder/delete" onsubmit="return confirm('Delete {{ folder.path }} from the inbox?')">
-    <input type="hidden" name="f" value="{{ folder.path }}">
-    <button class="btn btn-sm btn-c">Delete source folder</button>
-  </form>
+  {% if folder.status == 'imported' %}Imported into the library.{% else %}This folder looks like it is already in your library:{% endif %}
+  {% if folder.library %}<ul>{% for a in folder.library %}<li><a href="/library/album/{{ a.id }}">{{ a.albumartist }} – {{ a.album }}</a> <small class="muted">({{ a.how }})</small></li>{% endfor %}</ul>{% endif %}
+  <div class="bar">
+    <span class="muted">The source files are still in the inbox.</span>
+    <span class="spacer"></span>
+    <form class="inline" method="post" action="/inbox/folder/delete" onsubmit='return confirm("Delete " + {{ folder.path|tojson }} + " from the inbox?")'>
+      <input type="hidden" name="f" value="{{ folder.path }}">
+      <button class="btn btn-sm btn-c" {% if busy %}disabled{% endif %}>Delete source folder</button>
+    </form>
+  </div>
 </div>
+{% endif %}
+
+{% if folder.files %}
+{% set audio = folder.files|selectattr('audio')|list %}
+<details class="files">
+  <summary><strong>Files</strong> <span class="muted">{{ audio|length }} audio · {{ folder.files|length }} total · {{ folder.files|sum(attribute='size')|size }}</span></summary>
+  <ul>{% for file in folder.files %}<li><small>{% if not file.audio %}<span class="muted">{% endif %}{{ file.path }}{% if not file.audio %}</span>{% endif %} <span class="muted">{{ file.size|size }}</span></small></li>{% endfor %}</ul>
+</details>
 {% endif %}
 
 <details {% if not folder.tasks %}open{% endif %}>
@@ -49,7 +62,7 @@
     <a class="btn btn-sm btn-d" href="/soulseek?q={{ (folder.tasks[0].cur_artist ~ ' ' ~ folder.tasks[0].cur_album)|q }}">Search Soulseek for this album</a>
     {% endif %}
     <span class="spacer"></span>
-    <form class="inline" method="post" action="/inbox/folder/delete" onsubmit="return confirm('Delete {{ folder.path }} and all its files from the inbox?')">
+    <form class="inline" method="post" action="/inbox/folder/delete" onsubmit='return confirm("Delete " + {{ folder.path|tojson }} + " and all its files from the inbox?")'>
       <input type="hidden" name="f" value="{{ folder.path }}">
       <button class="btn btn-sm btn-c" {% if busy %}disabled{% endif %}>Delete folder</button>
     </form>

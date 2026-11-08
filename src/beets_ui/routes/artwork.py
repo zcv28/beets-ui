@@ -56,8 +56,10 @@ def covers(request: Request, filter: str = "missing", q: str = "", page: int = 1
     rows = []
     for a in albums:
         st = aw.cover_status(a)
-        if filter == "missing" and st["has"]:
+        if filter == "missing" and (st["has"] or st["embedded"]):
             continue
+        if filter == "nofile" and st["has"]:
+            continue  # no cover file, with or without embedded art
         if filter == "low" and st["has"] and not st["low"]:
             continue  # "low" shows missing and low-resolution covers
         rows.append((a, st))
@@ -142,6 +144,7 @@ async def covers_fill(request: Request):
         "sources": _sources([str(s) for s in form.getlist("src")]),
         "embed": bool(form.get("embed")),
         "low": bool(form.get("low")),
+        "extract": bool(form.get("extract")),
     }
     job = request.app.state.jobs.submit(
         "covers-fill", "Fill missing album covers", params, user(request)
@@ -155,12 +158,20 @@ async def covers_fill(request: Request):
 @router.get("/artists")
 def artists(request: Request, filter: str = "missing", q: str = ""):
     aw = request.app.state.artwork
+    results = request.app.state.state.artist_art()
     rows = []
     for a in aw.artists():
         if q and q.casefold() not in a["name"].casefold():
             continue
         info = aw.artist_info(a["name"])
+        info["auto"] = results.get(a["name"])
+        status = (info["auto"] or {}).get("status")
         if filter == "missing" and (info["image"] or info["folder"] is None):
+            continue
+        if filter == "review" and not (
+            info["folder"] is not None
+            and (status in ("ambiguous", "notfound") and not info["image"] or status == "name")
+        ):
             continue
         if filter == "nofolder" and info["folder"] is not None:
             continue
@@ -184,6 +195,7 @@ def artist_page(request: Request, name: str):
     info = aw.artist_info(name)
     if not info["albums"]:
         raise HTTPException(404, "artist not found")
+    info["auto"] = request.app.state.state.artist_art().get(name)
     return render(
         request,
         "artwork/artist.html",
@@ -257,6 +269,7 @@ async def artists_fill(request: Request):
     params = {
         "sources": _sources([str(s) for s in form.getlist("src")]),
         "overwrite": bool(form.get("overwrite")),
+        "retry": bool(form.get("retry")),
     }
     job = request.app.state.jobs.submit(
         "artists-fill", "Fill missing artist images", params, user(request)
