@@ -1,0 +1,3 @@
+{% for a in albums %}<tr><td>{{ a.albumartist }}</td><td><a href="/library/album/{{ a.id }}">{{ a.album or '(untitled)' }}</a></td><td class="num">{{ a.year or '' }}</td><td class="hide-sm">{{ a.formatted().get('genres', '') }}</td><td class="hide-sm">{{ a.label }}</td></tr>
+{% endfor %}
+{% if more %}<tr class="more-row" hx-get="/library?q={{ q|q }}&sort={{ sort }}&view={{ view }}&page={{ page + 1 }}" hx-trigger="revealed" hx-swap="outerHTML"><td colspan="5"><a href="/library?q={{ q|q }}&sort={{ sort }}&view={{ view }}&page={{ page + 1 }}">Load more</a></td></tr>{% endif %}

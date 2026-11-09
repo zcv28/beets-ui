@@ -49,6 +49,20 @@ CREATE TABLE IF NOT EXISTS artist_art (
     note TEXT NOT NULL DEFAULT '',
     updated_at REAL NOT NULL
 );
+CREATE TABLE IF NOT EXISTS artist_aliases (
+    alias TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    created_at REAL NOT NULL
+);
+CREATE TABLE IF NOT EXISTS snapshots (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    job_id INTEGER NOT NULL,
+    label TEXT NOT NULL,
+    data TEXT NOT NULL,
+    created_at REAL NOT NULL,
+    undone_by INTEGER
+);
+CREATE INDEX IF NOT EXISTS snapshots_job ON snapshots(job_id);
 """
 
 # Columns added after the first release: (name, definition).
@@ -161,6 +175,14 @@ class State:
             )
         return [dict(r) for r in rows.fetchall()]
 
+    def jobs_finished_since(self, ts: float) -> list[dict[str, Any]]:
+        rows = self._exec(
+            "SELECT id, kind, title, status, error, finished_at FROM jobs "
+            "WHERE finished_at > ? ORDER BY finished_at LIMIT 20",
+            (ts,),
+        )
+        return [dict(r) for r in rows.fetchall()]
+
     def set_job(self, job_id: int, **fields: Any) -> None:
         sets = ", ".join(f"{k}=?" for k in fields)
         self._exec(f"UPDATE jobs SET {sets} WHERE id=?", (*fields.values(), job_id))
@@ -174,6 +196,7 @@ class State:
             "AND status NOT IN ('queued','running')",
             (keep,),
         )
+        self._exec("DELETE FROM snapshots WHERE job_id NOT IN (SELECT id FROM jobs)")
 
     # -------------------------------------------------------------- artist art
 
@@ -191,3 +214,55 @@ class State:
             "updated_at=excluded.updated_at",
             (name, status, source, url, note[:500], time.time()),
         )
+
+    # ---------------------------------------------------------- artist aliases
+
+    def artist_aliases(self) -> dict[str, str]:
+        """Casefolded alias -> the album artist name it is merged into."""
+        rows = self._exec("SELECT alias, name FROM artist_aliases").fetchall()
+        return {r["alias"]: r["name"] for r in rows}
+
+    def set_artist_alias(self, alias: str, name: str) -> None:
+        key = alias.strip().casefold()
+        if not key or key == name.strip().casefold():
+            return
+        with self._lock:
+            # Aliases that pointed at ``alias`` now point at its new name.
+            self._conn.execute("UPDATE artist_aliases SET name=? WHERE name=?", (name, alias))
+            self._conn.execute(
+                "INSERT INTO artist_aliases (alias, name, created_at) VALUES (?,?,?) "
+                "ON CONFLICT(alias) DO UPDATE SET name=excluded.name",
+                (key, name, time.time()),
+            )
+            self._conn.execute(
+                "DELETE FROM artist_aliases WHERE alias=?", (name.strip().casefold(),)
+            )
+
+    def delete_artist_alias(self, alias: str) -> None:
+        self._exec("DELETE FROM artist_aliases WHERE alias=?", (alias.casefold(),))
+
+    # --------------------------------------------------------------- snapshots
+
+    def add_snapshot(self, job_id: int, label: str, data: dict[str, Any]) -> int:
+        cur = self._exec(
+            "INSERT INTO snapshots (job_id, label, data, created_at) VALUES (?,?,?,?)",
+            (job_id, label, json.dumps(data), time.time()),
+        )
+        return int(cur.lastrowid)  # type: ignore[arg-type]
+
+    def snapshot(self, snap_id: int) -> dict[str, Any] | None:
+        row = self._exec("SELECT * FROM snapshots WHERE id=?", (snap_id,)).fetchone()
+        if row is None:
+            return None
+        d = dict(row)
+        d["data"] = json.loads(d["data"])
+        return d
+
+    def snapshot_for_job(self, job_id: int) -> dict[str, Any] | None:
+        row = self._exec(
+            "SELECT id FROM snapshots WHERE job_id=? ORDER BY id DESC LIMIT 1", (job_id,)
+        ).fetchone()
+        return self.snapshot(row["id"]) if row else None
+
+    def mark_snapshot_undone(self, snap_id: int, job_id: int) -> None:
+        self._exec("UPDATE snapshots SET undone_by=? WHERE id=?", (job_id, snap_id))

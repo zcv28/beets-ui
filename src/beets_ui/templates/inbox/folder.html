@@ -31,7 +31,7 @@
 {% set audio = folder.files|selectattr('audio')|list %}
 <details class="files">
   <summary><strong>Files</strong> <span class="muted">{{ audio|length }} audio · {{ folder.files|length }} total · {{ folder.files|sum(attribute='size')|size }}</span></summary>
-  <ul>{% for file in folder.files %}<li><small>{% if not file.audio %}<span class="muted">{% endif %}{{ file.path }}{% if not file.audio %}</span>{% endif %} <span class="muted">{{ file.size|size }}</span></small></li>{% endfor %}</ul>
+  <ul>{% for file in folder.files %}<li>{% if file.audio %}<button type="button" class="play" data-src="/inbox/file?p={{ (folder.path ~ '/' ~ file.path)|q }}" title="Play">▶</button> {% endif %}<small>{% if not file.audio %}<span class="muted">{% endif %}{{ file.path }}{% if not file.audio %}</span>{% endif %} <span class="muted">{{ file.size|size }}</span></small></li>{% endfor %}</ul>
 </details>
 {% endif %}
 
@@ -70,12 +70,13 @@
 </details>
 
 {% if folder.tasks %}
-<form method="post" action="/inbox/folder/import">
+<form method="post" action="/inbox/folder/import" id="import-form">
 <input type="hidden" name="f" value="{{ folder.path }}">
 {% for task in folder.tasks %}
 {% set ti = loop.index0 %}
 {% set dec = folder.decisions.get(task.key, {}) %}
 {% set dup = folder.duplicates.get(task.key) %}
+<section class="task" data-task="{{ ti }}">
 <h2>{% if task.is_album %}{{ task.cur_artist or '?' }} – {{ task.cur_album or '?' }}{% else %}{{ task['items'][0].artist }} – {{ task['items'][0].title }}{% endif %}</h2>
 <p class="muted">{{ task['items']|length }} file(s){% if task['items'] %} · {{ task['items']|map(attribute='format')|unique|join(', ') }}{% endif %} · {{ task.paths[0]|replace(inbox_root ~ '/', '') }}</p>
 
@@ -116,7 +117,7 @@
       {% for t in c.tracks %}
       <tr>
         <td class="num">{% if t.medium and c.mediums and c.mediums > 1 %}{{ t.medium }}-{% endif %}{{ t.new_track }}</td>
-        <td>{{ t.cur_title }}</td>
+        <td><button type="button" class="play" data-src="/inbox/file?p={{ t.path|q }}" title="Play">▶</button> {{ t.cur_title }}</td>
         <td class="arrow">→</td>
         <td {% if t.title_changed %}class="changed"{% endif %}>{{ t.new_title }}{% if t.new_artist and t.new_artist != c.artist %} <small class="muted">({{ t.new_artist }})</small>{% endif %}</td>
         <td class="num {% if t.length_off %}warnc{% endif %}">{{ t.cur_length|duration }}{% if t.length_off %} → {{ t.new_length|duration }}{% endif %}</td>
@@ -138,17 +139,20 @@
 <details>
   <summary class="muted">Current files</summary>
   <div class="scroll"><table class="table">
-    <thead><tr><th class="num">#</th><th>Title</th><th>Artist</th><th>Album</th><th>File</th><th class="num">Length</th><th class="num">kbps</th></tr></thead>
-    <tbody>{% for it in task['items'] %}<tr><td class="num">{{ it.track or '' }}</td><td>{{ it.title }}</td><td>{{ it.artist }}</td><td>{{ it.album }}</td><td><small>{{ it.filename }}</small></td><td class="num">{{ it.length|duration }}</td><td class="num">{{ it.bitrate }}</td></tr>{% endfor %}</tbody>
+    <thead><tr><th></th><th class="num">#</th><th>Title</th><th>Artist</th><th>Album</th><th>File</th><th class="num">Length</th><th class="num">kbps</th></tr></thead>
+    <tbody>{% for it in task['items'] %}<tr><td><button type="button" class="play" data-src="/inbox/file?p={{ it.path|q }}" title="Play">▶</button></td><td class="num">{{ it.track or '' }}</td><td>{{ it.title }}</td><td>{{ it.artist }}</td><td>{{ it.album }}</td><td><small>{{ it.filename }}</small></td><td class="num">{{ it.length|duration }}</td><td class="num">{{ it.bitrate }}</td></tr>{% endfor %}</tbody>
   </table></div>
 </details>
+</section>
 {% endfor %}
-<hr>
-<div class="bar">
-  <span class="muted">Copy/move, tag writing and path format come from your beets config.</span>
+<p class="muted"><small>Copy/move, tag writing and path format come from your beets config.</small></p>
+<div class="sticky-bar">
+  <span id="decided" class="muted" data-tasks="{{ folder.tasks|length }}"></span>
+  <small class="muted hide-sm"><kbd>j</kbd>/<kbd>k</kbd> move · <kbd>x</kbd> choose · <kbd>o</kbd> open · <kbd>p</kbd> play · <kbd>i</kbd> import</small>
   <span class="spacer"></span>
   <button class="btn btn-b" {% if busy %}disabled{% endif %}>Import</button>
 </div>
 </form>
 {% endif %}
+<div class="player" id="player-bar" hidden><audio id="player" controls preload="none"></audio><small id="player-name" class="muted"></small></div>
 {% endblock %}

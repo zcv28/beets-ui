@@ -13,7 +13,7 @@ from fastapi.staticfiles import StaticFiles
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.middleware.sessions import SessionMiddleware
 
-from . import __version__, beets_ctx
+from . import __version__, beets_ctx, history
 from . import artists as artists_svc
 from .artwork.service import Artwork
 from .auth import RateLimiter
@@ -62,6 +62,7 @@ def create_app(settings: Settings | None = None, background: bool = True) -> Fas
     artwork = Artwork(settings, jobs)
     register_jobs(jobs)
     artists_svc.register_jobs(jobs, settings.artist_image_names)
+    history.register_jobs(jobs, settings.artist_image_names)
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):

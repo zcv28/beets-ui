@@ -1,8 +1,11 @@
 from __future__ import annotations
 
+import time
+
 from fastapi import APIRouter, HTTPException, Request
 
-from ..web import flash, partial, redirect, render
+from ..history import UNDOABLE
+from ..web import flash, partial, redirect, render, user
 
 router = APIRouter(prefix="/jobs")
 
@@ -34,11 +37,61 @@ def jobs_table(request: Request):
     )
 
 
+# Finished jobs worth a pop-up: lookups run all the time, so only failed ones.
+QUIET = {"preview"}
+
+
+@router.get("/pill")
+def jobs_pill(request: Request, since: float = 0):
+    """Nav badge plus pop-ups for jobs that finished since the last poll."""
+    jobs = request.app.state.jobs
+    since = since or time.time()
+    done = request.app.state.state.jobs_finished_since(since)
+    if done:
+        since = max(j["finished_at"] for j in done)
+    toasts = [j for j in done if j["kind"] not in QUIET or j["status"] == "failed"]
+    return partial(
+        request,
+        "partials/jobs_pill.html",
+        running=jobs.current,
+        pending=jobs.pending(),
+        since=since,
+        toasts=toasts,
+    )
+
+
 @router.get("/{job_id}")
 def job_page(request: Request, job_id: int):
     job = _job_or_404(request, job_id)
     log, trimmed = _trim(job["log"])
-    return render(request, "job.html", nav="jobs", job=job, log=log, trimmed=trimmed)
+    snap = request.app.state.state.snapshot_for_job(job_id) if job["kind"] in UNDOABLE else None
+    undone = request.app.state.state.job(snap["undone_by"]) if snap and snap["undone_by"] else None
+    return render(
+        request,
+        "job.html",
+        nav="jobs",
+        job=job,
+        log=log,
+        trimmed=trimmed,
+        snap=snap,
+        undone=undone,
+    )
+
+
+@router.post("/{job_id}/undo")
+def job_undo(request: Request, job_id: int):
+    job = _job_or_404(request, job_id)
+    snap = request.app.state.state.snapshot_for_job(job_id)
+    if snap is None or job["status"] not in ("done", "failed"):
+        flash(request, "This job has nothing to undo.", "wip")
+        return redirect(f"/jobs/{job_id}")
+    if snap["undone_by"]:
+        flash(request, f"Already undone by job #{snap['undone_by']}.", "wip")
+        return redirect(f"/jobs/{job_id}")
+    undo = request.app.state.jobs.submit(
+        "undo", f"Undo #{job_id}: {job['title']}", {"snapshot_id": snap["id"]}, user(request)
+    )
+    return redirect(f"/jobs/{undo}")
 
 
 @router.get("/{job_id}/log")

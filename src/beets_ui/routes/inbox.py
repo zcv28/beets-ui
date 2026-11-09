@@ -1,12 +1,15 @@
 from __future__ import annotations
 
+import mimetypes
 import re
+from pathlib import Path
 from urllib.parse import quote
 
 from fastapi import APIRouter, Form, HTTPException, Request
+from fastapi.responses import FileResponse
 
 from ..importer import DUPLICATE_ACTIONS
-from ..inbox import STATUS_LABELS
+from ..inbox import AUDIO_EXT, STATUS_LABELS, is_within
 from ..web import flash, partial, redirect, render, user
 
 router = APIRouter(prefix="/inbox")
@@ -89,7 +92,7 @@ def preview_all(request: Request):
     n = 0
     for row in request.app.state.state.folders():
         if row["status"] in ("new", "failed"):
-            request.app.state.inbox.queue_preview(row["path"], user=user(request))
+            request.app.state.inbox.queue_preview(row["path"], user=user(request), auto=True)
             n += 1
     flash(request, f"Queued lookups for {n} folder(s).")
     return redirect("/inbox")
@@ -109,6 +112,21 @@ def folder_page(request: Request, f: str):
         dup_actions=list(DUPLICATE_ACTIONS),
         inbox_root=str(s.inbox.resolve()),
     )
+
+
+# Browsers guess poorly for some audio types; FLAC and Opus play in every current browser.
+AUDIO_TYPES = {".flac": "audio/flac", ".opus": "audio/ogg", ".m4a": "audio/mp4"}
+
+
+@router.get("/file")
+def inbox_file(request: Request, p: str):
+    """Stream one audio file from the inbox for the review page's player."""
+    root = request.app.state.settings.inbox
+    path = Path(p) if Path(p).is_absolute() else root / p
+    if not is_within(path, root) or path.suffix.lower() not in AUDIO_EXT or not path.is_file():
+        raise HTTPException(404, "no such audio file in the inbox")
+    media = AUDIO_TYPES.get(path.suffix.lower()) or mimetypes.guess_type(path.name)[0]
+    return FileResponse(path, media_type=media or "application/octet-stream")
 
 
 @router.get("/folder/status")

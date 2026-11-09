@@ -1,12 +1,14 @@
 from __future__ import annotations
 
+import unicodedata
+
 from fastapi import APIRouter, Form, HTTPException, Request
 from fastapi.responses import FileResponse, Response
 
 from .. import artists as artists_svc
 from .. import beets_ctx
 from .. import library as libsvc
-from ..web import HERE, flash, redirect, render, user
+from ..web import HERE, flash, partial, redirect, render, user
 
 router = APIRouter(prefix="/library")
 NOCOVER = HERE / "static" / "nocover.svg"
@@ -34,6 +36,9 @@ def albums(request: Request, q: str = "", sort: str = "artist", page: int = 1, v
         rows, more = libsvc.albums(q, sort, page)
     except libsvc.QueryError as e:
         rows, more, error = [], False, str(e)
+    if request.headers.get("hx-request") and page > 1:
+        name = "library/_album_rows.html" if view == "table" else "library/_album_cards.html"
+        return partial(request, name, albums=rows, more=more, q=q, sort=sort, page=page, view=view)
     return render(
         request,
         "library/albums.html",
@@ -58,6 +63,16 @@ def tracks(request: Request, q: str = "", page: int = 1, singletons: int = 0):
         rows, more = libsvc.items(q, page, singletons=bool(singletons))
     except libsvc.QueryError as e:
         rows, more, error = [], False, str(e)
+    if request.headers.get("hx-request") and page > 1:
+        return partial(
+            request,
+            "library/_track_rows.html",
+            items=rows,
+            more=more,
+            q=q,
+            page=page,
+            singletons=singletons,
+        )
     return render(
         request,
         "library/tracks.html",
@@ -71,14 +86,76 @@ def tracks(request: Request, q: str = "", page: int = 1, singletons: int = 0):
     )
 
 
+def _letter(name: str) -> str:
+    """Bucket for the A–Z bar: a Latin letter, 0–9, あ (Japanese/CJK) or #."""
+    ch = unicodedata.normalize("NFKD", name.strip()[:1]).upper()[:1]
+    if "A" <= ch <= "Z":
+        return ch
+    if ch.isdigit():
+        return "0–9"
+    if ch and unicodedata.name(ch, "").startswith(("CJK", "HIRAGANA", "KATAKANA", "HANGUL")):
+        return "あ"
+    return "#"
+
+
 @router.get("/artists")
 def artists(request: Request):
+    rows = request.app.state.artwork.artists()
+    for a in rows:
+        a["letter"] = _letter(a["name"])
+    order = [*"ABCDEFGHIJKLMNOPQRSTUVWXYZ", "0–9", "あ", "#"]
+    present = {a["letter"] for a in rows}
     return render(
         request,
         "library/artists.html",
         nav="library",
-        artists=request.app.state.artwork.artists(),
+        artists=rows,
+        letters=[l for l in order if l in present],  # noqa: E741
     )
+
+
+@router.get("/artists/aliases")
+def artists_aliases(request: Request):
+    state = request.app.state.state
+    return render(
+        request,
+        "library/artists_aliases.html",
+        nav="library",
+        groups=artists_svc.alias_suggestions(),
+        aliases=sorted(state.artist_aliases().items(), key=lambda a: a[1].casefold()),
+    )
+
+
+@router.post("/artists/merge")
+async def artists_merge(request: Request):
+    form = await request.form()
+    names = [str(n).strip() for n in form.getlist("name") if str(n).strip()]
+    target = str(form.get("target", "")).strip() or (names[0] if names else "")
+    aliases = [n for n in names if n.casefold() != target.casefold()]
+    back = "/library/artists/aliases" if form.get("back") == "aliases" else "/library/artists"
+    if not target or not aliases:
+        flash(request, "Choose at least two artists to merge.", "wip")
+        return redirect(back)
+    job = request.app.state.jobs.submit(
+        "artists-merge",
+        f"Merge {', '.join(aliases)} into {target}",
+        {
+            "target": target,
+            "aliases": aliases,
+            "write": bool(form.get("write")),
+            "move": bool(form.get("move")),
+            "tracks": bool(form.get("tracks")),
+        },
+        user(request),
+    )
+    return redirect(f"/jobs/{job}")
+
+
+@router.post("/artists/aliases/delete")
+def artists_alias_delete(request: Request, alias: str = Form(...)):
+    request.app.state.state.delete_artist_alias(alias)
+    flash(request, f"Forgot the alias {alias!r}. Albums already merged keep their artist.")
+    return redirect("/library/artists/aliases")
 
 
 @router.get("/artists/primary")
@@ -87,7 +164,7 @@ def artists_primary(request: Request):
         request,
         "library/artists_primary.html",
         nav="library",
-        rows=artists_svc.proposals(),
+        rows=artists_svc.proposals(aliases=request.app.state.state.artist_aliases()),
         enabled=request.app.state.settings.primary_artist,
     )
 
@@ -127,6 +204,27 @@ def album(request: Request, album_id: int):
         cover=request.app.state.artwork.cover_status(a),
         path=items[0].filepath.parent if items else None,
     )
+
+
+# One-click album commands (run through the console job, like typing them there).
+ALBUM_ACTIONS = {
+    "mbsync": ("mbsync", ["mbsync", "-a"]),
+    "fetchart": ("fetchart", ["fetchart", "-f"]),
+    "embedart": ("embedart", ["embedart", "-y"]),
+    "replaygain": ("replaygain", ["replaygain", "-a"]),
+    "lyrics": ("lyrics", ["lyrics"]),
+}
+
+
+@router.post("/album/{album_id}/run")
+def album_run(request: Request, album_id: int, action: str = Form(...)):
+    a = _album_or_404(album_id)
+    if action not in ALBUM_ACTIONS:
+        raise HTTPException(400, "unknown action")
+    label, argv = ALBUM_ACTIONS[action]
+    job = request.app.state.console.submit_argv([*argv, f"album_id:{album_id}"], user(request))
+    flash(request, f"{label} for {a.album} queued as job #{job}.")
+    return redirect(f"/library/album/{album_id}")
 
 
 @router.get("/album/{album_id}/cover")

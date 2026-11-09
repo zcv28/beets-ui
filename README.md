@@ -7,8 +7,11 @@ A small, self-hosted web frontend for [beets](https://beets.io). It runs in one 
   - search by artist/album or by ID,
   - import as-is or as individual tracks,
   - skip a folder,
-  - resolve duplicates (skip, keep both, replace, merge or upgrade).
-- **Library.** Browse and search with beets query syntax, view albums, artists, tracks and singletons, edit any field (and write the tags to the files), move files, and remove albums or tracks.
+  - resolve duplicates (skip, keep both, replace, merge or upgrade),
+  - play the files in the browser before importing,
+  - let confident matches import on their own (`BEETSUI_AUTO_IMPORT`).
+- **Library.** Browse and search with beets query syntax, view albums, artists, tracks and singletons, edit any field (and write the tags to the files), move files, and remove albums or tracks. Edits can be undone from their job page.
+- **Artists.** Merge one artist's aliases ("ヌジャベス", "Nujabes") into one album artist; later imports use the kept name too. Collaborations can keep only their primary artist.
 - **Artwork.**
   - Album covers: find, choose, upload or fill in automatically, with an optional embed into the files.
   - Artist and circle pictures, saved as `folder.jpg` in each artist folder, which is where Jellyfin and most players look for them.
@@ -85,6 +88,7 @@ The container user (`user:`) must be able to read the inbox and write to `/music
 | `BEETSUI_SCAN_INTERVAL` | `30` | Seconds between inbox scans. |
 | `BEETSUI_DEBOUNCE` | `30` | A folder must be unchanged this many seconds before it is looked up. This avoids looking up half-finished downloads. |
 | `BEETSUI_DELETE_AFTER_IMPORT` | `false` | Delete the inbox folder after a successful import (beets copies by default). |
+| `BEETSUI_AUTO_IMPORT` | `0` (off) | Import an automatically looked-up folder without review when every album in it matches at least this % (e.g. `95`), has no missing tracks or unmatched files, and nothing in it is already in the library. Duplicates beets finds still wait for you. |
 | `BEETSUI_PRIMARY_ARTIST` | `false` | Keep only the first credited artist as album artist on import ("ヌジャベス & Joe Claussell" → "ヌジャベス"). Track artists keep the full credit. Albums already in the library can be fixed under *Library → Artists*. |
 | `BEETSUI_LDAP_ENABLED` | `false` | Use LDAP instead of the password. |
 | `LDAP_URL` | — | e.g. `ldap://lldap:3890` or `ldaps://ldap.example.org`. |
@@ -164,16 +168,19 @@ Tags: `latest` (main branch), `X.Y.Z` / `X.Y` (releases), `sha-<commit>`.
 
 1. **Inbox.** New folders show up as *New*, get looked up, and become *Ready* (with the best match %) or *Needs attention*. Expand a row to see its files. Folders that are already in your library (same MusicBrainz album ID, or same album artist and album name) are marked with a link to the album; delete them one by one or all at once with **Delete imported**. Open a folder to review it:
    - Every candidate shows match %, source, year, label, catalog number and what differs. Expand it to see a track-by-track diff (changed titles in yellow, length mismatches in red).
-   - Choose a candidate, *as-is* or *skip* for each album in the folder, then press **Import**.
+   - Choose a candidate, *as-is* or *skip* for each album in the folder, then press **Import** (it stays pinned at the bottom, with a count of what will be imported). Press ▶ next to a file to listen to it.
+   - Keyboard: <kbd>j</kbd>/<kbd>k</kbd> move between candidates, <kbd>x</kbd> chooses one, <kbd>o</kbd> expands it, <kbd>p</kbd> plays its first track, <kbd>i</kbd> imports.
    - Nothing good? Use **Search again** with artist/album, or paste MusicBrainz/Discogs IDs or URLs, and tick *keep current candidates* to add the results to the list. You can also switch the folder to *albums grouped by tags* or *individual tracks*.
    - If beets finds the album already in your library, the folder becomes *Duplicate*. Pick what to do and press Import again.
-2. **Library.** Search with [beets queries](https://beets.readthedocs.io/en/stable/reference/query.html) (`albumartist:Foo year:2000..2010`, `format:FLAC`, …). On an album page you can edit fields, write tags, move files, remove the album, or jump to the console with `mbsync`, `fetchart`, `replaygain` and similar commands filled in.
+2. **Library.** Search with [beets queries](https://beets.readthedocs.io/en/stable/reference/query.html) (`albumartist:Foo year:2000..2010`, `format:FLAC`, …). On an album page you can edit fields, write tags, move files, remove the album, or run `mbsync`, `fetchart`, `embedart`, `replaygain` and `lyrics` on it with one click (*re-tag* opens the console first).
+   - **Undo.** Album and track edits, artist merges and primary-artist fixes save the old values first. Open the job (a pop-up links to it when it finishes) and press **Undo** to put the old values, tags and folders back.
+   - **Artists.** Filter by name or letter. Tick two or more artists to merge them, or open *merge aliases* for suggestions: names that differ only in width or case, share an artist ID from the same source, or where one is the other's sort or credited name (MusicBrainz gives "ヌジャベス" the sort name "Nujabes"). Merged names are remembered and applied to future imports; remove one under *Remembered* to stop that.
 3. **Artwork.** *Album covers* lists albums with missing (or low-resolution) covers. *Artist pictures* lists artists without a picture. Run **Fill automatically** first, then open *needs review* for the few artists it was unsure about (matched by name, several artists with the same name, or not found) and pick or upload those by hand.
 4. **Console.** Type a command without the leading `beet`. Commands that prompt can't be answered, so use `-y`/`-q` (e.g. `import -q -L <query>` to re-tag library albums).
 
 Not supported:
 - **VGMdb.** It has no official API, its unofficial mirror is offline and the site blocks automated requests.
-- **Undoing an import.** Remove the album from the library instead.
+- **Undoing an import or a removal.** Remove the album from the library instead; removals can't be undone.
 
 ---
 
