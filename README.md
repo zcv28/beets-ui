@@ -85,6 +85,7 @@ The container user (`user:`) must be able to read the inbox and write to `/music
 | `BEETSUI_SCAN_INTERVAL` | `30` | Seconds between inbox scans. |
 | `BEETSUI_DEBOUNCE` | `30` | A folder must be unchanged this many seconds before it is looked up. This avoids looking up half-finished downloads. |
 | `BEETSUI_DELETE_AFTER_IMPORT` | `false` | Delete the inbox folder after a successful import (beets copies by default). |
+| `BEETSUI_PRIMARY_ARTIST` | `false` | Keep only the first credited artist as album artist on import ("ヌジャベス & Joe Claussell" → "ヌジャベス"). Track artists keep the full credit. Albums already in the library can be fixed under *Library → Artists*. |
 | `BEETSUI_LDAP_ENABLED` | `false` | Use LDAP instead of the password. |
 | `LDAP_URL` | — | e.g. `ldap://lldap:3890` or `ldaps://ldap.example.org`. |
 | `LDAP_BIND_DN` / `LDAP_BIND_PASSWORD` | — | Service account used to look users up. Leave empty for an anonymous search. |

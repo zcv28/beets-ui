@@ -53,6 +53,7 @@ class Settings:
     scan_interval: int
     debounce: int
     delete_after_import: bool
+    primary_artist: bool
 
     password: str
     secret_key: str
@@ -95,6 +96,7 @@ class Settings:
             scan_interval=max(5, _int("BEETSUI_SCAN_INTERVAL", 30)),
             debounce=max(0, _int("BEETSUI_DEBOUNCE", 30)),
             delete_after_import=_bool("BEETSUI_DELETE_AFTER_IMPORT", False),
+            primary_artist=_bool("BEETSUI_PRIMARY_ARTIST", False),
             password=os.environ.get("BEETSUI_PASSWORD", ""),
             secret_key=_str("BEETSUI_SECRET_KEY"),
             ldap_enabled=_bool("BEETSUI_LDAP_ENABLED", False),
