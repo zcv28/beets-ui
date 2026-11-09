@@ -21,8 +21,8 @@
     <td>{% for a in f.library %}<a href="/library/album/{{ a.id }}" title="{{ a.how }}"><span class="nc-badge done">✓</span> {{ a.albumartist }} – {{ a.album }}</a>{% if not loop.last %}<br>{% endif %}{% endfor %}</td>
     <td class="hide-sm nowrap"><small>{{ f.updated_at|ts }}</small></td>
     <td class="nowrap">
-      {% if f.status not in ('queued', 'previewing', 'importing') and (f.status == 'imported' or f.library) %}
-      <form class="inline" method="post" action="/inbox/folder/delete" data-confirm="Delete {{ f.path }} from the inbox? Its files are removed." data-confirm-button="Delete">
+      {% if f.status not in ('queued', 'previewing', 'importing') %}
+      <form class="inline" method="post" action="/inbox/folder/delete" data-confirm="{% if f.status == 'imported' or f.library %}Delete {{ f.path }} from the inbox? Its files are removed.{% else %}{{ f.path }} has not been imported. Delete it and all its files from the inbox?{% endif %}" data-confirm-button="Delete">
         <input type="hidden" name="f" value="{{ f.path }}">
         <input type="hidden" name="back" value="/inbox{% if status %}?status={{ status }}{% endif %}">
         <button class="nc-btn nc-btn--sm nc-btn--danger">Delete</button>
