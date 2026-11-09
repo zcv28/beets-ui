@@ -226,7 +226,10 @@ def artist_image(request: Request, name: str, size: int = 300):
     info = aw.artist_info(name)
     headers = {"Cache-Control": "private, max-age=300"}
     if info["image"] is None:
-        return FileResponse(NOARTIST, media_type="image/svg+xml", headers=headers)
+        # Not cached: a picture added (or moved here) shows up on the next load.
+        return FileResponse(
+            NOARTIST, media_type="image/svg+xml", headers={"Cache-Control": "no-store"}
+        )
     try:
         return FileResponse(aw.thumbnail(info["image"], min(size, 1200)), headers=headers)
     except Exception:  # noqa: BLE001

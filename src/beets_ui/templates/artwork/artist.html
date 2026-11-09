@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% block title %}{{ info.name }}{% endblock %}
 {% block content %}
-<p><a href="/artwork/artists">← Artist pictures</a> · <a href="/library?q={{ ('albumartist:=' ~ info.name)|q }}">albums</a></p>
+<p><a href="/artwork/artists">← Artist pictures</a> · <a href="/library?q={{ ('albumartist:=' ~ info.name)|term|q }}">albums</a></p>
 <div class="album-head">
   <div class="art"><img class="cover" src="/artwork/artist/image?name={{ info.name|q }}&size=600" alt=""></div>
   <div class="meta">

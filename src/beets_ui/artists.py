@@ -18,6 +18,8 @@ from __future__ import annotations
 
 import os
 import re
+import shutil
+import tempfile
 import unicodedata
 from collections import defaultdict
 from pathlib import Path
@@ -347,6 +349,53 @@ def alias_suggestions(lib: Any | None = None) -> list[dict[str, Any]]:
     return out
 
 
+class ArtistImages:
+    """Carries artist pictures along when albums move to another artist folder.
+
+    Pictures are copied aside before any file moves (beets may clean up the
+    old folder while moving) and put into the new folder afterwards, unless
+    it already has its own picture.
+    """
+
+    def __init__(self, names: list[str] | None):
+        self.names = list(names or [])
+        self._tmp: Path | None = None
+        self._saved: dict[Path, list[tuple[str, Path]]] = {}
+        self._moves: set[tuple[Path, Path]] = set()
+
+    def remember(self, folder: Path) -> None:
+        if folder in self._saved or not self.names:
+            return
+        stash: list[tuple[str, Path]] = []
+        files = [n for n in self.names if (folder / n).is_file()]
+        if files:
+            if self._tmp is None:
+                self._tmp = Path(tempfile.mkdtemp(prefix="beets-ui-artist-"))
+            keep = self._tmp / str(len(self._saved))
+            keep.mkdir()
+            for n in files:
+                shutil.copy2(folder / n, keep / n)
+                stash.append((n, keep / n))
+        self._saved[folder] = stash
+
+    def moved(self, old: Path, new: Path) -> None:
+        if old != new:
+            self._moves.add((old, new))
+
+    def restore(self, log: Any) -> None:
+        try:
+            for old, new in sorted(self._moves):
+                if not new.is_dir():
+                    continue
+                for n, copy in self._saved.get(old, []):
+                    if not (new / n).exists():
+                        shutil.copy2(copy, new / n)
+                        log(f"artist picture {old / n} -> {new / n}")
+        finally:
+            if self._tmp is not None:
+                shutil.rmtree(self._tmp, ignore_errors=True)
+
+
 def prune_dirs(dirs: set[Path], root: Path, image_names: list[str]) -> list[Path]:
     """Remove folders left with only artist pictures or clutter after a move."""
     removable = CLUTTER | {n.casefold() for n in image_names}
@@ -416,6 +465,7 @@ def register_jobs(jobs: JobQueue, image_names: list[str] | None = None) -> None:
         sort = (known_artists(lib).get(target.casefold()) or {}).get("sort", "")
         root = Path(os.fsdecode(lib.directory))
         snap = Snapshot(ctx, f"Merge {', '.join(sorted(ctx.params['aliases']))} into {target}")
+        images = ArtistImages(image_names)
         old_dirs: set[Path] = set()
         n_albums = n_items = 0
         for album in list(lib.albums()):
@@ -433,11 +483,18 @@ def register_jobs(jobs: JobQueue, image_names: list[str] | None = None) -> None:
                 changes.setdefault("albumartist_original", album.albumartist)
             changes = {k: v for k, v in changes.items() if album.get(k) != v}
             ctx.log(f"{album.albumartist} - {album.album} -> {target}")
+            before = {}
             for item in album.items():
                 old_dirs.update({item.filepath.parent, item.filepath.parent.parent})
+                before[item.id] = item.filepath.parent.parent
+                if move:
+                    images.remember(before[item.id])
             snap.capture_album(album, changes)
             album.update(changes)
             album.try_sync(write=write, move=move)
+            for item in album.items():
+                if item.id in before:
+                    images.moved(before[item.id], item.filepath.parent.parent)
             n_albums += 1
         if ctx.params.get("tracks", True):
             for item in list(lib.items()):
@@ -466,6 +523,7 @@ def register_jobs(jobs: JobQueue, image_names: list[str] | None = None) -> None:
                 ctx.state.set_artist_alias(alias, target)
         snap.save(write, move, aliases=[a for a in aliases if a.casefold() != target.casefold()])
         if move:
+            images.restore(ctx.log)
             for d in prune_dirs(old_dirs, root, image_names or []):
                 ctx.log(f"removed empty folder {d}")
         ctx.log(
