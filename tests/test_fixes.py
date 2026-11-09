@@ -170,6 +170,29 @@ def test_row_delete_returns_to_list(app, client, env):
     assert not (env["inbox"] / "x").exists()
 
 
+def test_unimported_folder_can_be_deleted(app, client, env):
+    make_album(env["inbox"] / "junk", album="Never Wanted")
+    client.post("/inbox/scan")
+    assert app.state.state.folder("junk")["status"] == "new"
+
+    table = client.get("/inbox/table")
+    assert "junk has not been imported. Delete it" in table.text
+    page = client.get("/inbox/folder", params={"f": "junk"})
+    assert "Delete Folder" in page.text
+
+    # A busy folder offers no delete button.
+    app.state.state.upsert_folder("junk", status="previewing")
+    assert "has not been imported" not in client.get("/inbox/table").text
+    app.state.state.upsert_folder("junk", status="new")
+
+    r = client.post(
+        "/inbox/folder/delete", data={"f": "junk", "back": "/inbox"}, follow_redirects=False
+    )
+    assert r.headers["location"] == "/inbox"
+    assert not (env["inbox"] / "junk").exists()
+    assert app.state.state.folder("junk") is None
+
+
 def test_existing_state_db_gets_new_columns(tmp_path):
     import sqlite3
 

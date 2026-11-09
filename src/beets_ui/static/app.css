@@ -13,7 +13,7 @@ html, body { min-height: 100%; }
 .nc-menubar { align-items: center; }
 .nc-menubar form.inline { gap: var(--space-2); }
 .nc-menubar form.inline .muted { padding-left: var(--space-4); }
-.nc-statusbar .mono { font: 400 12px/16px var(--font-mono); }
+.nc-statusbar .mono { font: inherit; font-variant-numeric: tabular-nums; }
 .nc-window__body h1 { font-size: 28px; line-height: 34px; margin: 0 0 var(--space-5); word-break: break-word; }
 .nc-window__body h2 { font-size: 22px; line-height: 28px; margin-top: var(--space-7); }
 .nc-window__body h3 { font-size: 17px; line-height: 22px; }

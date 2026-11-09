@@ -9,6 +9,13 @@
   <span class="nc-badge {{ folder.status }}">{{ labels.get(folder.status, folder.status) }}</span>
   <span class="nc-hint">Mode: {{ {'albums': 'albums (per directory)', 'grouped': 'albums grouped by tags', 'tracks': 'individual tracks'}[folder.mode] }}</span>
   {% if folder.job_id %}<a class="nc-hint" href="/jobs/{{ folder.job_id }}">Last job #{{ folder.job_id }}</a>{% endif %}
+  {% if not (folder.status == 'imported' or folder.library) %}
+  <span class="spacer"></span>
+  <form class="inline" method="post" action="/inbox/folder/delete" data-confirm="{{ folder.path }} has not been imported. Delete it and all its files from the inbox?" data-confirm-button="Delete Folder">
+    <input type="hidden" name="f" value="{{ folder.path }}">
+    <button class="nc-btn nc-btn--sm nc-btn--danger" {% if busy %}disabled{% endif %}>Delete Folder</button>
+  </form>
+  {% endif %}
 </div>
 
 {% if busy %}{% include "inbox/_busy.html" %}{% endif %}
@@ -51,12 +58,8 @@
       {% if slskd_enabled and folder.tasks %}
       <a class="nc-btn nc-btn--sm" href="/soulseek?q={{ (folder.tasks[0].cur_artist ~ ' ' ~ folder.tasks[0].cur_album)|q }}">Search Soulseek</a>
       {% endif %}
-      <button class="nc-btn nc-btn--sm nc-btn--danger" type="submit" form="delete-folder" {% if busy %}disabled{% endif %}>Delete Folder</button>
       <button class="nc-btn nc-btn--sm" {% if busy %}disabled{% endif %}>Look Up</button>
     </div>
-  </form>
-  <form id="delete-folder" method="post" action="/inbox/folder/delete" data-confirm="Delete {{ folder.path }} and all its files from the inbox?" data-confirm-button="Delete Folder">
-    <input type="hidden" name="f" value="{{ folder.path }}">
   </form>
 </details>
 
