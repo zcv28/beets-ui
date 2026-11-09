@@ -1,4 +1,4 @@
-<div class="tabs">
-  <a href="/soulseek" {% if tab == 'search' %}class="on"{% endif %}>Search</a>
-  <a href="/soulseek/transfers" {% if tab == 'transfers' %}class="on"{% endif %}>Downloads</a>
-</div>
+<nav class="nc-tabs" aria-label="Soulseek views">
+  <a class="nc-tab" href="/soulseek" {% if tab == 'search' %}aria-current="page"{% endif %}>Search</a>
+  <a class="nc-tab" href="/soulseek/transfers" {% if tab == 'transfers' %}aria-current="page"{% endif %}>Downloads</a>
+</nav>

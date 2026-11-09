@@ -276,8 +276,13 @@ def test_review_page_has_player_and_shortcuts(app, client, env):
     client.post("/inbox/folder/preview", data={"f": "f"})
     run_jobs(app)
     page = client.get("/inbox/folder?f=f").text
-    assert 'class="play"' in page and 'id="player"' in page
-    assert 'class="sticky-bar"' in page and 'id="decided"' in page
+    assert 'class="play nc-btn' in page and 'id="player"' in page
+    assert "sticky-bar" in page and 'id="decided"' in page
+    # Candidates are rows of one table; only the chosen one's track changes show.
+    assert page.count('<tr class="cand"') == 2
+    assert 'data-diff="diff-0-0" aria-selected="true"' in page
+    assert 'id="diff-0-0" >' in page or 'id="diff-0-0">' in page
+    assert 'id="diff-0-1" hidden' in page
 
 
 def test_jobs_pill_reports_finished_jobs(app, client):
@@ -287,7 +292,7 @@ def test_jobs_pill_reports_finished_jobs(app, client):
     client.post("/console", data={"cmd": "version"})
     run_jobs(app)
     r = client.get(f"/jobs/pill?since={since}")
-    assert 'class="toast done"' in r.text and "beet version" in r.text
+    assert 'class="toast nc-callout nc-status--ok"' in r.text and "beet version" in r.text
     assert 'hx-swap-oob="beforeend:#toasts"' in r.text
     # Lookups only pop up when they fail.
     quiet = app.state.state.create_job("preview", "Look up x", {})

@@ -1,0 +1,64 @@
+/* niki.moe classic tokens as CSS variables (from the design system's tokens.json). Pick a theme with data-theme on the .nc element. */
+.nc {
+  --font-display: "Libre Baskerville", Baskerville, Georgia, "Times New Roman", serif;
+  --font-sans: Tahoma, Verdana, "Arimo", Arial, sans-serif;
+  --font-mono: "Cousine", "Courier New", monospace;
+  --space-1: 2px; --space-2: 4px; --space-3: 6px; --space-4: 8px; --space-5: 12px;
+  --space-6: 16px; --space-7: 24px; --space-8: 32px; --space-9: 48px;
+  --radius-none: 0; --radius-sm: 2px; --radius-md: 4px; --radius-lg: 8px; --radius-pill: 999px;
+  --shadow-window: 4px 4px 0 rgba(0, 0, 0, 0.5);
+  --shadow-menu: 3px 3px 0 rgba(0, 0, 0, 0.5);
+  --container-max: 1100px; --gutter: 16px;
+}
+
+.nc, .nc[data-theme="graphite"] {
+  --desktop: #1e1e1e; --desktop-dot: #282828; --face: #333333; --face-hover: #3d3d3d; --face-active: #2b2b2b;
+  --face-hi: #8a8a8a; --face-lo: #222222; --edge: #0a0a0a; --field: #121212; --field-alt: #181818;
+  --fg: #ececec; --fg-muted: #b0b0b0; --fg-disabled: #707070;
+  --title-a: #6b6b6b; --title-b: #404040; --title-fg: #ffffff;
+  --title-off-a: #4a4a4a; --title-off-b: #2e2e2e; --title-off-fg: #c8c8c8;
+  --sel-bg: #6e6e6e; --sel-fg: #ffffff; --link: #a9c4ee; --link-hover: #cddcf5; --focus: #ffd45e;
+  --accent: #e0a93f; --accent-hover: #ecbc5c; --accent-active: #c28f2b; --on-accent: #231703;
+  --ok: #62d07f; --ok-hover: #7ddc96; --ok-active: #49b866; --on-ok: #06210f;
+  --danger: #ff8478; --danger-hover: #ff9c92; --danger-active: #ee6a5e; --on-danger: #2b0705;
+  --warn: #f0c24b; --info: #6db3ff;
+}
+
+.nc[data-theme="slate"] {
+  --desktop: #1b2128; --desktop-dot: #252e38; --face: #323b46; --face-hover: #3b4552; --face-active: #2a323c;
+  --face-hi: #7f90a3; --face-lo: #1f262e; --edge: #0a0d11; --field: #0f1419; --field-alt: #151b22;
+  --fg: #e8edf2; --fg-muted: #a9b5c1; --fg-disabled: #6d7a88;
+  --title-a: #3f78b5; --title-b: #1e3f66; --title-fg: #ffffff;
+  --title-off-a: #4a5563; --title-off-b: #2f3842; --title-off-fg: #cdd6df;
+  --sel-bg: #356aa5; --sel-fg: #ffffff; --link: #8cc4ff; --link-hover: #b7dbff; --focus: #ffd45e;
+  --accent: #e0a93f; --accent-hover: #ecbc5c; --accent-active: #c28f2b; --on-accent: #231703;
+  --ok: #62d07f; --ok-hover: #7ddc96; --ok-active: #49b866; --on-ok: #06210f;
+  --danger: #ff8478; --danger-hover: #ff9c92; --danger-active: #ee6a5e; --on-danger: #2b0705;
+  --warn: #f0c24b; --info: #6db3ff;
+}
+
+.nc[data-theme="mahogany"] {
+  --desktop: #241613; --desktop-dot: #2f1e1a; --face: #3b2b26; --face-hover: #46342e; --face-active: #30231e;
+  --face-hi: #957a6c; --face-lo: #261a16; --edge: #0d0706; --field: #160e0c; --field-alt: #1d1311;
+  --fg: #f4eae3; --fg-muted: #c8b5a9; --fg-disabled: #85705f;
+  --title-a: #a33f37; --title-b: #5c201d; --title-fg: #ffffff;
+  --title-off-a: #5a4840; --title-off-b: #3f322d; --title-off-fg: #d6c5ba;
+  --sel-bg: #a33f37; --sel-fg: #ffffff; --link: #ffc67a; --link-hover: #ffdcaa; --focus: #7fd3ff;
+  --accent: #dcb45e; --accent-hover: #e8c479; --accent-active: #c29a45; --on-accent: #261a05;
+  --ok: #78d17e; --ok-hover: #92dc97; --ok-active: #5fba66; --on-ok: #07210b;
+  --danger: #ff8174; --danger-hover: #ff9a8f; --danger-active: #ec665a; --on-danger: #2c0805;
+  --warn: #f2c14e; --info: #86bbff;
+}
+
+.nc[data-theme="phosphor"] {
+  --desktop: #0b140e; --desktop-dot: #13211a; --face: #1d2c23; --face-hover: #25382c; --face-active: #17251d;
+  --face-hi: #6fa583; --face-lo: #101a14; --edge: #040906; --field: #07100a; --field-alt: #0c1710;
+  --fg: #d0f6d9; --fg-muted: #92c6a1; --fg-disabled: #56836b;
+  --title-a: #29854d; --title-b: #14532f; --title-fg: #ffffff;
+  --title-off-a: #34503f; --title-off-b: #213228; --title-off-fg: #bddfc8;
+  --sel-bg: #26804a; --sel-fg: #ffffff; --link: #7fe3f5; --link-hover: #aaeefa; --focus: #ffe36b;
+  --accent: #f0b43a; --accent-hover: #f7c660; --accent-active: #d49a22; --on-accent: #241800;
+  --ok: #7cf08a; --ok-hover: #96f5a1; --ok-active: #5fd86f; --on-ok: #062a0c;
+  --danger: #ff7b6e; --danger-hover: #ff948a; --danger-active: #ea6054; --on-danger: #2c0805;
+  --warn: #f5cc4f; --info: #7fd0ff;
+}

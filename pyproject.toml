@@ -30,7 +30,7 @@ build-backend = "setuptools.build_meta"
 where = ["src"]
 
 [tool.setuptools.package-data]
-beets_ui = ["templates/**/*.html", "static/*"]
+beets_ui = ["templates/**/*.html", "static/*", "static/**/*"]
 
 [tool.ruff]
 line-length = 100

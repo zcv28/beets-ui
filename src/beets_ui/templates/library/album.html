@@ -22,22 +22,22 @@
     </dl>
     <div class="bar">
       <form class="inline wrap" method="post" action="/library/album/{{ album.id }}/run">
-        {% for a in ['mbsync', 'fetchart', 'embedart', 'replaygain', 'lyrics'] %}<button class="btn btn-sm btn-d" name="action" value="{{ a }}">{{ a }}</button>{% endfor %}
+        {% for a in ['mbsync', 'fetchart', 'embedart', 'replaygain', 'lyrics'] %}<button class="nc-btn nc-btn--sm" name="action" value="{{ a }}">{{ a }}</button>{% endfor %}
       </form>
-      {% if romanizable %}<form class="inline" method="post" action="/library/album/{{ album.id }}/romanize"><button class="btn btn-sm btn-d" title="Use romanized names from {{ album.get('data_source') }} and keep the original names alongside">romanize</button></form>{% endif %}
-      <a class="btn btn-sm btn-d" href="/console?cmd={{ ('import -L -q album_id:' ~ album.id)|q }}" title="Re-imports the album: opens the console so you can check the command first">re-tag…</a>
+      {% if romanizable %}<form class="inline" method="post" action="/library/album/{{ album.id }}/romanize"><button class="nc-btn nc-btn--sm" title="Use romanized names from {{ album.get('data_source') }} and keep the original names alongside">Romanize</button></form>{% endif %}
+      <a class="nc-btn nc-btn--sm" href="/console?cmd={{ ('import -L -q album_id:' ~ album.id)|q }}" title="Re-imports the album: opens the console so you can check the command first">Re-tag…</a>
     </div>
   </div>
 </div>
 
 <h2>Tracks</h2>
-<div class="scroll"><table class="table">
+<div class="nc-tablewrap"><table class="nc-table">
   <thead><tr><th class="num">#</th><th>Title</th><th>Artist</th><th class="num">Length</th><th class="hide-sm">Format</th></tr></thead>
   <tbody>{% for it in items %}<tr><td class="num">{% if album.disctotal and album.disctotal > 1 %}{{ it.disc }}-{% endif %}{{ it.track }}</td><td><a href="/library/item/{{ it.id }}">{{ it.title }}</a>{% if it.get('title_original') %}<br><small class="original">{{ it.title_original }}</small>{% endif %}</td><td>{{ it.artist }}{% if it.get('artist_original') %}<br><small class="original">{{ it.artist_original }}</small>{% endif %}</td><td class="num">{{ it.length|duration }}</td><td class="hide-sm">{{ it.format }} {{ (it.bitrate // 1000) if it.bitrate else '' }}{% if it.bitdepth %} · {{ it.bitdepth }}bit/{{ (it.samplerate / 1000)|round(1) }}kHz{% endif %}</td></tr>{% endfor %}</tbody>
 </table></div>
 
-<details>
-<summary><h2 style="display:inline">Edit album</h2></summary>
+<details class="box">
+<summary>Edit Album</summary>
 <form method="post" action="/library/album/{{ album.id }}/edit">
   <div class="fields">
     {% for k, v in fields.items() %}<div><label for="f-{{ k }}">{{ k }}</label><input type="text" id="f-{{ k }}" name="{{ k }}" value="{{ v }}"></div>{% endfor %}
@@ -49,18 +49,18 @@
     <label><input type="checkbox" name="write" value="1" checked> write tags to files</label>
     <label><input type="checkbox" name="move" value="1"> move files to match the path format</label>
     <span class="spacer"></span>
-    <button class="btn btn-sm btn-b">Save</button>
+    <button class="nc-btn nc-btn--sm nc-btn--accent">Save</button>
   </div>
 </form>
 </details>
 
-<details>
-<summary><h2 style="display:inline">Remove</h2></summary>
-<form method="post" action="/library/album/{{ album.id }}/remove" onsubmit="return confirm(this.delete.checked ? 'Remove the album AND delete its files from disk?' : 'Remove the album from the library (files stay on disk)?')">
+<details class="box">
+<summary>Remove Album</summary>
+<form method="post" action="/library/album/{{ album.id }}/remove" data-confirm="Remove the album from the library? Its files stay on disk." data-confirm-checked="delete" data-confirm-alt="Remove the album and delete its files from disk?" data-confirm-button="Remove Album">
   <div class="bar">
     <label><input type="checkbox" name="delete" value="1"> also delete the files from disk</label>
     <span class="spacer"></span>
-    <button class="btn btn-sm btn-c">Remove album</button>
+    <button class="nc-btn nc-btn--sm nc-btn--danger">Remove Album</button>
   </div>
 </form>
 </details>

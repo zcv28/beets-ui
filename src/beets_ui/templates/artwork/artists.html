@@ -1,8 +1,8 @@
 {% extends "base.html" %}
 {% block title %}Artist pictures{% endblock %}
 {% block content %}
-<h1>Artwork</h1>
 {% set tab = 'artists' %}{% include "artwork/_tabs.html" %}
+<div class="nc-tabpanel">
 <p class="muted">Artist pictures are saved as <code>{{ names|join('</code>, <code>')|safe }}</code> in each album artist's folder, which is where Jellyfin and most players look.</p>
 <form class="bar" method="get" action="/artwork/artists">
   <select name="filter" onchange="this.form.submit()">
@@ -12,10 +12,10 @@
     <option value="nofolder" {% if filter == 'nofolder' %}selected{% endif %}>no artist folder</option>
   </select>
   <input type="search" name="q" value="{{ q }}" placeholder="artist name">
-  <button class="btn btn-sm btn-a">Filter</button>
+  <button class="nc-btn nc-btn--sm">Filter</button>
 </form>
-<details>
-  <summary><strong>Fill automatically</strong> <span class="muted">searches every artist and saves a picture when the match is safe</span></summary>
+<details class="box">
+  <summary>Fill Automatically <span class="nc-hint">searches every artist and saves a picture when the match is safe</span></summary>
   <p class="muted">A picture found through the artist's MusicBrainz ID is used right away. Otherwise the first source that knows exactly one artist with that name is used, and the artist is flagged for a quick check. Names shared by several artists are left for you. Afterwards pick <em>needs review</em> above.</p>
   <form method="post" action="/artwork/artists/fill">
     {% include "artwork/_sources.html" %}
@@ -23,7 +23,7 @@
       <label><input type="checkbox" name="retry" value="1"> retry artists that were not found before</label>
       <label><input type="checkbox" name="overwrite" value="1"> replace existing pictures</label>
       <span class="spacer"></span>
-      <button class="btn btn-sm btn-b">Fill missing pictures</button>
+      <button class="nc-btn nc-btn--sm nc-btn--accent">Fill Missing Pictures</button>
     </div>
   </form>
 </details>
@@ -36,5 +36,6 @@
     <div class="s">{{ a.albums|length }} album{{ 's' if a.albums|length != 1 }}{% if a.folder is none %} · <span class="warnc" title="{{ a.reason }}">no folder</span>{% elif a.auto and a.auto.status == 'name' %} · <span class="changed" title="matched by name on {{ a.auto.source }}">check</span>{% elif a.auto and a.auto.status == 'ambiguous' and not a.image %} · <span class="warnc" title="{{ a.auto.note }}">ambiguous</span>{% elif not a.image %} · <span class="warnc" title="{{ a.auto.note if a.auto else '' }}">{{ 'not found' if a.auto and a.auto.status == 'notfound' else 'missing' }}</span>{% endif %}</div>
   </a>
   {% else %}<div class="msg">Nothing to do here.</div>{% endfor %}
+</div>
 </div>
 {% endblock %}

@@ -139,3 +139,30 @@ def test_console_job(app, client):
 def test_console_rejects_interactive(client):
     r = client.post("/console", data={"cmd": "config -e"})
     assert "interactive" in r.text
+
+
+def test_theme_setting_and_bundled_assets(env, fake_source, monkeypatch):
+    from beets_ui.main import create_app
+    from beets_ui.settings import SettingsError
+
+    monkeypatch.setenv("BEETSUI_THEME", "phosphor")
+    app = create_app(Settings.from_env(), background=False)
+    c = TestClient(app)
+    login = c.get("/login")
+    assert 'data-theme="phosphor"' in login.text and "Log In" in login.text
+    c.post("/login", data={"password": "secret"})
+    page = c.get("/inbox").text
+    assert 'data-theme="phosphor"' in page and 'class="nc-window app-window"' in page
+    for path in (
+        "/static/nc/tokens.css",
+        "/static/nc/bundle.css",
+        "/static/fonts/fonts.css",
+        "/static/fonts/arimo-latin.woff2",
+        "/static/app.css",
+        "/static/app.js",
+    ):
+        assert c.get(path).status_code == 200, path
+    assert "fonts.googleapis" not in page
+    monkeypatch.setenv("BEETSUI_THEME", "neon")
+    with pytest.raises(SettingsError):
+        Settings.from_env()

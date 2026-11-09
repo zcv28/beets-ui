@@ -1,19 +1,19 @@
 {% extends "base.html" %}
-{% block title %}Log in{% endblock %}
-{% block content %}
-<div class="login">
-  <h1>beets-ui</h1>
-  {% if error %}<div class="warn">{{ error }}</div>{% endif %}
-  <form method="post" action="/login">
+{% block title %}Log In{% endblock %}
+{% block bare %}
+<div class="nc-backdrop login">
+<section class="nc-window nc-dialog" aria-labelledby="login-title">
+  <div class="nc-titlebar"><span class="nc-titlebar__text" id="login-title">beets-ui — Log In</span></div>
+  <form class="nc-window__body nc-form" method="post" action="/login">
+    {% if error %}<div class="warn">{{ error }}</div>{% endif %}
     <input type="hidden" name="next" value="{{ next }}">
     {% if ldap %}
-    <label for="username">Username</label>
-    <input type="text" id="username" name="username" value="{{ username or '' }}" autocomplete="username" required autofocus>
+    <label class="nc-label" for="username">Username<input type="text" id="username" name="username" value="{{ username or '' }}" autocomplete="username" required autofocus></label>
     {% endif %}
-    <label for="password">Password</label>
-    <input type="password" id="password" name="password" autocomplete="current-password" required {% if not ldap %}autofocus{% endif %}>
-    <button class="btn btn-a" type="submit">Log in</button>
+    <label class="nc-label" for="password">Password<input type="password" id="password" name="password" autocomplete="current-password" required {% if not ldap %}autofocus{% endif %}></label>
+    <p class="nc-hint">{% if ldap %}Sign in with your directory account.{% else %}Use the password from <code>BEETSUI_PASSWORD</code>.{% endif %}</p>
+    <div class="bar right"><button class="nc-btn nc-btn--accent" type="submit">Log In</button></div>
   </form>
-  <p class="muted">{% if ldap %}Sign in with your directory account.{% else %}Use the password from <code>BEETSUI_PASSWORD</code>.{% endif %}</p>
+</section>
 </div>
 {% endblock %}

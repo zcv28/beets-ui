@@ -1,18 +1,17 @@
 {% extends "base.html" %}
 {% block title %}Library{% endblock %}
 {% block content %}
-<h1>Library</h1>
 {% set tab = 'albums' %}{% include "library/_tabs.html" %}
-{% if stats %}<p class="muted">{{ stats.albums }} albums · {{ stats.artists }} artists · {{ stats['items'] }} tracks · {{ '%.0f'|format(stats.hours) }} hours</p>{% endif %}
+<div class="nc-tabpanel">
 <form class="bar" method="get" action="/library">
   <input type="search" name="q" value="{{ q }}" placeholder="beets query, e.g. albumartist:Foo year:2000..2010 genres:rock">
   <select name="sort">{% for s in sorts %}<option value="{{ s }}" {% if s == sort %}selected{% endif %}>sort: {{ s }}</option>{% endfor %}</select>
   <select name="view"><option value="grid" {% if view == 'grid' %}selected{% endif %}>grid</option><option value="table" {% if view == 'table' %}selected{% endif %}>table</option></select>
-  <button class="btn btn-sm btn-a">Search</button>
+  <button class="nc-btn nc-btn--sm">Search</button>
 </form>
 {% if error %}<div class="warn">Query error: {{ error }}</div>{% endif %}
 {% if view == 'table' %}
-<div class="scroll"><table class="table">
+<div class="nc-tablewrap"><table class="nc-table">
   <thead><tr><th>Album artist</th><th>Album</th><th class="num">Year</th><th class="hide-sm">Genres</th><th class="hide-sm">Label</th></tr></thead>
   <tbody>{% include "library/_album_rows.html" %}</tbody>
 </table></div>
@@ -20,5 +19,7 @@
 <div class="grid">{% include "library/_album_cards.html" %}</div>
 {% endif %}
 {% if not albums and not error %}<div class="msg">No albums{% if q %} match this query{% endif %}.</div>{% endif %}
-{% if page > 1 %}<div class="bar"><a class="btn btn-sm btn-d" href="?q={{ q|q }}&sort={{ sort }}&view={{ view }}&page={{ page - 1 }}">← Previous</a></div>{% endif %}
+{% if page > 1 %}<div class="bar"><a class="nc-btn nc-btn--sm" href="?q={{ q|q }}&sort={{ sort }}&view={{ view }}&page={{ page - 1 }}">← Previous</a></div>{% endif %}
+</div>
 {% endblock %}
+{% block status %}{% if stats %}{{ stats.albums }} albums · {{ stats.artists }} artists · {{ stats['items'] }} tracks · {{ '%.0f'|format(stats.hours) }} hours{% else %}{{ albums|length }}{{ '+' if more }} albums shown{% endif %}{% endblock %}

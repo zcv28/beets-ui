@@ -1,18 +1,19 @@
 {% extends "base.html" %}
 {% block title %}Tracks{% endblock %}
 {% block content %}
-<h1>Library</h1>
 {% set tab = 'tracks' %}{% include "library/_tabs.html" %}
+<div class="nc-tabpanel">
 <form class="bar" method="get" action="/library/tracks">
   <input type="hidden" name="singletons" value="{{ singletons }}">
   <input type="search" name="q" value="{{ q }}" placeholder="beets query, e.g. artist:Foo title:bar format:FLAC">
-  <button class="btn btn-sm btn-a">Search</button>
+  <button class="nc-btn nc-btn--sm">Search</button>
 </form>
 {% if error %}<div class="warn">Query error: {{ error }}</div>{% endif %}
-<div class="scroll"><table class="table">
+<div class="nc-tablewrap"><table class="nc-table">
   <thead><tr><th>Artist</th><th>Title</th><th>Album</th><th class="num">Length</th><th class="hide-sm">Format</th></tr></thead>
   <tbody>{% include "library/_track_rows.html" %}</tbody>
 </table></div>
 {% if not items and not error %}<div class="msg">No tracks{% if q %} match this query{% endif %}.</div>{% endif %}
-{% if page > 1 %}<div class="bar"><a class="btn btn-sm btn-d" href="?q={{ q|q }}&singletons={{ singletons }}&page={{ page - 1 }}">← Previous</a></div>{% endif %}
+{% if page > 1 %}<div class="bar"><a class="nc-btn nc-btn--sm" href="?q={{ q|q }}&singletons={{ singletons }}&page={{ page - 1 }}">← Previous</a></div>{% endif %}
+</div>
 {% endblock %}

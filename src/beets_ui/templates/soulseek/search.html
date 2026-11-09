@@ -1,11 +1,11 @@
 {% extends "base.html" %}
 {% block title %}{{ search.searchText }}{% endblock %}
 {% block content %}
-<h1>Soulseek</h1>
 {% set tab = 'search' %}{% include "soulseek/_tabs.html" %}
+<div class="nc-tabpanel">
 <form method="post" action="/soulseek/search" class="bar">
   <input type="search" name="q" value="{{ search.searchText }}" required minlength="3">
-  <button class="btn btn-sm btn-a">Search again</button>
+  <button class="nc-btn nc-btn--sm">Search Again</button>
 </form>
 <form method="get" class="bar">
   <span class="muted">Filter:</span>
@@ -16,4 +16,5 @@
   <label><input type="checkbox" name="free" value="1" {% if free %}checked{% endif %} onchange="this.form.submit()"> free upload slot only</label>
 </form>
 {% include "soulseek/_results.html" %}
+</div>
 {% endblock %}
