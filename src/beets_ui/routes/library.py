@@ -3,6 +3,7 @@ from __future__ import annotations
 from fastapi import APIRouter, Form, HTTPException, Request
 from fastapi.responses import FileResponse, Response
 
+from .. import artists as artists_svc
 from .. import beets_ctx
 from .. import library as libsvc
 from ..web import HERE, flash, redirect, render, user
@@ -78,6 +79,34 @@ def artists(request: Request):
         nav="library",
         artists=request.app.state.artwork.artists(),
     )
+
+
+@router.get("/artists/primary")
+def artists_primary(request: Request):
+    return render(
+        request,
+        "library/artists_primary.html",
+        nav="library",
+        rows=artists_svc.proposals(),
+        enabled=request.app.state.settings.primary_artist,
+    )
+
+
+@router.post("/artists/primary")
+async def artists_primary_apply(request: Request):
+    form = await request.form()
+    ids = [int(str(i)) for i in form.getlist("album") if str(i).isdigit()]
+    if not ids:
+        flash(request, "No albums selected.")
+        return redirect("/library/artists/primary")
+    n = len(ids)
+    job = request.app.state.jobs.submit(
+        "artists-primary",
+        f"Keep primary album artist ({n} album{'s' if n != 1 else ''})",
+        {"album_ids": ids, "write": bool(form.get("write")), "move": bool(form.get("move"))},
+        user(request),
+    )
+    return redirect(f"/jobs/{job}")
 
 
 @router.get("/album/{album_id}")

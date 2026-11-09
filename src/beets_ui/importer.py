@@ -18,7 +18,7 @@ from typing import Any
 from beets.autotag import AlbumMatch, tag_album, tag_item
 from beets.importer import Action, DuplicateAction, ImportSession
 
-from . import beets_ctx
+from . import artists, beets_ctx
 from .candidates import _s, item_dict, task_dict, task_key
 
 log = logging.getLogger("beets_ui.importer")
@@ -132,9 +132,16 @@ class ApplySession(_NoResume, ImportSession):
     "id": candidate id, "source": data source, "duplicate": action name}.
     """
 
-    def __init__(self, lib: Any, paths: list[bytes], decisions: dict[str, dict[str, Any]]):
+    def __init__(
+        self,
+        lib: Any,
+        paths: list[bytes],
+        decisions: dict[str, dict[str, Any]],
+        primary_artist: bool = False,
+    ):
         super().__init__(lib, None, paths, None)
         self.decisions = decisions
+        self.primary_artist = primary_artist
         self.outcomes: dict[str, TaskOutcome] = {}
         self._merge_decision: dict[str, Any] | None = None
 
@@ -159,7 +166,12 @@ class ApplySession(_NoResume, ImportSession):
             info = cand.info
             cid = info.album_id if task.is_album else info.track_id
             if cid == wanted_id and (not wanted_src or info.data_source == wanted_src):
-                self.outcomes[key] = TaskOutcome(key, "imported", f"{info.data_source} {wanted_id}")
+                detail = f"{info.data_source} {wanted_id}"
+                if self.primary_artist and task.is_album:
+                    credit = info.artist
+                    if primary := artists.apply_to_info(info, artists.known_artists(self.lib)):
+                        detail += f", album artist {credit!r} -> {primary!r}"
+                self.outcomes[key] = TaskOutcome(key, "imported", detail)
                 return cand
         self.outcomes[key] = TaskOutcome(
             key, "missing-candidate", f"candidate {wanted_src} {wanted_id} not returned by lookup"
@@ -217,10 +229,13 @@ def preview_folder(
 
 
 def apply_folder(
-    folder: str, decisions: dict[str, dict[str, Any]], mode: str = "albums"
+    folder: str,
+    decisions: dict[str, dict[str, Any]],
+    mode: str = "albums",
+    primary_artist: bool = False,
 ) -> dict[str, TaskOutcome]:
     lib = beets_ctx.lib()
-    session = ApplySession(lib, _paths(folder), decisions)
+    session = ApplySession(lib, _paths(folder), decisions, primary_artist)
     ids = sorted(
         {d["id"] for d in decisions.values() if d.get("action") == "apply" and d.get("id")}
     )

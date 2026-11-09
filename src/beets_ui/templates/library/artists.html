@@ -3,6 +3,7 @@
 {% block content %}
 <h1>Library</h1>
 {% set tab = 'artists' %}{% include "library/_tabs.html" %}
+<p class="muted">Collaborations such as "A &amp; B" show up as their own artist. <a href="/library/artists/primary">Keep only the primary artist…</a></p>
 <div class="grid">
   {% for a in artists %}
   <div class="card">

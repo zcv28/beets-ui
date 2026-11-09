@@ -362,7 +362,12 @@ class Inbox:
         path = self.resolve(rel)
         self.state.upsert_folder(rel, status="importing")
         try:
-            outcomes = importer.apply_folder(str(path), row["decisions"], row["mode"])
+            outcomes = importer.apply_folder(
+                str(path),
+                row["decisions"],
+                row["mode"],
+                primary_artist=self.settings.primary_artist,
+            )
         except Exception as e:
             self.state.upsert_folder(rel, status="failed", error=str(e))
             raise
