@@ -147,9 +147,9 @@ def test_inbox_lists_files_and_detects_library_albums(app, client, env):
     assert app.state.state.folder("fresh")["library"] == []
 
     page = client.get("/inbox")
-    assert "Already in library (2)" in page.text  # imported "first" + "again"
+    assert "In Library (2)" in page.text  # imported "first" + "again"
     assert "01 Track 1.mp3" in page.text  # file listing dropdown
-    assert "Delete imported (2)" in page.text
+    assert "Delete Imported (2)" in page.text
 
     client.post("/inbox/delete-imported")
     assert not (env["inbox"] / "again").exists()

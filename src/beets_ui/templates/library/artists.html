@@ -1,8 +1,8 @@
 {% extends "base.html" %}
 {% block title %}Artists{% endblock %}
 {% block content %}
-<h1>Library</h1>
 {% set tab = 'artists' %}{% include "library/_tabs.html" %}
+<div class="nc-tabpanel">
 <p class="muted">Collaborations such as "A &amp; B" show up as their own artist: <a href="/library/artists/primary">keep only the primary artist…</a> The same artist under several names: <a href="/library/artists/aliases">merge aliases…</a> Japanese names in romaji: <a href="/library/romanize">romanize…</a></p>
 {% if artists %}
 <form method="post" action="/library/artists/merge" id="merge-form">
@@ -23,7 +23,7 @@
   {% endfor %}
 </div>
 <p class="msg" id="artist-none" hidden>No artist matches.</p>
-<div class="sticky-bar" id="merge-bar" hidden>
+<div class="nc-panel sticky-bar" id="merge-bar" hidden>
   <strong id="merge-count"></strong>
   <label><span id="merge-verb">keep the name</span> <input type="text" name="target" id="merge-target" list="merge-names" autocomplete="off" required></label>
   <datalist id="merge-names"></datalist>
@@ -31,8 +31,9 @@
   <label><input type="checkbox" name="move" value="1" checked> move files</label>
   <label title="Tracks whose whole artist credit is one of the merged names"><input type="checkbox" name="tracks" value="1" checked> rename track artists</label>
   <span class="spacer"></span>
-  <button class="btn btn-sm btn-b" id="merge-button">Merge</button>
+  <button class="nc-btn nc-btn--sm nc-btn--accent" id="merge-button">Merge</button>
 </div>
 </form>
 {% else %}<div class="msg">The library is empty.</div>{% endif %}
+</div>
 {% endblock %}

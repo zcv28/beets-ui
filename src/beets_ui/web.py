@@ -94,6 +94,7 @@ def render(request: Request, name: str, status_code: int = 200, **ctx: Any):
         "running": app.state.jobs.current,
         "pending": app.state.jobs.pending(),
         "since": time.time(),
+        "theme": app.state.settings.theme,
     }
     return templates.TemplateResponse(request, name, {**base, **ctx}, status_code=status_code)
 

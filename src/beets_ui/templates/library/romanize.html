@@ -1,8 +1,8 @@
 {% extends "base.html" %}
 {% block title %}Romanized names{% endblock %}
 {% block content %}
-<h1>Library</h1>
-{% set tab = 'albums' %}{% include "library/_tabs.html" %}
+{% set tab = 'artists' %}{% include "library/_tabs.html" %}
+<div class="nc-tabpanel">
 <h2>Romanized names</h2>
 <p>Album, artist and track names become romanized (what Jellyfin shows), and the original names are kept in <code>album_original</code>, <code>albumartist_original</code>, <code>title_original</code> and <code>artist_original</code>. They are written to the files as custom tags, shown under the romanized names here, and searching the library finds either.</p>
 <ul>
@@ -26,8 +26,9 @@
     <label title="Folder names follow your path format, so they change to the romanized names. Jellyfin sees moved files as new (play counts and favourites do not follow).">
       <input type="checkbox" name="move" value="1" checked> rename folders and files</label>
     <span class="spacer"></span>
-    <button class="btn btn-sm btn-b" {% if not status.supported %}disabled{% endif %}>Romanize library</button>
+    <button class="nc-btn nc-btn--sm nc-btn--accent" {% if not status.supported %}disabled{% endif %}>Romanize Library</button>
   </div>
 </form>
 <p class="muted"><small>One or two lookups per album, so a large library takes a while; the job log shows progress and the result can be undone from the job page. After <code>vdbsync</code>, <code>tdbsync</code> or <code>mbsync</code> in the console, run this again: those commands write the source's names back. (The album page's mbsync button does that by itself.)</small></p>
+</div>
 {% endblock %}

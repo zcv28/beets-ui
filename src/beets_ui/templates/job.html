@@ -2,15 +2,15 @@
 {% block title %}Job #{{ job.id }}{% endblock %}
 {% block content %}
 <p><a href="/jobs">← Jobs</a></p>
-<h1>#{{ job.id }} {{ job.title }}</h1>
+<h1 class="page-title">#{{ job.id }} {{ job.title }}</h1>
 <div class="bar">
-  <span class="badge {{ job.status }}">{{ job.status }}</span>
+  <span class="nc-badge {{ job.status }}">{{ job.status|capitalize }}</span>
   <small class="muted">queued {{ job.created_at|ts }}{% if job.user %} by {{ job.user }}{% endif %}{% if job.finished_at and job.started_at %} · took {{ (job.finished_at - job.started_at)|duration }}{% endif %}</small>
   <span class="spacer"></span>
-  {% if job.kind == 'console' %}<a class="btn btn-sm btn-d" href="/console?cmd={{ job.params.argv|join(' ')|q }}">Run again</a>{% endif %}
-  {% if job.params.folder %}<a class="btn btn-sm btn-d" href="/inbox/folder?f={{ job.params.folder|q }}">Open folder</a>{% endif %}
-  {% if snap %}{% if undone %}<span class="muted">Undone by <a href="/jobs/{{ undone.id }}">job #{{ undone.id }}</a></span>{% elif job.status in ('done', 'failed') %}<form class="inline" method="post" action="/jobs/{{ job.id }}/undo" onsubmit="return confirm('Put back the values from before this job? Tags are rewritten{{ ' and files moved back' if snap.data.move }} the same way the job did it.')"><button class="btn btn-sm btn-d" title="{{ snap.data.entries|length }} album/track record(s) saved before this job ran">Undo</button></form>{% endif %}{% endif %}
-  {% if job.status in ('queued', 'running') %}<form class="inline" method="post" action="/jobs/{{ job.id }}/cancel"><button class="btn btn-sm btn-c">{{ 'Cancel' if job.status == 'queued' else 'Interrupt' }}</button></form>{% endif %}
+  {% if job.kind == 'console' %}<a class="nc-btn nc-btn--sm" href="/console?cmd={{ job.params.argv|join(' ')|q }}">Run Again</a>{% endif %}
+  {% if job.params.folder %}<a class="nc-btn nc-btn--sm" href="/inbox/folder?f={{ job.params.folder|q }}">Open Folder</a>{% endif %}
+  {% if snap %}{% if undone %}<span class="muted">Undone by <a href="/jobs/{{ undone.id }}">job #{{ undone.id }}</a></span>{% elif job.status in ('done', 'failed') %}<form class="inline" method="post" action="/jobs/{{ job.id }}/undo" data-confirm="Put back the values from before this job? Tags are rewritten{{ ' and files moved back' if snap.data.move }} the same way the job did it." data-confirm-button="Undo" data-confirm-kind="accent"><button class="nc-btn nc-btn--sm" title="{{ snap.data.entries|length }} album/track record(s) saved before this job ran">Undo</button></form>{% endif %}{% endif %}
+  {% if job.status in ('queued', 'running') %}<form class="inline" method="post" action="/jobs/{{ job.id }}/cancel"><button class="nc-btn nc-btn--sm nc-btn--danger">{{ 'Cancel' if job.status == 'queued' else 'Interrupt' }}</button></form>{% endif %}
 </div>
 {% if job.error %}<div class="warn">{{ job.error }}</div>{% endif %}
 {% if job.status in ('queued', 'running') %}

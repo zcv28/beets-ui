@@ -3,10 +3,39 @@
 "use strict";
 
 // ------------------------------------------------------------------ toasts
-// Job pop-ups arrive through the polled nav badge; drop them after they fade.
+// Job pop-ups arrive through the polled status bar cell; drop them after they fade.
 document.addEventListener("animationend", (e) => {
   if (e.target.classList && e.target.classList.contains("toast")) e.target.remove();
 });
+
+// ----------------------------------------------------------- confirmations
+// Forms with data-confirm ask first, in the page's dialog:
+//   data-confirm="text"  data-confirm-button="Delete"  data-confirm-kind="accent"
+//   data-confirm-checked="delete" data-confirm-alt="text when that checkbox is ticked"
+(() => {
+  const dialog = document.getElementById("confirm-dialog");
+  document.addEventListener("submit", (e) => {
+    const form = e.target;
+    if (!form.dataset || !form.dataset.confirm) return;
+    if (form.dataset.confirmed === "1") { delete form.dataset.confirmed; return; }
+    e.preventDefault();
+    const box = form.dataset.confirmChecked && form.elements[form.dataset.confirmChecked];
+    const text = box && box.checked ? form.dataset.confirmAlt : form.dataset.confirm;
+    const go = () => { form.dataset.confirmed = "1"; form.requestSubmit(e.submitter || undefined); };
+    if (!dialog || typeof dialog.showModal !== "function") {
+      if (window.confirm(text)) go();
+      return;
+    }
+    document.getElementById("confirm-text").textContent = text;
+    const ok = document.getElementById("confirm-ok");
+    ok.textContent = form.dataset.confirmButton || "OK";
+    ok.className = "nc-btn " + (form.dataset.confirmKind === "accent" ? "nc-btn--accent" : "nc-btn--danger");
+    dialog.returnValue = "";
+    dialog.onclose = () => { if (dialog.returnValue === "ok") go(); };
+    dialog.showModal();
+    ok.focus();
+  }, true);
+})();
 
 // ------------------------------------------------------------ audio player
 (() => {
@@ -16,7 +45,11 @@ document.addEventListener("animationend", (e) => {
   const name = document.getElementById("player-name");
   let current = null;
 
-  const mark = (btn, playing) => { if (btn) btn.textContent = playing ? "⏸" : "▶"; };
+  const mark = (btn, playing) => {
+    if (!btn) return;
+    btn.classList.toggle("playing", playing);
+    btn.setAttribute("aria-pressed", playing ? "true" : "false");
+  };
   player.addEventListener("pause", () => mark(current, false));
   player.addEventListener("ended", () => mark(current, false));
   player.addEventListener("play", () => mark(current, true));
@@ -27,15 +60,16 @@ document.addEventListener("animationend", (e) => {
       mark(current, false);
       current = btn;
       player.src = btn.dataset.src;
-      const row = btn.closest("tr, li");
-      name.textContent = row ? row.textContent.replace(/[▶⏸]/g, "").trim().slice(0, 80) : "";
+      name.textContent = (btn.getAttribute("aria-label") || "").replace(/^Play /, "");
     }
     bar.hidden = false;
     player.play().catch(() => mark(current, false));
   };
-  window.beetsTogglePlayer = () => {
-    if (current) window.beetsPlay(current);
-  };
+  window.beetsTogglePlayer = () => { if (current) window.beetsPlay(current); };
+  document.getElementById("player-close").addEventListener("click", () => {
+    player.pause();
+    bar.hidden = true;
+  });
   document.addEventListener("click", (e) => {
     const btn = e.target.closest("button.play");
     if (btn) { e.preventDefault(); window.beetsPlay(btn); }
@@ -65,47 +99,69 @@ document.addEventListener("animationend", (e) => {
     decided.textContent = parts.join(" · ");
     decided.classList.toggle("warnc", dupOpen > 0);
   };
-  form.addEventListener("change", summarise);
+
+  // The chosen candidate's row is selected and its track changes are shown.
+  const showChoice = (task) => {
+    for (const row of task.querySelectorAll("tr.cand")) {
+      const on = row.querySelector('input[type="radio"]').checked;
+      if (on) row.setAttribute("aria-selected", "true"); else row.removeAttribute("aria-selected");
+      const diff = document.getElementById(row.dataset.diff);
+      if (diff) diff.hidden = !on;
+    }
+  };
+  form.addEventListener("change", (e) => {
+    const task = e.target.closest("section.task");
+    if (task && e.target.name && e.target.name.startsWith("choice-")) showChoice(task);
+    summarise();
+  });
+  // Clicking anywhere on a candidate row chooses it.
+  form.addEventListener("click", (e) => {
+    const row = e.target.closest("tr.cand");
+    if (!row || e.target.closest("a, button, input, label")) return;
+    const radio = row.querySelector('input[type="radio"]');
+    if (!radio.checked) { radio.checked = true; radio.dispatchEvent(new Event("change", { bubbles: true })); }
+  });
   summarise();
 
-  // Picking a candidate marks it like the server does on reload.
-  form.addEventListener("change", (e) => {
-    if (!e.target.name || !e.target.name.startsWith("choice-")) return;
-    for (const r of form.querySelectorAll(`input[name="${e.target.name}"]`)) {
-      const cand = r.closest("details.cand");
-      if (cand) cand.classList.toggle("chosen", r.checked);
-    }
-  });
-
-  // Keyboard: j/k move between candidates, x/Enter choose, o open, p play, i import.
-  const cands = () => [...form.querySelectorAll("details.cand")];
+  // Keyboard: j/k move between candidates, x/Enter choose, o files, p play, i import.
+  const rows = () => [...form.querySelectorAll("tr.cand")];
   let idx = -1;
   const focus = (i) => {
-    const list = cands();
+    const list = rows();
     if (!list.length) return;
     idx = Math.max(0, Math.min(list.length - 1, i));
-    list.forEach((c, n) => c.classList.toggle("kfocus", n === idx));
+    list.forEach((r, n) => r.classList.toggle("kfocus", n === idx));
     list[idx].scrollIntoView({ block: "nearest", behavior: "smooth" });
+  };
+  const focusedTask = () => {
+    const row = rows()[idx];
+    return row ? row.closest("section.task") : form.querySelector("section.task");
   };
   document.addEventListener("keydown", (e) => {
     if (e.ctrlKey || e.metaKey || e.altKey) return;
     const t = e.target;
-    if (t.closest && t.closest("input, textarea, select, [contenteditable]")) return;
-    const cur = cands()[idx];
+    if (t.closest && t.closest("input, textarea, select, dialog, [contenteditable]")) return;
+    const cur = rows()[idx];
     switch (e.key) {
       case "j": focus(idx + 1); break;
       case "k": focus(idx < 0 ? 0 : idx - 1); break;
-      case "o": if (cur) cur.open = !cur.open; break;
+      case "o": {
+        const files = focusedTask() && focusedTask().querySelector("details.current");
+        if (files) files.open = !files.open;
+        break;
+      }
       case "x":
       case "Enter": {
         if (!cur || (e.key === "Enter" && t !== document.body)) return;
         const r = cur.querySelector('input[type="radio"]');
-        if (r) { r.checked = true; r.dispatchEvent(new Event("change", { bubbles: true })); }
+        r.checked = true;
+        r.dispatchEvent(new Event("change", { bubbles: true }));
         break;
       }
       case "p": {
-        const btn = (cur && cur.open && cur.querySelector("button.play"))
-          || (cur && cur.closest("section.task").querySelector("button.play"));
+        const task = focusedTask();
+        const btn = task && (task.querySelector(".diff:not([hidden]) button.play")
+          || task.querySelector("details.current button.play"));
         if (btn) window.beetsPlay(btn); else if (window.beetsTogglePlayer) window.beetsTogglePlayer();
         break;
       }
@@ -135,7 +191,11 @@ document.addEventListener("animationend", (e) => {
       shown += ok;
     }
     none.hidden = shown > 0;
-    for (const a of letters.querySelectorAll("a")) a.classList.toggle("on", a.dataset.letter === letter);
+    for (const a of letters.querySelectorAll("a")) {
+      const on = a.dataset.letter === letter;
+      a.classList.toggle("on", on);
+      if (on) a.setAttribute("aria-current", "true"); else a.removeAttribute("aria-current");
+    }
   };
   input.addEventListener("input", apply);
   letters.addEventListener("click", (e) => {

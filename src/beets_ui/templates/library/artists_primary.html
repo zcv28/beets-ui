@@ -1,14 +1,14 @@
 {% extends "base.html" %}
 {% block title %}Primary artists{% endblock %}
 {% block content %}
-<h1>Library</h1>
 {% set tab = 'artists' %}{% include "library/_tabs.html" %}
+<div class="nc-tabpanel">
 <p class="muted">These albums are credited to several artists. Each one can keep only its first artist as album artist, so it sits with that artist's other albums. Track artists keep the full credit (for example "ヌジャベス &amp; Joe Claussell").</p>
 <p class="muted">New imports {% if enabled %}already do this (<code>BEETSUI_PRIMARY_ARTIST=true</code>){% else %}keep the full credit. Set <code>BEETSUI_PRIMARY_ARTIST=true</code> to reduce them on import too{% endif %}.</p>
 {% if rows %}
 <form method="post" action="/library/artists/primary">
-  <table>
-    <thead><tr><th><input type="checkbox" checked onclick="for (const c of this.form.querySelectorAll('input[name=album]')) c.checked = this.checked"></th><th>Album</th><th>Album artist now</th><th>Becomes</th></tr></thead>
+  <div class="nc-tablewrap"><table class="nc-table">
+    <thead><tr><th><input type="checkbox" checked onclick="for (const c of this.form.querySelectorAll('input[name=album]')) c.checked = this.checked"></th><th>Album</th><th>Album Artist Now</th><th>Becomes</th></tr></thead>
     <tbody>
       {% for r in rows %}
       <tr>
@@ -19,13 +19,14 @@
       </tr>
       {% endfor %}
     </tbody>
-  </table>
+  </table></div>
   <div class="bar">
     <label><input type="checkbox" name="write" value="1" checked> write tags to the files</label>
     <label><input type="checkbox" name="move" value="1" checked> move files to the new artist folder</label>
     <span class="spacer"></span>
-    <button class="btn btn-sm btn-b">Update selected albums</button>
+    <button class="nc-btn nc-btn--sm nc-btn--accent">Update Selected Albums</button>
   </div>
 </form>
 {% else %}<div class="msg">Every album already has a single album artist.</div>{% endif %}
+</div>
 {% endblock %}

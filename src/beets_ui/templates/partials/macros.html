@@ -1,0 +1,5 @@
+{# Shared bits of markup. Import with: {% from "partials/macros.html" import play %} #}
+
+{% macro play(src, label) -%}
+<button type="button" class="play nc-btn nc-btn--sm" data-src="{{ src }}" aria-label="Play {{ label }}" title="Play"><svg class="i-play" width="10" height="10" viewBox="0 0 10 10" aria-hidden="true"><path d="M2 1L9 5L2 9Z" fill="currentColor"></path></svg><svg class="i-pause" width="10" height="10" viewBox="0 0 10 10" aria-hidden="true"><path d="M2 1h2v8H2zM6 1h2v8H6z" fill="currentColor"></path></svg></button>
+{%- endmacro %}

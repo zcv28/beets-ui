@@ -38,6 +38,8 @@ def _list(name: str, default: str) -> list[str]:
     return [p.strip() for p in raw.split(",") if p.strip()]
 
 
+THEMES = ("graphite", "slate", "mahogany", "phosphor")
+
 DEFAULT_COVER_SOURCES = (
     "coverartarchive,fanarttv,theaudiodb,deezer,itunes,discogs,vocadb,touhoudb,utaitedb"
 )
@@ -78,6 +80,7 @@ class Settings:
     discogs_token: str = ""
     auto_import: int = 0
     romanize: bool = False
+    theme: str = "graphite"
 
     @property
     def slskd_enabled(self) -> bool:
@@ -120,11 +123,16 @@ class Settings:
             discogs_token=_str("DISCOGS_TOKEN"),
             auto_import=min(100, max(0, _int("BEETSUI_AUTO_IMPORT", 0))),
             romanize=_bool("BEETSUI_ROMANIZE", False),
+            theme=_str("BEETSUI_THEME", "graphite").lower() or "graphite",
         )
         s.validate()
         return s
 
     def validate(self) -> None:
+        if self.theme not in THEMES:
+            raise SettingsError(
+                f"BEETSUI_THEME must be one of {', '.join(THEMES)}, got {self.theme!r}"
+            )
         if self.ldap_enabled:
             missing = [
                 n

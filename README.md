@@ -24,7 +24,7 @@ A small, self-hosted web frontend for [beets](https://beets.io). It runs in one 
 - **Jobs.** Every change to the library goes through a single queue, so nothing fights over the database, and each job keeps its log.
 - **Login.** A single password, or LDAP (lldap, OpenLDAP, Authentik and others).
 
-The UI uses a dark variant of [min.css](https://mincss.com).
+The UI uses the *niki.moe classic* design system: dark, bevelled desktop-software windows in one of four themes (`graphite`, `slate`, `mahogany`, `phosphor`; set with `BEETSUI_THEME`). Its fonts are bundled, so pages load nothing from third parties.
 
 ---
 
@@ -91,6 +91,7 @@ The container user (`user:`) must be able to read the inbox and write to `/music
 | `BEETSUI_DELETE_AFTER_IMPORT` | `false` | Delete the inbox folder after a successful import (beets copies by default). |
 | `BEETSUI_AUTO_IMPORT` | `0` (off) | Import an automatically looked-up folder without review when every album in it matches at least this % (e.g. `95`), has no missing tracks or unmatched files, and nothing in it is already in the library. Duplicates beets finds still wait for you. |
 | `BEETSUI_ROMANIZE` | `false` | Import VocaDB/UtaiteDB/TouhouDB/MusicBrainz matches with romanized names and keep the originals alongside. See *Romanized names* below. |
+| `BEETSUI_THEME` | `graphite` | Color theme: `graphite` (neutral gray), `slate` (steel blue), `mahogany` (red-brown) or `phosphor` (terminal green). |
 | `BEETSUI_PRIMARY_ARTIST` | `false` | Keep only the first credited artist as album artist on import ("ヌジャベス & Joe Claussell" → "ヌジャベス"). Track artists keep the full credit. Albums already in the library can be fixed under *Library → Artists*. |
 | `BEETSUI_LDAP_ENABLED` | `false` | Use LDAP instead of the password. |
 | `LDAP_URL` | — | e.g. `ldap://lldap:3890` or `ldaps://ldap.example.org`. |
@@ -170,8 +171,8 @@ Tags: `latest` (main branch), `X.Y.Z` / `X.Y` (releases), `sha-<commit>`.
 
 1. **Inbox.** New folders show up as *New*, get looked up, and become *Ready* (with the best match %) or *Needs attention*. Expand a row to see its files. Folders that are already in your library (same MusicBrainz album ID, or same album artist and album name) are marked with a link to the album; delete them one by one or all at once with **Delete imported**. Open a folder to review it:
    - Every candidate shows match %, source, year, label, catalog number and what differs. Expand it to see a track-by-track diff (changed titles in yellow, length mismatches in red).
-   - Choose a candidate, *as-is* or *skip* for each album in the folder, then press **Import** (it stays pinned at the bottom, with a count of what will be imported). Press ▶ next to a file to listen to it.
-   - Keyboard: <kbd>j</kbd>/<kbd>k</kbd> move between candidates, <kbd>x</kbd> chooses one, <kbd>o</kbd> expands it, <kbd>p</kbd> plays its first track, <kbd>i</kbd> imports.
+   - Choose a candidate (click its row), *as-is* or *skip* for each album in the folder; the chosen candidate's track changes show below it. Then press **Import** (it stays pinned at the bottom, with a count of what will be imported). Press ▶ next to a file to listen to it in the Preview window.
+   - Keyboard: <kbd>j</kbd>/<kbd>k</kbd> move between candidates, <kbd>x</kbd> chooses one, <kbd>o</kbd> shows the current files, <kbd>p</kbd> plays the first track, <kbd>i</kbd> imports.
    - Nothing good? Use **Search again** with artist/album, or paste MusicBrainz/Discogs IDs or URLs, and tick *keep current candidates* to add the results to the list. You can also switch the folder to *albums grouped by tags* or *individual tracks*.
    - If beets finds the album already in your library, the folder becomes *Duplicate*. Pick what to do and press Import again.
 2. **Library.** Search with [beets queries](https://beets.readthedocs.io/en/stable/reference/query.html) (`albumartist:Foo year:2000..2010`, `format:FLAC`, …). On an album page you can edit fields, write tags, move files, remove the album, or run `mbsync`, `fetchart`, `embedart`, `replaygain` and `lyrics` on it with one click (*re-tag* opens the console first).
@@ -212,4 +213,4 @@ CI (`.github/workflows/ci.yml`) lints, runs the tests, builds the image, smoke-t
 
 ## License
 
-MIT. See [LICENSE](LICENSE). Includes min.css © Owen Versteeg (MIT) and htmx (BSD-2-Clause).
+MIT. See [LICENSE](LICENSE). Includes htmx (BSD-2-Clause) and the Arimo, Cousine (Apache 2.0) and Libre Baskerville (SIL OFL 1.1) fonts; see `src/beets_ui/static/fonts/LICENSES.md`.

@@ -1,17 +1,17 @@
 {% extends "base.html" %}
 {% block title %}Soulseek{% endblock %}
 {% block content %}
-<h1>Soulseek</h1>
 {% set tab = 'search' %}{% include "soulseek/_tabs.html" %}
+<div class="nc-tabpanel">
 {% if error %}<div class="warn">{{ error }}</div>{% endif %}
 <form method="post" action="/soulseek/search" class="bar">
   <input type="search" name="q" value="{{ q }}" placeholder="artist album" autofocus required minlength="3">
-  <button class="btn btn-sm btn-a">Search</button>
+  <button class="nc-btn nc-btn--sm">Search</button>
 </form>
 <p class="muted">Downloads go to slskd's download folder, which is the beets-ui inbox, so finished albums appear for review automatically.</p>
 {% if searches %}
-<h2>Recent searches</h2>
-<table class="table">
+<h2>Recent Searches</h2>
+<div class="nc-tablewrap"><table class="nc-table">
   <thead><tr><th>Search</th><th>State</th><th class="num">Responses</th><th class="num">Files</th><th></th></tr></thead>
   <tbody>
   {% for s in searches %}
@@ -20,10 +20,11 @@
     <td><small>{{ s.state }}</small></td>
     <td class="num">{{ s.responseCount }}</td>
     <td class="num">{{ s.fileCount }}</td>
-    <td><form class="inline" method="post" action="/soulseek/s/{{ s.id }}/delete"><button class="link">delete</button></form></td>
+    <td><form class="inline" method="post" action="/soulseek/s/{{ s.id }}/delete"><button class="link">Delete</button></form></td>
   </tr>
   {% endfor %}
   </tbody>
-</table>
+</table></div>
 {% endif %}
+</div>
 {% endblock %}

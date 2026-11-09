@@ -1,7 +1,7 @@
 {% if folders %}
-<div class="scroll">
-<table class="table">
-  <thead><tr><th>Folder</th><th>Status</th><th class="num">Best match</th><th>In library</th><th class="hide-sm">Updated</th><th></th></tr></thead>
+<div class="nc-tablewrap">
+<table class="nc-table">
+  <thead><tr><th>Folder</th><th>Status</th><th class="num">Best Match</th><th>In Library</th><th class="hide-sm">Updated</th><th></th></tr></thead>
   <tbody>
   {% for f in folders %}
   {% set audio = f.files|selectattr('audio')|list %}
@@ -16,16 +16,16 @@
       </details>
       {% endif %}
     </td>
-    <td><span class="badge {{ f.status }}">{{ labels.get(f.status, f.status) }}</span></td>
+    <td><span class="nc-badge {{ f.status }}">{{ labels.get(f.status, f.status) }}</span></td>
     <td class="num">{% if f.best is not none %}<span class="pct {{ f.best|match_class }}">{{ '%.1f'|format(f.best) }}%</span>{% endif %}</td>
-    <td>{% for a in f.library %}<a href="/library/album/{{ a.id }}" title="{{ a.how }}"><span class="badge done">✓</span> {{ a.albumartist }} – {{ a.album }}</a>{% if not loop.last %}<br>{% endif %}{% endfor %}</td>
+    <td>{% for a in f.library %}<a href="/library/album/{{ a.id }}" title="{{ a.how }}"><span class="nc-badge done">✓</span> {{ a.albumartist }} – {{ a.album }}</a>{% if not loop.last %}<br>{% endif %}{% endfor %}</td>
     <td class="hide-sm nowrap"><small>{{ f.updated_at|ts }}</small></td>
     <td class="nowrap">
       {% if f.status not in ('queued', 'previewing', 'importing') and (f.status == 'imported' or f.library) %}
-      <form class="inline" method="post" action="/inbox/folder/delete" onsubmit='return confirm("Delete " + {{ f.path|tojson }} + " from the inbox?")'>
+      <form class="inline" method="post" action="/inbox/folder/delete" data-confirm="Delete {{ f.path }} from the inbox? Its files are removed." data-confirm-button="Delete">
         <input type="hidden" name="f" value="{{ f.path }}">
         <input type="hidden" name="back" value="/inbox{% if status %}?status={{ status }}{% endif %}">
-        <button class="btn btn-sm btn-c">Delete</button>
+        <button class="nc-btn nc-btn--sm nc-btn--danger">Delete</button>
       </form>
       {% endif %}
     </td>

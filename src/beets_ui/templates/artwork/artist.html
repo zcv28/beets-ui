@@ -18,7 +18,7 @@
     <form method="post" action="/artwork/artist/set" enctype="multipart/form-data">
       <input type="hidden" name="name" value="{{ info.name }}">
       <input type="file" name="upload" accept="image/jpeg,image/png,image/webp" required>
-      <div class="bar"><button class="btn btn-sm btn-b">Upload</button></div>
+      <div class="bar"><button class="nc-btn nc-btn--sm nc-btn--accent">Upload</button></div>
     </form>
     {% else %}
     <div class="wip">Pictures can only be saved when every album by this artist sits inside one folder that holds nothing else (for example a path format like <code>$albumartist/$album</code>).</div>
@@ -30,7 +30,7 @@
 <form hx-get="/artwork/artist/candidates" hx-target="#cands" hx-trigger="load, submit" hx-indicator="#cands">
   <input type="hidden" name="name" value="{{ info.name }}">
   {% include "artwork/_sources.html" %}
-  <div class="bar right"><button class="btn btn-sm btn-a">Search</button></div>
+  <div class="bar right"><button class="nc-btn nc-btn--sm">Search</button></div>
 </form>
 <div id="cands"><p class="loading muted">Searching</p></div>
 {% endif %}

@@ -24,15 +24,15 @@
     <label><input type="checkbox" name="write" value="1" checked> write tags to file</label>
     <label><input type="checkbox" name="move" value="1"> move file to match the path format</label>
     <span class="spacer"></span>
-    <button class="btn btn-sm btn-b">Save</button>
+    <button class="nc-btn nc-btn--sm nc-btn--accent">Save</button>
   </div>
 </form>
 <h2>Remove</h2>
-<form method="post" action="/library/item/{{ item.id }}/remove" onsubmit="return confirm(this.delete.checked ? 'Remove the track AND delete the file?' : 'Remove the track from the library (file stays on disk)?')">
+<form method="post" action="/library/item/{{ item.id }}/remove" data-confirm="Remove the track from the library? The file stays on disk." data-confirm-checked="delete" data-confirm-alt="Remove the track and delete its file from disk?" data-confirm-button="Remove Track">
   <div class="bar">
     <label><input type="checkbox" name="delete" value="1"> also delete the file from disk</label>
     <span class="spacer"></span>
-    <button class="btn btn-sm btn-c">Remove track</button>
+    <button class="nc-btn nc-btn--sm nc-btn--danger">Remove Track</button>
   </div>
 </form>
 {% endblock %}
