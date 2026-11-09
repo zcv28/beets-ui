@@ -148,16 +148,24 @@ document.addEventListener("animationend", (e) => {
   });
   apply();
 
-  // Merge: ticking two or more artists shows the merge bar.
+  // Rename one ticked artist, or merge several into one name (typed or picked).
   const bar = document.getElementById("merge-bar");
   const target = document.getElementById("merge-target");
+  const names = document.getElementById("merge-names");
   const count = document.getElementById("merge-count");
+  const verb = document.getElementById("merge-verb");
+  const button = document.getElementById("merge-button");
   const update = () => {
-    const picked = [...grid.querySelectorAll('input[name="name"]:checked')];
-    bar.hidden = picked.length < 2;
-    count.textContent = `Merge ${picked.length} artists`;
-    const keep = target.value;
-    target.replaceChildren(...picked.map((p) => new Option(p.value, p.value, false, p.value === keep)));
+    const picked = [...grid.querySelectorAll('input[name="name"]:checked')].map((p) => p.value);
+    bar.hidden = picked.length < 1;
+    const one = picked.length === 1;
+    count.textContent = one ? `Rename ${picked[0]}` : `Merge ${picked.length} artists`;
+    verb.textContent = one ? "to" : "into";
+    button.textContent = one ? "Rename" : "Merge";
+    target.placeholder = one ? "new name" : "pick or type a name";
+    names.replaceChildren(...picked.map((n) => new Option(n)));
+    if (!one && !target.value && picked.length) target.value = picked[0];
+    if (one && target.value === picked[0]) target.value = "";
     for (const c of cards) c.classList.toggle("picked", !!c.querySelector("input:checked"));
   };
   grid.addEventListener("change", update);

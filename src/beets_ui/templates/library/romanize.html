@@ -8,7 +8,8 @@
 <ul>
   <li><strong>VocaDB, UtaiteDB, TouhouDB:</strong> their Romaji names. Names without a romanization on the site stay as they are.</li>
   <li><strong>MusicBrainz:</strong> the release's Latin-script pseudo-release ("transliterated tracklisting"), when there is one.</li>
-  <li>Albums from other sources, or imported as-is, are not changed.</li>
+  <li><strong>Artists</strong> still in their own script, on albums from any source (also as-is imports): the artist's Latin name on MusicBrainz, its English alias or its sort name ("ヨルシカ" → "Yorushika"). The artist is found by its MusicBrainz ID, or by an exact name search that matches exactly one artist.</li>
+  <li>Names nobody has romanized stay as they are. To fix one artist by hand, tick it on the <a href="/library/artists">Artists</a> page and type the new name.</li>
 </ul>
 <p class="{{ 'ok-box' if enabled else 'wip' }}">{% if enabled %}New imports are romanized (<code>BEETSUI_ROMANIZE=true</code>).{% else %}New imports keep the source's names. Set <code>BEETSUI_ROMANIZE=true</code> to romanize them on import too.{% endif %}</p>
 
@@ -20,7 +21,7 @@
 
 <form method="post" action="/library/romanize">
   <div class="bar">
-    <label><input type="checkbox" name="only_new" value="1" checked> only albums not romanized yet</label>
+    <label><input type="checkbox" name="only_new" value="1" checked> only albums that still have non-Latin names</label>
     <label><input type="checkbox" name="write" value="1" checked> write tags</label>
     <label title="Folder names follow your path format, so they change to the romanized names. Jellyfin sees moved files as new (play counts and favourites do not follow).">
       <input type="checkbox" name="move" value="1" checked> rename folders and files</label>

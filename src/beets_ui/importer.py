@@ -140,12 +140,14 @@ class ApplySession(_NoResume, ImportSession):
         primary_artist: bool = False,
         aliases: dict[str, str] | None = None,
         romanize: bool = False,
+        artist_romanizer: Any | None = None,
     ):
         super().__init__(lib, None, paths, None)
         self.decisions = decisions
         self.primary_artist = primary_artist
         self.aliases = aliases or {}
         self.romanize = romanize
+        self.artist_romanizer = artist_romanizer
         self.outcomes: dict[str, TaskOutcome] = {}
         self._merge_decision: dict[str, Any] | None = None
 
@@ -189,18 +191,20 @@ class ApplySession(_NoResume, ImportSession):
         )
         return Action.SKIP
 
-    @staticmethod
-    def _romanize(info: Any) -> str:
+    def _romanize(self, info: Any) -> str:
         from . import romanize
 
-        if (info.data_source or "").lower() not in romanize.SUPPORTED:
-            return ""
+        notes = []
         try:
-            changed = romanize.romanize_info(info)
+            if romanize.romanize_release(info):
+                notes.append("romanized names")
         except Exception as e:  # noqa: BLE001 - import with the original names instead
             log.warning("romanizing %s failed: %s", info.album_id, e)
-            return f", romanizing failed ({type(e).__name__}: {e})"
-        return ", romanized names" if changed else ", no romanized names at the source"
+            notes.append(f"romanizing failed ({type(e).__name__}: {e})")
+        resolver = self.artist_romanizer or romanize.ArtistRomanizer()
+        if romanize.romanize_artists(info, resolver):
+            notes.append("romanized artists")
+        return "".join(f", {n}" for n in notes)
 
     def choose_match(self, task: Any) -> Any:
         return self._choose(task)
@@ -259,9 +263,12 @@ def apply_folder(
     primary_artist: bool = False,
     aliases: dict[str, str] | None = None,
     romanize: bool = False,
+    artist_romanizer: Any | None = None,
 ) -> dict[str, TaskOutcome]:
     lib = beets_ctx.lib()
-    session = ApplySession(lib, _paths(folder), decisions, primary_artist, aliases, romanize)
+    session = ApplySession(
+        lib, _paths(folder), decisions, primary_artist, aliases, romanize, artist_romanizer
+    )
     ids = sorted(
         {d["id"] for d in decisions.values() if d.get("action") == "apply" and d.get("id")}
     )

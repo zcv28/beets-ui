@@ -63,6 +63,11 @@ CREATE TABLE IF NOT EXISTS snapshots (
     undone_by INTEGER
 );
 CREATE INDEX IF NOT EXISTS snapshots_job ON snapshots(job_id);
+CREATE TABLE IF NOT EXISTS artist_romaji (
+    key TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    updated_at REAL NOT NULL
+);
 """
 
 # Columns added after the first release: (name, definition).
@@ -240,6 +245,22 @@ class State:
 
     def delete_artist_alias(self, alias: str) -> None:
         self._exec("DELETE FROM artist_aliases WHERE alias=?", (alias.casefold(),))
+
+    # ----------------------------------------------------------- artist romaji
+
+    def artist_romaji(self, key: str) -> tuple[str, float] | None:
+        """Cached romanized artist name ("" = none found) and when it was looked up."""
+        row = self._exec(
+            "SELECT name, updated_at FROM artist_romaji WHERE key=?", (key,)
+        ).fetchone()
+        return (row["name"], row["updated_at"]) if row else None
+
+    def set_artist_romaji(self, key: str, name: str) -> None:
+        self._exec(
+            "INSERT INTO artist_romaji (key, name, updated_at) VALUES (?,?,?) "
+            "ON CONFLICT(key) DO UPDATE SET name=excluded.name, updated_at=excluded.updated_at",
+            (key, name, time.time()),
+        )
 
     # --------------------------------------------------------------- snapshots
 

@@ -18,19 +18,20 @@
     <a href="/library?q={{ ('albumartist:=' ~ a.name)|q }}"><img loading="lazy" src="/artwork/artist/image?name={{ a.name|q }}" alt=""></a>
     <div class="t" title="{{ a.name }}"><a href="/library?q={{ ('albumartist:=' ~ a.name)|q }}">{{ a.name }}</a></div>
     {% if a.original %}<div class="s original" title="{{ a.original }}">{{ a.original }}</div>{% endif %}
-    <div class="s">{{ a.albums }} album{{ 's' if a.albums != 1 }} · <a href="/artwork/artist?name={{ a.name|q }}">picture</a> · <label title="Select two or more artists to merge them"><input type="checkbox" name="name" value="{{ a.name }}">merge</label></div>
+    <div class="s">{{ a.albums }} album{{ 's' if a.albums != 1 }} · <a href="/artwork/artist?name={{ a.name|q }}">picture</a> · <label title="Tick one artist to rename it, or several to merge them"><input type="checkbox" name="name" value="{{ a.name }}">edit</label></div>
   </div>
   {% endfor %}
 </div>
 <p class="msg" id="artist-none" hidden>No artist matches.</p>
 <div class="sticky-bar" id="merge-bar" hidden>
   <strong id="merge-count"></strong>
-  <label>keep the name <select name="target" id="merge-target"></select></label>
+  <label><span id="merge-verb">keep the name</span> <input type="text" name="target" id="merge-target" list="merge-names" autocomplete="off" required></label>
+  <datalist id="merge-names"></datalist>
   <label><input type="checkbox" name="write" value="1" checked> write tags</label>
   <label><input type="checkbox" name="move" value="1" checked> move files</label>
   <label title="Tracks whose whole artist credit is one of the merged names"><input type="checkbox" name="tracks" value="1" checked> rename track artists</label>
   <span class="spacer"></span>
-  <button class="btn btn-sm btn-b">Merge</button>
+  <button class="btn btn-sm btn-b" id="merge-button">Merge</button>
 </div>
 </form>
 {% else %}<div class="msg">The library is empty.</div>{% endif %}
