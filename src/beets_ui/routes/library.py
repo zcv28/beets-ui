@@ -260,6 +260,24 @@ def album_romanize(request: Request, album_id: int):
     return redirect(f"/jobs/{job}")
 
 
+@router.post("/album/{album_id}/lyrics")
+def album_lyrics(request: Request, album_id: int, force: str = Form("")):
+    a = _album_or_404(album_id)
+    params = {"album_ids": [album_id], "force": bool(force)}
+    title = f"Synced lyrics for {a.albumartist} - {a.album}"
+    job = request.app.state.jobs.submit("lyrics", title, params, user(request))
+    return redirect(f"/jobs/{job}")
+
+
+@router.post("/item/{item_id}/lyrics")
+def item_lyrics(request: Request, item_id: int):
+    it = _item_or_404(item_id)
+    params = {"item_ids": [item_id], "force": True}
+    title = f"Synced lyrics for {it.artist} - {it.title}"
+    job = request.app.state.jobs.submit("lyrics", title, params, user(request))
+    return redirect(f"/jobs/{job}")
+
+
 @router.get("/romanize")
 def romanize_page(request: Request):
     return render(

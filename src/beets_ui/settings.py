@@ -39,6 +39,7 @@ def _list(name: str, default: str) -> list[str]:
 
 
 THEMES = ("graphite", "slate", "mahogany", "phosphor")
+LYRICS_ROMAJI = ("below", "inline", "only", "off")
 
 DEFAULT_COVER_SOURCES = (
     "coverartarchive,fanarttv,theaudiodb,deezer,itunes,discogs,vocadb,touhoudb,utaitedb"
@@ -81,10 +82,18 @@ class Settings:
     auto_import: int = 0
     romanize: bool = False
     theme: str = "graphite"
+    jellyfin_url: str = ""
+    jellyfin_api_key: str = ""
+    jellyfin_user: str = ""
+    lyrics_romaji: str = "below"
 
     @property
     def slskd_enabled(self) -> bool:
         return bool(self.slskd_url and self.slskd_api_key)
+
+    @property
+    def jellyfin_enabled(self) -> bool:
+        return bool(self.jellyfin_url and self.jellyfin_api_key)
 
     @property
     def state_db(self) -> Path:
@@ -124,11 +133,20 @@ class Settings:
             auto_import=min(100, max(0, _int("BEETSUI_AUTO_IMPORT", 0))),
             romanize=_bool("BEETSUI_ROMANIZE", False),
             theme=_str("BEETSUI_THEME", "graphite").lower() or "graphite",
+            jellyfin_url=_str("JELLYFIN_URL").rstrip("/"),
+            jellyfin_api_key=_str("JELLYFIN_API_KEY"),
+            jellyfin_user=_str("JELLYFIN_USER"),
+            lyrics_romaji=_str("BEETSUI_LYRICS_ROMAJI", "below").lower() or "below",
         )
         s.validate()
         return s
 
     def validate(self) -> None:
+        if self.lyrics_romaji not in LYRICS_ROMAJI:
+            raise SettingsError(
+                f"BEETSUI_LYRICS_ROMAJI must be one of {', '.join(LYRICS_ROMAJI)}, "
+                f"got {self.lyrics_romaji!r}"
+            )
         if self.theme not in THEMES:
             raise SettingsError(
                 f"BEETSUI_THEME must be one of {', '.join(THEMES)}, got {self.theme!r}"

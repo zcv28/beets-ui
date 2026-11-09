@@ -24,6 +24,7 @@
       <form class="inline wrap" method="post" action="/library/album/{{ album.id }}/run">
         {% for a in ['mbsync', 'fetchart', 'embedart', 'replaygain', 'lyrics'] %}<button class="nc-btn nc-btn--sm" name="action" value="{{ a }}">{{ a }}</button>{% endfor %}
       </form>
+      <form class="inline" method="post" action="/library/album/{{ album.id }}/lyrics"><button class="nc-btn nc-btn--sm" title="Time-synced lyrics from LRCLIB, with romaji under Japanese lines">Synced Lyrics</button></form>
       {% if romanizable %}<form class="inline" method="post" action="/library/album/{{ album.id }}/romanize"><button class="nc-btn nc-btn--sm" title="Use romanized names from {{ album.get('data_source') }} and keep the original names alongside">Romanize</button></form>{% endif %}
       <a class="nc-btn nc-btn--sm" href="/console?cmd={{ ('import -L -q album_id:' ~ album.id)|q }}" title="Re-imports the album: opens the console so you can check the command first">Re-tag…</a>
     </div>
@@ -33,7 +34,7 @@
 <h2>Tracks</h2>
 <div class="nc-tablewrap"><table class="nc-table">
   <thead><tr><th class="num">#</th><th>Title</th><th>Artist</th><th class="num">Length</th><th class="hide-sm">Format</th></tr></thead>
-  <tbody>{% for it in items %}<tr><td class="num">{% if album.disctotal and album.disctotal > 1 %}{{ it.disc }}-{% endif %}{{ it.track }}</td><td><a href="/library/item/{{ it.id }}">{{ it.title }}</a>{% if it.get('title_original') %}<br><small class="original">{{ it.title_original }}</small>{% endif %}</td><td>{{ it.artist }}{% if it.get('artist_original') %}<br><small class="original">{{ it.artist_original }}</small>{% endif %}</td><td class="num">{{ it.length|duration }}</td><td class="hide-sm">{{ it.format }} {{ (it.bitrate // 1000) if it.bitrate else '' }}{% if it.bitdepth %} · {{ it.bitdepth }}bit/{{ (it.samplerate / 1000)|round(1) }}kHz{% endif %}</td></tr>{% endfor %}</tbody>
+  <tbody>{% for it in items %}<tr><td class="num">{% if album.disctotal and album.disctotal > 1 %}{{ it.disc }}-{% endif %}{{ it.track }}</td><td><a href="/library/item/{{ it.id }}">{{ it.title }}</a>{% if it.lyrics and synced(it.lyrics) %} <span class="nc-hint" title="Has synced lyrics">♪</span>{% endif %}{% if it.get('title_original') %}<br><small class="original">{{ it.title_original }}</small>{% endif %}</td><td>{{ it.artist }}{% if it.get('artist_original') %}<br><small class="original">{{ it.artist_original }}</small>{% endif %}</td><td class="num">{{ it.length|duration }}</td><td class="hide-sm">{{ it.format }} {{ (it.bitrate // 1000) if it.bitrate else '' }}{% if it.bitdepth %} · {{ it.bitdepth }}bit/{{ (it.samplerate / 1000)|round(1) }}kHz{% endif %}</td></tr>{% endfor %}</tbody>
 </table></div>
 
 <details class="box">

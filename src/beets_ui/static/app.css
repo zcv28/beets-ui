@@ -220,3 +220,10 @@ dialog.confirm .nc-dialog__body p { margin: 0; }
     .nc-statusbar > :not(:first-child) { display: none; }
     .player { left: var(--space-4); right: var(--space-4); bottom: var(--space-4); width: auto; }
 }
+
+/* --------------------------------------------------------------- insights */
+.issue { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-3); margin: var(--space-1) 0; }
+.lyrics td.num { width: 1%; vertical-align: top; }
+.lyrics .original { display: inline-block; margin-top: 2px; }
+details.gap > summary .original { margin-left: var(--space-2); }
+details.gap > summary .nc-hint { font-weight: 400; }

@@ -17,6 +17,7 @@ from fastapi.templating import Jinja2Templates
 
 from . import __version__
 from .history import UNDOABLE
+from .lyrics import grouped, is_synced
 
 HERE = Path(__file__).parent
 templates = Jinja2Templates(directory=str(HERE / "templates"))
@@ -74,6 +75,8 @@ templates.env.filters.update(
 )
 templates.env.globals["version"] = __version__
 templates.env.globals["undoable"] = UNDOABLE
+templates.env.globals["synced"] = is_synced
+templates.env.globals["lyric_lines"] = grouped
 
 
 def flash(request: Request, message: str, kind: str = "msg") -> None:
@@ -91,7 +94,7 @@ def render(request: Request, name: str, status_code: int = 200, **ctx: Any):
         "flashes": flashes,
         "slskd_enabled": app.state.settings.slskd_enabled,
         "nav": ctx.pop("nav", ""),
-        "running": app.state.jobs.current,
+        "running": len(app.state.jobs.running()),
         "pending": app.state.jobs.pending(),
         "since": time.time(),
         "theme": app.state.settings.theme,
