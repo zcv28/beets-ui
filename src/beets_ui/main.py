@@ -13,7 +13,7 @@ from fastapi.staticfiles import StaticFiles
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.middleware.sessions import SessionMiddleware
 
-from . import __version__, beets_ctx, history, romanize
+from . import __version__, beets_ctx, discography, history, listening, lyrics, romanize
 from . import artists as artists_svc
 from .artwork.service import Artwork
 from .auth import RateLimiter
@@ -64,6 +64,9 @@ def create_app(settings: Settings | None = None, background: bool = True) -> Fas
     artists_svc.register_jobs(jobs, settings.artist_image_names)
     history.register_jobs(jobs, settings.artist_image_names)
     romanize.register_jobs(jobs, settings)
+    discography.register_jobs(jobs)
+    listening.register_jobs(jobs, settings)
+    lyrics.register_jobs(jobs, settings)
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):
@@ -110,11 +113,12 @@ def create_app(settings: Settings | None = None, background: bool = True) -> Fas
     from .routes import auth as r_auth
     from .routes import console as r_console
     from .routes import inbox as r_inbox
+    from .routes import insights as r_insights
     from .routes import jobs as r_jobs
     from .routes import library as r_library
     from .routes import soulseek as r_soulseek
 
-    for r in (r_auth, r_inbox, r_library, r_console, r_jobs, r_soulseek, r_artwork):
+    for r in (r_auth, r_inbox, r_library, r_console, r_jobs, r_soulseek, r_artwork, r_insights):
         app.include_router(r.router)
 
     @app.get("/healthz", include_in_schema=False)

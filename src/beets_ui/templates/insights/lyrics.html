@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% block title %}Lyrics{% endblock %}
+{% block content %}
+{% set tab = 'lyrics' %}{% include "insights/_tabs.html" %}
+<div class="nc-tabpanel">
+<p class="muted">Time-synced lyrics from <a href="https://lrclib.net" target="_blank" rel="noopener noreferrer">LRCLIB</a>, looked up by the original names first. Japanese songs get romaji {{ {'below': 'under each line', 'inline': 'after each line (line / romaji)', 'only': 'instead of the Japanese', 'off': '(turned off)'}[mode] }} (<code>BEETSUI_LYRICS_ROMAJI</code>), taken from VocaDB's romanized lyrics when they line up, otherwise generated. The lyrics are written into the files, where Jellyfin picks them up. Albums and tracks also have a Synced Lyrics button.</p>
+<div class="bar">
+  <span class="nc-lcd">{{ cov.synced }}/{{ cov.tracks }} synced</span>
+  <span class="nc-hint">{{ cov.plain }} track{{ 's' if cov.plain != 1 }} with plain lyrics · {{ cov.instrumental }} instrumental · {{ [cov.tracks - cov.synced - cov.plain - cov.instrumental, 0]|max }} without lyrics</span>
+</div>
+<form method="post" action="/insights/lyrics/run" class="box-body">
+  <div class="fields">
+    <label class="nc-label">Only Tracks Matching<input type="search" name="query" placeholder="beets query, e.g. albumartist:Yorushika (empty = whole library)"></label>
+  </div>
+  <div class="bar">
+    <label class="nc-choice"><input type="checkbox" name="replace_plain" value="1" checked>Replace plain lyrics too</label>
+    <label class="nc-choice"><input type="checkbox" name="force" value="1">Look up tracks that already have synced lyrics again</label>
+    <span class="spacer"></span>
+    <button class="nc-btn nc-btn--sm nc-btn--accent">Fetch Synced Lyrics</button>
+  </div>
+  <p class="nc-hint">A whole-library run does {{ limit }} tracks at a time, so imports aren't held up for long; run it again to continue. Tracks not found on LRCLIB are skipped for 30 days.</p>
+</form>
+{% if jobs %}
+<h2>Recent Runs</h2>
+{% include "partials/jobs_table.html" %}
+{% endif %}
+</div>
+{% endblock %}
+{% block status %}{{ cov.synced }} of {{ cov.tracks }} tracks have synced lyrics{% endblock %}

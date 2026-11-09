@@ -38,7 +38,7 @@ def jobs_table(request: Request):
 
 
 # Finished jobs worth a pop-up: lookups run all the time, so only failed ones.
-QUIET = {"preview"}
+QUIET = {"preview", "jellyfin-sync"}
 
 
 @router.get("/pill")
@@ -53,7 +53,7 @@ def jobs_pill(request: Request, since: float = 0):
     return partial(
         request,
         "partials/jobs_pill.html",
-        running=jobs.current,
+        running=len(jobs.running()),
         pending=jobs.pending(),
         since=since,
         toasts=toasts,

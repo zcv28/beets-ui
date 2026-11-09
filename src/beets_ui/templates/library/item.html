@@ -10,6 +10,22 @@
   {% if item.mb_trackid %}<dt>MusicBrainz</dt><dd><a href="https://musicbrainz.org/recording/{{ item.mb_trackid }}" target="_blank" rel="noopener noreferrer">{{ item.mb_trackid }}</a></dd>{% endif %}
   <dt>Item ID</dt><dd>{{ item.id }}</dd>
 </dl>
+{% set lines = lyric_lines(item.lyrics) if item.lyrics and synced(item.lyrics) else [] %}
+<h2>Lyrics</h2>
+{% if lines %}
+<div class="nc-tablewrap lyrics"><table class="nc-table">
+  <tbody>{% for l in lines %}<tr><td class="num muted mono">{{ l.time }}</td><td>{{ l.text }}{% for s in l.sub %}<br><span class="original">{{ s }}</span>{% endfor %}</td></tr>{% endfor %}</tbody>
+</table></div>
+{% elif item.lyrics %}
+<p class="muted">Plain lyrics, not time-synced.</p>
+{% else %}
+<p class="muted">No lyrics.</p>
+{% endif %}
+<form method="post" action="/library/item/{{ item.id }}/lyrics" class="bar">
+  <span class="nc-hint">{% if item.get('lyrics_backend') %}From {% if item.get('lyrics_url') %}<a href="{{ item.lyrics_url }}" target="_blank" rel="noopener noreferrer">{{ item.lyrics_backend }}</a>{% else %}{{ item.lyrics_backend }}{% endif %}{% if item.get('lyrics_romaji') %}, romaji from {{ item.lyrics_romaji }}{% endif %}.{% elif item.get('lyrics_instrumental') %}Instrumental.{% endif %} Looks the track up on LRCLIB and replaces its lyrics if synced ones are found.</span>
+  <span class="spacer"></span>
+  <button class="nc-btn nc-btn--sm">{{ 'Fetch Again' if lines else 'Fetch Synced Lyrics' }}</button>
+</form>
 <h2>Edit track</h2>
 <form method="post" action="/library/item/{{ item.id }}/edit">
   <div class="fields">

@@ -68,6 +68,32 @@ CREATE TABLE IF NOT EXISTS artist_romaji (
     name TEXT NOT NULL,
     updated_at REAL NOT NULL
 );
+CREATE TABLE IF NOT EXISTS discography (
+    source TEXT NOT NULL,
+    artist_id TEXT NOT NULL,
+    artist TEXT NOT NULL,
+    releases TEXT NOT NULL DEFAULT '[]',
+    error TEXT,
+    updated_at REAL NOT NULL,
+    PRIMARY KEY (source, artist_id)
+);
+CREATE TABLE IF NOT EXISTS dismissed (
+    kind TEXT NOT NULL,
+    key TEXT NOT NULL,
+    label TEXT NOT NULL DEFAULT '',
+    created_at REAL NOT NULL,
+    PRIMARY KEY (kind, key)
+);
+CREATE TABLE IF NOT EXISTS plays (
+    item_id INTEGER PRIMARY KEY,
+    count INTEGER NOT NULL DEFAULT 0,
+    last_played REAL,
+    favorite INTEGER NOT NULL DEFAULT 0
+);
+CREATE TABLE IF NOT EXISTS meta (
+    key TEXT PRIMARY KEY,
+    value TEXT NOT NULL
+);
 """
 
 # Columns added after the first release: (name, definition).
@@ -287,3 +313,95 @@ class State:
 
     def mark_snapshot_undone(self, snap_id: int, job_id: int) -> None:
         self._exec("UPDATE snapshots SET undone_by=? WHERE id=?", (job_id, snap_id))
+
+    # ------------------------------------------------------------ discography
+
+    def discographies(self) -> list[dict[str, Any]]:
+        rows = self._exec("SELECT * FROM discography").fetchall()
+        out = []
+        for r in rows:
+            d = dict(r)
+            d["releases"] = json.loads(d["releases"] or "[]")
+            out.append(d)
+        return out
+
+    def set_discography(
+        self, source: str, artist_id: str, artist: str, releases: list[dict], error: str = ""
+    ) -> None:
+        with self._lock:
+            if error:
+                # Keep the releases from the last good lookup.
+                self._conn.execute(
+                    "INSERT INTO discography (source, artist_id, artist, error, updated_at) "
+                    "VALUES (?,?,?,?,?) ON CONFLICT(source, artist_id) DO UPDATE SET "
+                    "artist=excluded.artist, error=excluded.error, updated_at=excluded.updated_at",
+                    (source, artist_id, artist, error[:500], time.time()),
+                )
+                return
+            self._conn.execute(
+                "INSERT INTO discography (source, artist_id, artist, releases, error, updated_at) "
+                "VALUES (?,?,?,?,NULL,?) ON CONFLICT(source, artist_id) DO UPDATE SET "
+                "artist=excluded.artist, releases=excluded.releases, error=NULL, "
+                "updated_at=excluded.updated_at",
+                (source, artist_id, artist, json.dumps(releases), time.time()),
+            )
+
+    def prune_discography(self, keep: set[tuple[str, str]]) -> None:
+        """Forget artists that are no longer in the library."""
+        with self._lock:
+            for r in self._conn.execute("SELECT source, artist_id FROM discography").fetchall():
+                if (r["source"], r["artist_id"]) not in keep:
+                    self._conn.execute(
+                        "DELETE FROM discography WHERE source=? AND artist_id=?",
+                        (r["source"], r["artist_id"]),
+                    )
+
+    # -------------------------------------------------------------- dismissed
+
+    def dismissed(self, kind: str) -> dict[str, str]:
+        rows = self._exec("SELECT key, label FROM dismissed WHERE kind=?", (kind,)).fetchall()
+        return {r["key"]: r["label"] for r in rows}
+
+    def dismiss(self, kind: str, key: str, label: str = "") -> None:
+        self._exec(
+            "INSERT INTO dismissed (kind, key, label, created_at) VALUES (?,?,?,?) "
+            "ON CONFLICT(kind, key) DO UPDATE SET label=excluded.label",
+            (kind, key, label[:300], time.time()),
+        )
+
+    def undismiss(self, kind: str, key: str) -> None:
+        self._exec("DELETE FROM dismissed WHERE kind=? AND key=?", (kind, key))
+
+    # ------------------------------------------------------------------ plays
+
+    def plays(self) -> dict[int, dict[str, Any]]:
+        rows = self._exec("SELECT * FROM plays").fetchall()
+        return {r["item_id"]: dict(r) for r in rows}
+
+    def replace_plays(self, rows: list[tuple[int, int, float | None, bool]]) -> None:
+        with self._lock:
+            self._conn.execute("BEGIN")
+            try:
+                self._conn.execute("DELETE FROM plays")
+                self._conn.executemany(
+                    "INSERT OR REPLACE INTO plays (item_id, count, last_played, favorite) "
+                    "VALUES (?,?,?,?)",
+                    [(i, c, last, int(fav)) for i, c, last, fav in rows],
+                )
+                self._conn.execute("COMMIT")
+            except BaseException:
+                self._conn.execute("ROLLBACK")
+                raise
+
+    # ------------------------------------------------------------------- meta
+
+    def meta(self, key: str, default: Any = None) -> Any:
+        row = self._exec("SELECT value FROM meta WHERE key=?", (key,)).fetchone()
+        return json.loads(row["value"]) if row else default
+
+    def set_meta(self, key: str, value: Any) -> None:
+        self._exec(
+            "INSERT INTO meta (key, value) VALUES (?,?) "
+            "ON CONFLICT(key) DO UPDATE SET value=excluded.value",
+            (key, json.dumps(value)),
+        )

@@ -1,0 +1,100 @@
+{% extends "base.html" %}
+{% block title %}Discography Gaps{% endblock %}
+{% block content %}
+{% set tab = 'gaps' %}{% include "insights/_tabs.html" %}
+{% set here = request.url.path ~ ('?' ~ request.url.query if request.url.query else '') %}
+<div class="nc-tabpanel">
+<p class="muted">Releases by the artists in your library that the library doesn't have. Each artist is looked up where its albums were tagged from: VocaDB, TouhouDB or UtaiteDB by the artist's own releases, MusicBrainz by release group. Albums count as owned by ID or by title.</p>
+
+{% if busy %}<div class="wip">Looking up discographies. Reload the page when the job is done; it runs alongside imports.</div>{% endif %}
+{% if not looked %}
+<div class="msg">
+  <p class="callout-title">Nothing looked up yet</p>
+  <p>{{ artists }} artist{{ 's' if artists != 1 }} in the library can be looked up. With many MusicBrainz artists this takes a while (one request a second).</p>
+</div>
+{% endif %}
+
+<form class="bar" method="get" action="/insights/gaps">
+  <span class="nc-group" role="group" aria-label="Release types">
+    {% for k in kinds %}<label class="nc-choice"><input type="checkbox" name="kinds" value="{{ k }}" {% if k in picked %}checked{% endif %}>{{ {'ep': 'EPs', 'other': 'Other'}.get(k, k|capitalize ~ 's') }}</label>{% endfor %}
+  </span>
+  <select name="show" aria-label="Show">
+    <option value="gaps" {% if show == 'gaps' %}selected{% endif %}>Artists with gaps</option>
+    <option value="complete" {% if show == 'complete' %}selected{% endif %}>Complete artists</option>
+    <option value="all" {% if show == 'all' %}selected{% endif %}>All artists</option>
+  </select>
+  <button class="nc-btn nc-btn--sm">Show</button>
+  <span class="spacer"></span>
+  <button class="nc-btn nc-btn--sm {{ 'nc-btn--accent' if not looked }}" form="refresh-all" {% if busy %}disabled{% endif %}>{{ 'Look Up All Artists' if not looked else 'Refresh All' }}</button>
+</form>
+<form id="refresh-all" method="post" action="/insights/gaps/refresh"></form>
+
+{% for r in rows %}
+<details class="box gap" {% if loop.length == 1 %}open{% endif %}>
+  <summary>
+    {{ r.artist }}{% if r.artist_original and r.artist_original != r.artist %} <span class="original">{{ r.artist_original }}</span>{% endif %}
+    <span class="nc-hint">
+      {%- if not r.looked_up %}not looked up yet
+      {%- else %}{{ r.owned|length }} of {{ r.owned|length + r.missing|length }} owned{% if r.missing %} · <span class="warnc">{{ r.missing|length }} missing</span>{% endif %}{% if r.upcoming %} · {{ r.upcoming|length }} upcoming{% endif %}{% endif %} · {{ r.source_name }}</span>
+  </summary>
+  <div class="box-body">
+    {% if r.error %}<div class="warn">Last lookup failed: {{ r.error }}</div>{% endif %}
+    {% for title, list in [('Missing', r.missing), ('Upcoming', r.upcoming)] if list %}
+    {% if title == 'Upcoming' %}<h3>Upcoming</h3>{% endif %}
+    <div class="nc-tablewrap"><table class="nc-table">
+      <thead><tr><th>Date</th><th>Release</th><th class="hide-sm">Type</th><th class="hide-sm">Catalog</th><th></th></tr></thead>
+      <tbody>
+      {% for rel in list %}
+      {% set roman_q = r.artist ~ ' ' ~ rel.title %}
+      {% set orig_q = (r.artist_original or r.artist) ~ ' ' ~ rel.original %}
+      <tr>
+        <td class="nowrap">{{ rel.date or '?' }}</td>
+        <td><a href="{{ rel.url }}" target="_blank" rel="noopener noreferrer">{{ rel.title }}</a>{% if rel.original and rel.original != rel.title %}<br><small class="original">{{ rel.original }}</small>{% endif %}{% if rel.artists and rel.artists != r.artist %}<br><small class="muted">{{ rel.artists }}</small>{% endif %}</td>
+        <td class="hide-sm"><small>{{ rel.type }}</small></td>
+        <td class="hide-sm nowrap"><small>{{ rel.catalog }}</small></td>
+        <td class="nowrap">
+          {% if slskd_enabled %}
+          <a class="nc-btn nc-btn--sm" href="/soulseek?q={{ roman_q|q }}" title="Search Soulseek for {{ roman_q }}">Soulseek</a>
+          {% if rel.original and rel.original != rel.title %}<a class="nc-btn nc-btn--sm" href="/soulseek?q={{ orig_q|q }}" title="Search Soulseek for {{ orig_q }}">Soulseek (Original)</a>{% endif %}
+          {% endif %}
+          <form class="inline" method="post" action="/insights/gaps/dismiss" hx-post="/insights/gaps/dismiss" hx-target="closest tr" hx-swap="delete">
+            <input type="hidden" name="source" value="{{ r.source }}">
+            <input type="hidden" name="release_id" value="{{ rel.id }}">
+            <input type="hidden" name="label" value="{{ r.artist }} – {{ rel.title }}">
+            <input type="hidden" name="back" value="{{ here }}">
+            <button class="nc-btn nc-btn--sm" title="Not interested: hide this release">Dismiss</button>
+          </form>
+        </td>
+      </tr>
+      {% endfor %}
+      </tbody>
+    </table></div>
+    {% endfor %}
+    {% if r.looked_up and not r.missing and not r.upcoming %}<p class="muted">Nothing missing of the selected types.</p>{% endif %}
+    {% if r.owned %}
+    <details>
+      <summary class="nc-hint">Owned ({{ r.owned|length }})</summary>
+      <ul>{% for rel in r.owned %}<li><small>{{ rel.date[:4] or '?' }} · {{ rel.title }}</small></li>{% endfor %}</ul>
+    </details>
+    {% endif %}
+    {% if r.dismissed %}
+    <details>
+      <summary class="nc-hint">Dismissed ({{ r.dismissed|length }})</summary>
+      <ul>{% for rel in r.dismissed %}<li><small>{{ rel.date[:4] or '?' }} · {{ rel.title }}</small>
+        <form class="inline" method="post" action="/insights/gaps/restore"><input type="hidden" name="source" value="{{ r.source }}"><input type="hidden" name="release_id" value="{{ rel.id }}"><button class="link"><small>restore</small></button></form></li>{% endfor %}</ul>
+    </details>
+    {% endif %}
+    <form class="bar right" method="post" action="/insights/gaps/refresh">
+      <input type="hidden" name="source" value="{{ r.source }}">
+      <input type="hidden" name="artist_id" value="{{ r.artist_id }}">
+      <span class="nc-hint">{{ r.albums }} album{{ 's' if r.albums != 1 }} in the library{% if r.looked_up %} · looked up {{ r.looked_up|ts }}{% endif %}</span>
+      <button class="nc-btn nc-btn--sm">{{ 'Look Up Again' if r.looked_up else 'Look Up' }}</button>
+    </form>
+  </div>
+</details>
+{% else %}
+{% if looked %}<div class="ok-box">No artist matches this filter.</div>{% endif %}
+{% endfor %}
+</div>
+{% endblock %}
+{% block status %}{{ looked }} of {{ artists }} artist{{ 's' if artists != 1 }} looked up{% if looked %} · {{ missing }} release{{ 's' if missing != 1 }} missing{% endif %}{% endblock %}

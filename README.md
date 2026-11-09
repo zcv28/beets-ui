@@ -19,9 +19,14 @@ A small, self-hosted web frontend for [beets](https://beets.io). It runs in one 
   - Sources: Cover Art Archive, fanart.tv, Wikimedia Commons (through the artist's MusicBrainz ID), TheAudioDB, Deezer, iTunes, Discogs, **VocaDB**, **UtaiteDB** and **TouhouDB**.
   - **Fill automatically** works through every artist on its own. A picture found through the MusicBrainz ID is used straight away. A name search is used when exactly one artist has that spelling. Shared names (e.g. "since") are left for you under *needs review*.
   - Albums whose art is only embedded in the files show as *embedded only*, and the fill job can extract that art to a cover file.
+- **Insights.**
+  - *Discography gaps:* releases by your artists and circles that the library doesn't have, from VocaDB, TouhouDB, UtaiteDB or MusicBrainz, with a Soulseek search for each.
+  - *Upgrades:* lossy, low-bitrate, incomplete and mixed-format albums.
+  - *Listening:* never played, not played in a year and most played, from Jellyfin's play counts.
+  - *Synced lyrics:* from LRCLIB, with romaji under Japanese lines.
 - **Soulseek.** Search and download through your existing [slskd](https://github.com/slskd/slskd), one folder at a time. Finished downloads land in the inbox for review.
 - **Console.** Run any non-interactive `beet` command (`update`, `move`, `fetchart`, `replaygain`, `convert`, `mbsync`, plugin commands and so on) and follow its output live. Anything beets can do is reachable from here.
-- **Jobs.** Every change to the library goes through a single queue, so nothing fights over the database, and each job keeps its log.
+- **Jobs.** Every change to the library goes through a single queue, so nothing fights over the database, and each job keeps its log. Lookups that only read the library (discographies, the Jellyfin sync) run in a second queue, so they never hold up an import.
 - **Login.** A single password, or LDAP (lldap, OpenLDAP, Authentik and others).
 
 The UI uses the *niki.moe classic* design system: dark, bevelled desktop-software windows in one of four themes (`graphite`, `slate`, `mahogany`, `phosphor`; set with `BEETSUI_THEME`). Its fonts are bundled, so pages load nothing from third parties.
@@ -92,6 +97,9 @@ The container user (`user:`) must be able to read the inbox and write to `/music
 | `BEETSUI_AUTO_IMPORT` | `0` (off) | Import an automatically looked-up folder without review when every album in it matches at least this % (e.g. `95`), has no missing tracks or unmatched files, and nothing in it is already in the library. Duplicates beets finds still wait for you. |
 | `BEETSUI_ROMANIZE` | `false` | Import VocaDB/UtaiteDB/TouhouDB/MusicBrainz matches with romanized names and keep the originals alongside. See *Romanized names* below. |
 | `BEETSUI_THEME` | `graphite` | Color theme: `graphite` (neutral gray), `slate` (steel blue), `mahogany` (red-brown) or `phosphor` (terminal green). |
+| `BEETSUI_LYRICS_ROMAJI` | `below` | Romaji in synced lyrics of Japanese songs: `below` (a romaji line under each line, same timestamp), `inline` (`line / romaji` on one line, the way beets stores translations), `only` (romaji instead of the Japanese) or `off`. |
+| `JELLYFIN_URL` / `JELLYFIN_API_KEY` | — | Turns on *Insights → Listening*, e.g. `http://jellyfin:8096` and a key from Jellyfin's Dashboard → API Keys. |
+| `JELLYFIN_USER` | first admin | Whose play counts to read, when Jellyfin has several users. |
 | `BEETSUI_PRIMARY_ARTIST` | `false` | Keep only the first credited artist as album artist on import ("ヌジャベス & Joe Claussell" → "ヌジャベス"). Track artists keep the full credit. Albums already in the library can be fixed under *Library → Artists*. |
 | `BEETSUI_LDAP_ENABLED` | `false` | Use LDAP instead of the password. |
 | `LDAP_URL` | — | e.g. `ldap://lldap:3890` or `ldaps://ldap.example.org`. |
@@ -186,7 +194,12 @@ Tags: `latest` (main branch), `X.Y.Z` / `X.Y` (releases), `sha-<commit>`.
    - Anything still unromanized can be renamed by hand: tick the artist on the *Artists* page and type the new name. The old name is remembered for future imports and kept as the original.
    - With `BEETSUI_ROMANIZE=true` this happens on import; **Romanize library** does it for albums you already have (it can be undone from its job page). Folder names follow your path format, so they change too; Jellyfin treats moved files as new (play counts don't follow).
    - `vdbsync`, `tdbsync` and `mbsync` write the source's own names back, so run *Romanize library* afterwards (the album page's **mbsync** button does that by itself).
-5. **Console.** Type a command without the leading `beet`. Commands that prompt can't be answered, so use `-y`/`-q` (e.g. `import -q -L <query>` to re-tag library albums).
+5. **Insights.**
+   - **Discography gaps.** Press **Look up all artists** once; it runs in the background next to imports (MusicBrainz allows one request a second, so a big library takes a while). Artists are looked up where their albums were tagged from: VocaDB/TouhouDB/UtaiteDB list the artist's own releases (`OnlyMainAlbums`), MusicBrainz its release groups. An album counts as owned by ID, or by title (romanized or original) among that artist's albums. Choose which kinds to show (albums and EPs by default; singles, compilations, other). **Soulseek** searches the romanized names, **Soulseek (Original)** the names as written. **Dismiss** hides a release you don't want.
+   - **Upgrades.** Lossy (MP3, AAC, Vorbis, Opus, WMA), low bitrate (under 192 kbps, 96 for Opus), incomplete (fewer tracks than the track/disc totals) and mixed formats. Dismiss an album for a reason when it's the best copy there is. Low-resolution covers are under *Artwork*.
+   - **Listening.** Play counts, last-played dates and favourites of one Jellyfin user, read every 6 hours when you open the page (or **Sync now**). Tracks are matched by their path inside the music folder, so Jellyfin and beets can mount it in different places. Jellyfin keeps all-time totals only, and a moved file starts again at zero. **Random unplayed album** opens something you haven't listened to yet.
+   - **Lyrics.** Synced lyrics from [LRCLIB](https://lrclib.net), looked up by the original names first (LRCLIB lists Japanese songs under their Japanese titles). Japanese songs get romaji: VocaDB's own romanized lyrics line by line where they match, otherwise generated with [cutlet](https://github.com/polm/cutlet). The lyrics are written into the files with beets' `lyrics_backend`/`lyrics_url` fields; Jellyfin reads them on its next scan (for tracks it already had lyrics for, use *Refresh metadata → Replace all metadata* once). Use the **Synced lyrics** button on an album, **Fetch** on a track, or *Insights → Lyrics* for the whole library (300 tracks per run). Lyrics runs can be undone from their job page.
+6. **Console.** Type a command without the leading `beet`. Commands that prompt can't be answered, so use `-y`/`-q` (e.g. `import -q -L <query>` to re-tag library albums).
 
 Not supported:
 - **VGMdb.** It has no official API, its unofficial mirror is offline and the site blocks automated requests.
