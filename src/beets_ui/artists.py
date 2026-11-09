@@ -405,6 +405,8 @@ def register_jobs(jobs: JobQueue, image_names: list[str] | None = None) -> None:
 
     @jobs.register("artists-merge")
     def artists_merge(ctx: JobContext) -> None:
+        from .romanize import is_latin
+
         lib = beets_ctx.lib()
         target = ctx.params["target"].strip()
         keys = {a.casefold() for a in ctx.params["aliases"] if a.strip()} - {target.casefold()}
@@ -427,6 +429,8 @@ def register_jobs(jobs: JobQueue, image_names: list[str] | None = None) -> None:
                 "albumartist_credit": target,
                 "albumartists_credit": [target],
             }
+            if not is_latin(album.albumartist) and is_latin(target):
+                changes.setdefault("albumartist_original", album.albumartist)
             changes = {k: v for k, v in changes.items() if album.get(k) != v}
             ctx.log(f"{album.albumartist} - {album.album} -> {target}")
             for item in album.items():
@@ -447,6 +451,8 @@ def register_jobs(jobs: JobQueue, image_names: list[str] | None = None) -> None:
                     "artist_credit": target,
                     "artists_credit": [target],
                 }
+                if not is_latin(item.artist) and is_latin(target):
+                    changes.setdefault("artist_original", item.artist)
                 changes = {k: v for k, v in changes.items() if item.get(k) != v}
                 if not item.album_id:
                     old_dirs.update({item.filepath.parent, item.filepath.parent.parent})

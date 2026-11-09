@@ -14,14 +14,23 @@ Romanized names come from the source the album was tagged from:
 * MusicBrainz: the release's Latin-script pseudo-release
   ("transliterated tracklisting"), when someone has added one.
 
-When the source has no romanized names nothing changes.
+Artist names are romanized on their own as well, for albums from any
+source: MusicBrainz keeps artists such as "ヨルシカ" in their own script and
+lists "Yorushika" as an English alias. The artist is found by its
+MusicBrainz ID, or else by an exact name/alias search that must match
+exactly one artist. Lookups are cached in beets-ui's state database.
+
+When no romanized name is found nothing changes.
 """
 
 from __future__ import annotations
 
 import logging
 import os
+import re
 import shutil
+import time
+import unicodedata
 from pathlib import Path
 from typing import Any
 
@@ -140,6 +149,118 @@ def fetch_pair(source: str, album_id: str) -> tuple[Any, Any] | None:
     return _musicbrainz(plugin, album_id)
 
 
+# -------------------------------------------------------------- artists
+
+MBID = re.compile(r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$")
+RETRY_EMPTY = 30 * 86400  # look again for artists without a romanized name after a month
+
+
+def is_latin(text: str) -> bool:
+    """True when every letter is a Latin letter (accents allowed)."""
+    return all(unicodedata.name(c, "").startswith("LATIN") for c in text or "" if c.isalpha())
+
+
+def latin_name(artist: dict[str, Any]) -> str:
+    """The best Latin-script name of a MusicBrainz artist, or ""."""
+    name = artist.get("name") or ""
+    if name and is_latin(name):
+        return name
+    aliases = [
+        a
+        for a in artist.get("aliases") or []
+        if a.get("name") and is_latin(a["name"]) and a.get("type") in (None, "Artist name")
+    ]
+    english = [a for a in aliases if (a.get("locale") or "").startswith("en")]
+    for group in (
+        [a for a in english if a.get("primary")],
+        [a for a in aliases if a.get("primary")],
+        english,
+    ):
+        if group:
+            return group[0]["name"]
+    sort = artist.get("sort_name") or artist.get("sort-name") or ""
+    if not sort or not is_latin(sort):
+        return ""
+    if artist.get("type") == "Person" and sort.count(", ") == 1:
+        last, first = sort.split(", ")
+        return f"{first} {last}"
+    return sort
+
+
+def _names(artist: dict[str, Any]) -> set[str]:
+    from .artists import norm
+
+    return {norm(artist.get("name") or "")} | {
+        norm(a.get("name") or "") for a in artist.get("aliases") or []
+    }
+
+
+class ArtistRomanizer:
+    """Romanized artist names from MusicBrainz, cached in the state database."""
+
+    def __init__(self, state: Any | None = None):
+        self.state = state
+        self._memo: dict[str, str] = {}
+
+    @staticmethod
+    def _api() -> Any | None:
+        from beets import metadata_plugins
+
+        plugin = metadata_plugins.get_metadata_source("musicbrainz")
+        return getattr(plugin, "mb_api", None)
+
+    def resolve(self, name: str, mbid: str | None = "") -> str:
+        """Romanized form of ``name``, or "" when it is Latin already or none is known."""
+        from .artists import SPLIT, norm
+
+        name = (name or "").strip()
+        if not name or is_latin(name):
+            return ""
+        mbid = (mbid or "").split(";")[0].strip().lower()
+        if not MBID.match(mbid):
+            mbid = ""
+            if SPLIT.search(name):
+                return ""  # a joined credit: only whole artists are looked up
+        key = f"mbid:{mbid}:{norm(name)}" if mbid else f"name:{norm(name)}"
+        if key in self._memo:
+            return self._memo[key]
+        cached = self.state.artist_romaji(key) if self.state else None
+        if cached and (cached[0] or time.time() - cached[1] < RETRY_EMPTY):
+            self._memo[key] = cached[0]
+            return cached[0]
+        api = self._api()
+        if api is None:
+            return ""
+        try:
+            value = self._lookup(api, name, mbid)
+        except Exception as e:  # noqa: BLE001 - network trouble: try again next time
+            log.warning("artist lookup for %s failed: %s", name, e)
+            return ""
+        self._memo[key] = value
+        if self.state:
+            self.state.set_artist_romaji(key, value)
+        return value
+
+    @staticmethod
+    def _lookup(api: Any, name: str, mbid: str) -> str:
+        from .artists import norm
+
+        wanted = norm(name)
+        if mbid:
+            artist = api.get_json(f"{api.api_root}/artist/{mbid}", params={"inc": "aliases"})
+            # The ID can belong to only one artist of a joined credit.
+            return latin_name(artist) if wanted in _names(artist) else ""
+        hits = [a for a in api.search("artist", {"": name}, limit=10) if wanted in _names(a)]
+        if len({a["id"] for a in hits}) != 1:
+            return ""
+        artist = hits[0]
+        if "aliases" not in artist:
+            artist = api.get_json(
+                f"{api.api_root}/artist/{artist['id']}", params={"inc": "aliases"}
+            )
+        return latin_name(artist)
+
+
 # ---------------------------------------------------------------- names
 
 
@@ -166,13 +287,14 @@ def _artist_fields(prefix: str, name: str) -> dict[str, Any]:
     }
 
 
-def romanize_info(info: Any, pair: tuple[Any, Any] | None = None) -> bool:
-    """Rename a candidate to romanized names before it is applied.
+def romanize_release(info: Any, pair: tuple[Any, Any] | None = None) -> bool:
+    """Rename a candidate to the release's romanized names before it is applied.
 
     The original names go into ``*_original`` keys, which beets copies onto
     every track. Returns True when anything changed.
     """
-    pair = pair if pair is not None else fetch_pair(info.data_source, info.album_id)
+    if pair is None:
+        pair = fetch_pair(info.data_source, info.album_id)
     if pair is None:
         return False
     roman, original = pair
@@ -201,10 +323,40 @@ def romanize_info(info: Any, pair: tuple[Any, Any] | None = None) -> bool:
             t.update(_artist_fields("artist", r.artist))
             t["artist_original"] = o.artist
             changed = True
+    _drop_cached(info)
+    return changed
+
+
+def romanize_artists(info: Any, artists: ArtistRomanizer) -> bool:
+    """Romanize album and track artists that are still in their own script."""
+    changed = False
+    if new := artists.resolve(info.artist, info.get("artist_id")):
+        info["albumartist_original"] = info.get("albumartist_original") or info.artist
+        info.update(_artist_fields("artist", new))
+        changed = True
+    for t in info.tracks or []:
+        if t.get("artist") and (new := artists.resolve(t.artist, t.get("artist_id"))):
+            t["artist_original"] = t.get("artist_original") or t.artist
+            t.update(_artist_fields("artist", new))
+            changed = True
+    _drop_cached(info)
+    return changed
+
+
+def romanize_info(
+    info: Any, pair: tuple[Any, Any] | None = None, artists: ArtistRomanizer | None = None
+) -> bool:
+    changed = romanize_release(info, pair)
+    if artists is not None:
+        changed = romanize_artists(info, artists) or changed
+    return changed
+
+
+def _drop_cached(info: Any) -> None:
+    # raw_data / item_data are cached properties: drop stale copies.
     for obj in (info, *(info.tracks or [])):
         vars(obj).pop("raw_data", None)
         vars(obj).pop("item_data", None)
-    return changed
 
 
 def copy_originals_to_albums(lib: Any | None = None) -> int:
@@ -341,7 +493,8 @@ def register_jobs(jobs: JobQueue, settings: Any) -> None:
         snap = Snapshot(ctx, "Romanize names")
         ids = ctx.params.get("album_ids")
         albums = [lib.get_album(int(i)) for i in ids] if ids else list(lib.albums())
-        done = unsupported = without = failed = 0
+        artists = ArtistRomanizer(ctx.state)
+        done = latin = unchanged = failed = 0
         old_dirs: set[Path] = set()
         artist_dirs: set[tuple[Path, Path]] = set()
         for album in albums:
@@ -349,23 +502,33 @@ def register_jobs(jobs: JobQueue, settings: Any) -> None:
                 continue
             source = str(album.get("data_source") or "")
             name = f"{album.albumartist} - {album.album}"
-            if source.lower() not in SUPPORTED or not album.mb_albumid:
-                unsupported += 1
-                continue
             items = list(album.items())
-            if only_new and any(k in i for i in items for k in ORIGINAL_FIELDS):
+            names = [album.album, album.albumartist]
+            names += [n for i in items for n in (i.title, i.artist)]
+            if only_new and all(is_latin(n) for n in names):
+                latin += 1
                 continue
-            try:
-                pair = fetch_pair(source, album.mb_albumid)
-            except Exception as e:  # noqa: BLE001 - one album must not stop the job
-                failed += 1
-                ctx.log(f"{name}: lookup failed ({type(e).__name__}: {e})")
-                continue
-            if pair is None:
-                without += 1
-                ctx.log(f"{name}: {source} has no romanized names")
-                continue
-            album_changes, item_changes = _album_plan(album, items, pair)
+            pair = None
+            if source.lower() in SUPPORTED and album.mb_albumid:
+                try:
+                    pair = fetch_pair(source, album.mb_albumid)
+                except Exception as e:  # noqa: BLE001 - one album must not stop the job
+                    failed += 1
+                    ctx.log(f"{name}: {source} lookup failed ({type(e).__name__}: {e})")
+            album_changes, item_changes = _album_plan(album, items, pair) if pair else ({}, {})
+            # Artists the release left in their own script (or albums from any other source).
+            current = album_changes.get("albumartist", album.albumartist)
+            if new := artists.resolve(current, album.mb_albumartistid):
+                album_changes.update(_artist_fields("albumartist", new))
+                album_changes.setdefault(
+                    "albumartist_original", album.get("albumartist_original") or current
+                )
+            for item in items:
+                ch = item_changes.setdefault(item.id, {})
+                current = ch.get("artist", item.artist)
+                if new := artists.resolve(current, item.mb_artistid):
+                    ch.update(_artist_fields("artist", new))
+                    ch.setdefault("artist_original", item.get("artist_original") or current)
             if "albumartist" in album_changes:
                 final = _final_albumartist(
                     album_changes["albumartist"],
@@ -381,7 +544,12 @@ def register_jobs(jobs: JobQueue, settings: Any) -> None:
                 for iid, ch in item_changes.items()
             }
             if not album_changes and not any(item_changes.values()):
-                ctx.log(f"{name}: already romanized")
+                if all(is_latin(n) for n in names):
+                    latin += 1
+                    ctx.log(f"{name}: already romanized")
+                else:
+                    unchanged += 1
+                    ctx.log(f"{name}: no romanized names found")
                 continue
             before = {i.id: i.filepath.parent.parent for i in items}
             for item in items:
@@ -410,7 +578,7 @@ def register_jobs(jobs: JobQueue, settings: Any) -> None:
             for d in prune_dirs(old_dirs, root, settings.artist_image_names):
                 ctx.log(f"removed empty folder {d}")
         ctx.log(
-            f"Romanized {done} album(s); {without} without romanized names at the source, "
-            f"{unsupported} from other sources (not supported)"
+            f"Romanized {done} album(s); {unchanged} still have names nobody has romanized, "
+            f"{latin} were in Latin script already"
             + (f", {failed} lookup(s) failed" if failed else "")
         )

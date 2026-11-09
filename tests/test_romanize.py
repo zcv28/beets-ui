@@ -207,21 +207,21 @@ def test_romanize_library_job_and_undo(app, client, env, pair):
     assert items[0].filepath.parent == env["music"] / JP["artist"] / JP["album"]
 
 
-def test_romanize_skips_other_sources_and_missing_romaji(app, client, env, pair):
+def test_romanize_skips_latin_albums_and_reports_missing_romaji(app, client, env, pair):
     lib = beets_ctx.lib()
-    for name, source, mbid in (("A", "Discogs", "1"), ("B", "VocaDB", "none")):
+    for name, source, mbid in (("Latin", "Discogs", "1"), ("ナンバーガール", "VocaDB", "none")):
         folder = make_album(env["inbox"] / name, artist=name, album=name)
         key = importer.preview_folder(str(folder))[0]["key"]
         importer.apply_folder(str(folder), {key: {"action": "asis"}})
         album = next(a for a in lib.albums() if a.album == name)
         album.data_source, album.mb_albumid = source, mbid
         album.store()
-    client.post("/library/romanize", data={})
+    client.post("/library/romanize", data={"only_new": "1"})
     run_jobs(app)
     log = last_log(app)
-    assert "B - B: VocaDB has no romanized names" in log
-    assert "Romanized 0 album(s); 1 without romanized names at the source, 1 from other" in log
-    assert pair == [("VocaDB", "none")]
+    assert "ナンバーガール - ナンバーガール: no romanized names found" in log
+    assert "Romanized 0 album(s); 1 still have names nobody has romanized, 1 were in Latin" in log
+    assert pair == [("VocaDB", "none")]  # the Latin album needed no lookup
 
 
 def test_mbsync_button_romanizes_again(app, client, env):
@@ -349,3 +349,142 @@ def test_romanized_import_follows_alias_saved_under_original_name(env, fake_sour
     )
     album = beets_ctx.lib().albums()[0]
     assert album.albumartist == "ZUN" and album.album == RO["album"]
+
+
+# --------------------------------------------------------------- artists
+
+YORUSHIKA = {
+    "id": "11111111-1111-1111-1111-111111111111",
+    "name": "ヨルシカ",
+    "sort_name": "Yorushika",
+    "type": "Group",
+    "aliases": [
+        {"name": "YORUSHIKA", "locale": None, "type": None, "primary": None},
+        {"name": "Yorushika", "locale": "en", "type": "Artist name", "primary": True},
+        {"name": "ヨルシカ", "locale": "ja", "type": "Artist name", "primary": True},
+    ],
+}
+NUMBER_GIRL = {
+    "id": "22222222-2222-2222-2222-222222222222",
+    "name": "NUMBER GIRL",
+    "sort_name": "NUMBER GIRL",
+    "type": "Group",
+    "aliases": [{"name": "ナンバーガール", "locale": "ja", "type": "Artist name", "primary": True}],
+}
+
+
+def test_is_latin_and_latin_name():
+    assert romanize.is_latin("Ryūichi Sakamoto & co.") and not romanize.is_latin("ヨルシカ")
+    assert not romanize.is_latin("파란노을")
+    assert romanize.latin_name(YORUSHIKA) == "Yorushika"
+    assert romanize.latin_name(NUMBER_GIRL) == "NUMBER GIRL"
+    person = {"name": "米津玄師", "sort_name": "Yonezu, Kenshi", "type": "Person", "aliases": []}
+    assert romanize.latin_name(person) == "Kenshi Yonezu"
+    hint = {
+        "name": "宇宙ネコ子",
+        "sort_name": "宇宙ネコ子",
+        "aliases": [{"name": "Uchuu Nekoko", "type": "Search hint", "primary": None}],
+    }
+    assert romanize.latin_name(hint) == ""
+
+
+class FakeApi:
+    api_root = "https://musicbrainz.org/ws/2"
+
+    def __init__(self, artists):
+        self.artists = {a["id"]: a for a in artists}
+        self.calls = []
+
+    def get_json(self, url, params=None):
+        self.calls.append(url)
+        return self.artists[url.rsplit("/", 1)[1]]
+
+    def search(self, entity, filters, limit=None):
+        self.calls.append(("search", filters[""]))
+        return list(self.artists.values())
+
+
+@pytest.fixture
+def mb(monkeypatch):
+    api = FakeApi([YORUSHIKA, NUMBER_GIRL])
+    monkeypatch.setattr(romanize.ArtistRomanizer, "_api", staticmethod(lambda: api))
+    return api
+
+
+def test_artist_romanizer(app, mb):
+    r = romanize.ArtistRomanizer(app.state.state)
+    assert r.resolve("ヨルシカ", YORUSHIKA["id"]) == "Yorushika"
+    assert r.resolve("ナンバーガール") == "NUMBER GIRL"  # by alias, one match
+    assert r.resolve("ヨルシカ & ナンバーガール") == ""  # joined credit: not looked up
+    assert r.resolve("ナンバーガール", YORUSHIKA["id"]) == ""  # the ID is another artist
+    assert r.resolve("Already Latin") == ""
+    assert r.resolve("サテライト・ラヴァーズ") == ""  # no match
+    calls = len(mb.calls)
+    # Cached in state.db: a new resolver needs no lookups.
+    again = romanize.ArtistRomanizer(app.state.state)
+    assert again.resolve("ナンバーガール") == "NUMBER GIRL"
+    assert again.resolve("サテライト・ラヴァーズ") == ""
+    assert len(mb.calls) == calls
+
+
+def test_romanize_job_romanizes_artists_of_any_album(app, client, env, mb):
+    lib = beets_ctx.lib()
+    folder = make_album(env["inbox"] / "x", artist="ヨルシカ", album="Elma", n=2)
+    key = importer.preview_folder(str(folder))[0]["key"]
+    importer.apply_folder(str(folder), {key: {"action": "asis"}})
+    album = lib.albums()[0]
+    album.mb_albumartistid = YORUSHIKA["id"]
+    album.store()
+    client.post("/library/romanize", data={"only_new": "1", "write": "1", "move": "1"})
+    run_jobs(app)
+    assert "Romanized 1 album(s)" in last_log(app)
+    album = lib.get_album(album.id)
+    assert album.albumartist == "Yorushika" and album.albumartist_original == "ヨルシカ"
+    items = list(album.items())
+    assert {i.artist for i in items} == {"Yorushika"}
+    assert {i.artist_original for i in items} == {"ヨルシカ"}
+    assert items[0].filepath.parent == env["music"] / "Yorushika" / "Elma"
+    assert MediaFile(str(items[0].filepath)).artist == "Yorushika"
+
+
+def test_import_romanizes_artists(env, fake_source, mb):
+    info = album_info({"album": "Elma", "artist": "ヨルシカ", "titles": ["Hitchcock", "Elma"]})
+    info.data_source = "Fake"
+    for t in info.tracks:
+        t.data_source = "Fake"
+    fake_source["elma"] = info
+    info.album_id = "elma"
+    folder = make_album(env["inbox"] / "elma", artist="ヨルシカ", album="Elma", n=2)
+    key = importer.preview_folder(str(folder), search_ids=["elma"])[0]["key"]
+    out = importer.apply_folder(
+        str(folder), {key: {"action": "apply", "id": "elma", "source": "Fake"}}, romanize=True
+    )
+    assert ", romanized artists" in out[key].detail
+    album = beets_ctx.lib().albums()[0]
+    romanize.copy_originals_to_albums()
+    album.load()
+    assert album.albumartist == "Yorushika" and album.albumartist_original == "ヨルシカ"
+    assert {i.artist for i in album.items()} == {"Yorushika"}
+
+
+def test_rename_one_artist_by_hand(app, client, env):
+    folder = make_album(env["inbox"] / "s", artist="サテライト・ラヴァーズ", album="S")
+    key = importer.preview_folder(str(folder))[0]["key"]
+    importer.apply_folder(str(folder), {key: {"action": "asis"}})
+    r = client.post(
+        "/library/artists/merge",
+        data={
+            "name": ["サテライト・ラヴァーズ"],
+            "target": "Satellite Lovers",
+            "write": "1",
+            "tracks": "1",
+        },
+        follow_redirects=False,
+    )
+    assert r.status_code == 303 and "/jobs/" in r.headers["location"]
+    run_jobs(app)
+    album = beets_ctx.lib().albums()[0]
+    assert album.albumartist == "Satellite Lovers"
+    assert album.albumartist_original == "サテライト・ラヴァーズ"
+    assert {i.artist_original for i in album.items()} == {"サテライト・ラヴァーズ"}
+    assert app.state.state.artist_aliases() == {"サテライト・ラヴァーズ": "Satellite Lovers"}

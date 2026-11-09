@@ -145,7 +145,7 @@ async def artists_merge(request: Request):
     aliases = [n for n in names if n.casefold() != target.casefold()]
     back = "/library/artists/aliases" if form.get("back") == "aliases" else "/library/artists"
     if not target or not aliases:
-        flash(request, "Choose at least two artists to merge.", "wip")
+        flash(request, "Tick an artist and type a new name, or tick several to merge.", "wip")
         return redirect(back)
     job = request.app.state.jobs.submit(
         "artists-merge",

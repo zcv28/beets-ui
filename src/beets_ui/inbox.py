@@ -378,6 +378,7 @@ class Inbox:
                 primary_artist=self.settings.primary_artist,
                 aliases=self.state.artist_aliases(),
                 romanize=self.settings.romanize,
+                artist_romanizer=romanize.ArtistRomanizer(self.state),
             )
             if self.settings.romanize:
                 romanize.copy_originals_to_albums()
