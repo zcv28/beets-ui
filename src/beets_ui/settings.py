@@ -77,6 +77,7 @@ class Settings:
     theaudiodb_api_key: str = "2"
     discogs_token: str = ""
     auto_import: int = 0
+    romanize: bool = False
 
     @property
     def slskd_enabled(self) -> bool:
@@ -118,6 +119,7 @@ class Settings:
             theaudiodb_api_key=_str("THEAUDIODB_API_KEY", "2") or "2",
             discogs_token=_str("DISCOGS_TOKEN"),
             auto_import=min(100, max(0, _int("BEETSUI_AUTO_IMPORT", 0))),
+            romanize=_bool("BEETSUI_ROMANIZE", False),
         )
         s.validate()
         return s

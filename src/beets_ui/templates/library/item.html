@@ -2,8 +2,8 @@
 {% block title %}{{ item.title }}{% endblock %}
 {% block content %}
 <p>{% if album %}<a href="/library/album/{{ album.id }}">← {{ album.album }}</a>{% else %}<a href="/library/tracks?singletons=1">← Singletons</a>{% endif %}</p>
-<h1>{{ item.title or '(untitled)' }}</h1>
-<h3>{{ item.artist }}</h3>
+<h1>{{ item.title or '(untitled)' }}{% if item.get('title_original') %}<br><span class="original">{{ item.title_original }}</span>{% endif %}</h1>
+<h3>{{ item.artist }}{% if item.get('artist_original') %} <span class="original">({{ item.artist_original }})</span>{% endif %}</h3>
 <dl class="kv">
   <dt>File</dt><dd><code>{{ item.path|fsdecode }}</code></dd>
   <dt>Format</dt><dd>{{ item.format }} · {{ (item.bitrate // 1000) if item.bitrate else '?' }} kbps · {{ item.length|duration }}{% if item.bitdepth %} · {{ item.bitdepth }} bit{% endif %}{% if item.samplerate %} · {{ item.samplerate }} Hz{% endif %}</dd>

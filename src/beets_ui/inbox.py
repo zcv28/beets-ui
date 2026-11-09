@@ -10,7 +10,7 @@ import time
 from pathlib import Path
 from typing import Any
 
-from . import importer
+from . import importer, romanize
 from .jobs import JobContext, JobQueue
 from .settings import Settings
 from .state import State
@@ -377,7 +377,10 @@ class Inbox:
                 row["mode"],
                 primary_artist=self.settings.primary_artist,
                 aliases=self.state.artist_aliases(),
+                romanize=self.settings.romanize,
             )
+            if self.settings.romanize:
+                romanize.copy_originals_to_albums()
         except Exception as e:
             self.state.upsert_folder(rel, status="failed", error=str(e))
             raise

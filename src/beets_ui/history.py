@@ -15,7 +15,7 @@ from . import beets_ctx
 from .jobs import JobContext, JobQueue
 
 # Job kinds that record a before-state and can be undone.
-UNDOABLE = ("album-edit", "item-edit", "artists-primary", "artists-merge")
+UNDOABLE = ("album-edit", "item-edit", "artists-primary", "artists-merge", "romanize")
 SKIP = {"id", "path", "artpath", "album_id"}
 
 

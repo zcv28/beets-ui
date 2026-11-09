@@ -90,6 +90,8 @@ form.inline > input[type=hidden] { display: none; }
 .pct.bad { color: var(--red); }
 
 .changed { color: var(--yellow); }
+.original { color: var(--muted); font-weight: normal; }
+h1 .original { font-size: .6em; }
 .warnc { color: var(--red); }
 .arrow { color: var(--muted); padding: 0 .3em; }
 

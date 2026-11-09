@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% block title %}Romanized names{% endblock %}
+{% block content %}
+<h1>Library</h1>
+{% set tab = 'albums' %}{% include "library/_tabs.html" %}
+<h2>Romanized names</h2>
+<p>Album, artist and track names become romanized (what Jellyfin shows), and the original names are kept in <code>album_original</code>, <code>albumartist_original</code>, <code>title_original</code> and <code>artist_original</code>. They are written to the files as custom tags, shown under the romanized names here, and searching the library finds either.</p>
+<ul>
+  <li><strong>VocaDB, UtaiteDB, TouhouDB:</strong> their Romaji names. Names without a romanization on the site stay as they are.</li>
+  <li><strong>MusicBrainz:</strong> the release's Latin-script pseudo-release ("transliterated tracklisting"), when there is one.</li>
+  <li>Albums from other sources, or imported as-is, are not changed.</li>
+</ul>
+<p class="{{ 'ok-box' if enabled else 'wip' }}">{% if enabled %}New imports are romanized (<code>BEETSUI_ROMANIZE=true</code>).{% else %}New imports keep the source's names. Set <code>BEETSUI_ROMANIZE=true</code> to romanize them on import too.{% endif %}</p>
+
+<h3>Your library</h3>
+<dl class="kv">
+  {% for s in status.sources %}<dt>{{ s.name }}</dt><dd>{{ s.albums }} album{{ 's' if s.albums != 1 }}{% if not s.supported %} <span class="muted">(not supported)</span>{% endif %}</dd>{% endfor %}
+  <dt>Already romanized</dt><dd>{{ status.romanized }} of {{ status.supported }} supported album{{ 's' if status.supported != 1 }}</dd>
+</dl>
+
+<form method="post" action="/library/romanize">
+  <div class="bar">
+    <label><input type="checkbox" name="only_new" value="1" checked> only albums not romanized yet</label>
+    <label><input type="checkbox" name="write" value="1" checked> write tags</label>
+    <label title="Folder names follow your path format, so they change to the romanized names. Jellyfin sees moved files as new (play counts and favourites do not follow).">
+      <input type="checkbox" name="move" value="1" checked> rename folders and files</label>
+    <span class="spacer"></span>
+    <button class="btn btn-sm btn-b" {% if not status.supported %}disabled{% endif %}>Romanize library</button>
+  </div>
+</form>
+<p class="muted"><small>One or two lookups per album, so a large library takes a while; the job log shows progress and the result can be undone from the job page. After <code>vdbsync</code>, <code>tdbsync</code> or <code>mbsync</code> in the console, run this again: those commands write the source's names back. (The album page's mbsync button does that by itself.)</small></p>
+{% endblock %}
