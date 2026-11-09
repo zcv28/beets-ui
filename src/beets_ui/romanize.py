@@ -28,7 +28,6 @@ from __future__ import annotations
 import logging
 import os
 import re
-import shutil
 import time
 import unicodedata
 from pathlib import Path
@@ -469,21 +468,10 @@ def _final_albumartist(
     return aliases.get(name.casefold()) or aliases.get(original.casefold()) or name
 
 
-def _move_artist_images(moves: set[tuple[Path, Path]], names: list[str], ctx: JobContext):
-    """Take artist pictures along when an artist folder is renamed."""
-    for old, new in moves:
-        if old == new or not old.is_dir() or not new.is_dir():
-            continue
-        for name in names:
-            if (old / name).is_file() and not (new / name).exists():
-                shutil.move(str(old / name), str(new / name))
-                ctx.log(f"moved artist picture {old / name} -> {new / name}")
-
-
 def register_jobs(jobs: JobQueue, settings: Any) -> None:
     @jobs.register("romanize")
     def romanize(ctx: JobContext) -> None:
-        from .artists import prune_dirs
+        from .artists import ArtistImages, prune_dirs
 
         lib = beets_ctx.lib()
         write, move = bool(ctx.params.get("write")), bool(ctx.params.get("move"))
@@ -496,7 +484,7 @@ def register_jobs(jobs: JobQueue, settings: Any) -> None:
         artists = ArtistRomanizer(ctx.state)
         done = latin = unchanged = failed = 0
         old_dirs: set[Path] = set()
-        artist_dirs: set[tuple[Path, Path]] = set()
+        images = ArtistImages(settings.artist_image_names)
         for album in albums:
             if album is None:
                 continue
@@ -552,6 +540,9 @@ def register_jobs(jobs: JobQueue, settings: Any) -> None:
                     ctx.log(f"{name}: no romanized names found")
                 continue
             before = {i.id: i.filepath.parent.parent for i in items}
+            if move:
+                for folder in set(before.values()):
+                    images.remember(folder)
             for item in items:
                 old_dirs.update({item.filepath.parent, item.filepath.parent.parent})
             ctx.log(
@@ -570,11 +561,11 @@ def register_jobs(jobs: JobQueue, settings: Any) -> None:
             album.try_sync(write=write, move=move)
             for item in album.items():
                 if item.id in before:
-                    artist_dirs.add((before[item.id], item.filepath.parent.parent))
+                    images.moved(before[item.id], item.filepath.parent.parent)
             done += 1
         snap.save(write, move)
         if move:
-            _move_artist_images(artist_dirs, settings.artist_image_names, ctx)
+            images.restore(ctx.log)
             for d in prune_dirs(old_dirs, root, settings.artist_image_names):
                 ctx.log(f"removed empty folder {d}")
         ctx.log(

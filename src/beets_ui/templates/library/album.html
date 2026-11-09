@@ -9,7 +9,7 @@
   </div>
   <div class="meta">
     <h1>{{ album.album or '(untitled)' }}{% if album.get('album_original') %}<br><span class="original">{{ album.album_original }}</span>{% endif %}</h1>
-    <h3><a href="/library?q={{ ('albumartist:=' ~ album.albumartist)|q }}">{{ album.albumartist }}</a>{% if album.get('albumartist_original') %} <span class="original">({{ album.albumartist_original }})</span>{% endif %}{% if album.year %} · {{ album.year }}{% endif %}</h3>
+    <h3><a href="/library?q={{ ('albumartist:=' ~ album.albumartist)|term|q }}">{{ album.albumartist }}</a>{% if album.get('albumartist_original') %} <span class="original">({{ album.albumartist_original }})</span>{% endif %}{% if album.year %} · {{ album.year }}{% endif %}</h3>
     <dl class="kv">
       {% if album.label %}<dt>Label</dt><dd>{{ album.label }}{% if album.catalognum %} ({{ album.catalognum }}){% endif %}</dd>{% endif %}
       {% if fields.genres %}<dt>Genres</dt><dd>{{ fields.genres }}</dd>{% endif %}

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from types import SimpleNamespace
+from urllib.parse import quote
 
 import httpx
 import pytest
@@ -488,3 +489,66 @@ def test_rename_one_artist_by_hand(app, client, env):
     assert album.albumartist_original == "サテライト・ラヴァーズ"
     assert {i.artist_original for i in album.items()} == {"サテライト・ラヴァーズ"}
     assert app.state.state.artist_aliases() == {"サテライト・ラヴァーズ": "Satellite Lovers"}
+
+
+KESSOKU = {
+    "id": "33333333-3333-3333-3333-333333333333",
+    "name": "結束バンド",
+    "sort_name": "Kessoku Band",
+    "type": "Group",
+    "aliases": [{"name": "kessoku band", "locale": "en", "type": "Artist name", "primary": True}],
+}
+
+
+def _two_kessoku_albums(env):
+    for album in ("Kessoku Band", "Seisyun Complex"):
+        folder = make_album(env["inbox"] / album, artist="結束バンド", album=album, n=2)
+        key = importer.preview_folder(str(folder))[0]["key"]
+        importer.apply_folder(str(folder), {key: {"action": "asis"}})
+    (env["music"] / "結束バンド" / "folder.jpg").write_bytes(b"\xff\xd8picture")
+
+
+def test_picture_survives_beets_cleaning_the_old_folder(app, client, env, monkeypatch):
+    from beets import config
+
+    api = FakeApi([KESSOKU])
+    monkeypatch.setattr(romanize.ArtistRomanizer, "_api", staticmethod(lambda: api))
+    _two_kessoku_albums(env)
+    # With folder.jpg as "clutter", beets deletes it while moving the last album out.
+    config["clutter"] = ["folder.jpg"]
+    client.post("/library/romanize", data={"only_new": "1", "write": "1", "move": "1"})
+    run_jobs(app)
+    assert (env["music"] / "kessoku band" / "folder.jpg").read_bytes() == b"\xff\xd8picture"
+    assert not (env["music"] / "結束バンド").exists()
+    assert app.state.artwork.artist_info("kessoku band")["image"] is not None
+
+
+def test_artist_links_work_for_names_with_spaces(app, client, env, monkeypatch):
+    api = FakeApi([KESSOKU])
+    monkeypatch.setattr(romanize.ArtistRomanizer, "_api", staticmethod(lambda: api))
+    _two_kessoku_albums(env)
+    client.post("/library/romanize", data={"only_new": "1", "write": "1", "move": "1"})
+    run_jobs(app)
+    page = client.get("/library/artists").text
+    link = "/library?q=" + quote("'albumartist:=kessoku band'", safe="")
+    assert link in page
+    hits = client.get(link).text
+    assert "Seisyun Complex" in hits and "Kessoku Band" in hits
+    album = beets_ctx.lib().albums()[0]
+    assert link in client.get(f"/library/album/{album.id}").text
+
+
+def test_renaming_by_hand_keeps_the_picture(app, client, env):
+    _two_kessoku_albums(env)
+    client.post(
+        "/library/artists/merge",
+        data={"name": ["結束バンド"], "target": "Kessoku Band", "write": "1", "move": "1"},
+    )
+    run_jobs(app)
+    assert (env["music"] / "Kessoku Band" / "folder.jpg").read_bytes() == b"\xff\xd8picture"
+    assert not (env["music"] / "結束バンド").exists()
+
+
+def test_missing_artist_picture_is_not_cached(client):
+    r = client.get("/artwork/artist/image?name=nobody")
+    assert r.headers["cache-control"] == "no-store"

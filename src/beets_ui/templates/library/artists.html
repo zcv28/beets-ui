@@ -15,8 +15,8 @@
 <div class="grid" id="artist-grid">
   {% for a in artists %}
   <div class="card" data-name="{{ a.name|lower }}{% if a.original %} {{ a.original|lower }}{% endif %}" data-letter="{{ a.letter }}">
-    <a href="/library?q={{ ('albumartist:=' ~ a.name)|q }}"><img loading="lazy" src="/artwork/artist/image?name={{ a.name|q }}" alt=""></a>
-    <div class="t" title="{{ a.name }}"><a href="/library?q={{ ('albumartist:=' ~ a.name)|q }}">{{ a.name }}</a></div>
+    <a href="/library?q={{ ('albumartist:=' ~ a.name)|term|q }}"><img loading="lazy" src="/artwork/artist/image?name={{ a.name|q }}" alt=""></a>
+    <div class="t" title="{{ a.name }}"><a href="/library?q={{ ('albumartist:=' ~ a.name)|term|q }}">{{ a.name }}</a></div>
     {% if a.original %}<div class="s original" title="{{ a.original }}">{{ a.original }}</div>{% endif %}
     <div class="s">{{ a.albums }} album{{ 's' if a.albums != 1 }} · <a href="/artwork/artist?name={{ a.name|q }}">picture</a> · <label title="Tick one artist to rename it, or several to merge them"><input type="checkbox" name="name" value="{{ a.name }}">edit</label></div>
   </div>

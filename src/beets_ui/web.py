@@ -5,6 +5,7 @@ from __future__ import annotations
 import datetime as dt
 import hashlib
 import os
+import shlex
 import time
 from pathlib import Path
 from typing import Any
@@ -66,6 +67,8 @@ templates.env.filters.update(
     ts=fmt_time,
     match_class=match_class,
     q=lambda s: quote(str(s), safe=""),
+    # One beets query term, quoted so names with spaces stay one term.
+    term=lambda s: shlex.quote(str(s)),
     fsdecode=fsdecode,
     uid=lambda s: hashlib.md5(str(s).encode()).hexdigest()[:12],
 )
