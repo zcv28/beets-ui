@@ -1,0 +1,8 @@
+{% for a in albums %}
+<a class="card" href="/library/album/{{ a.id }}">
+  <img loading="lazy" src="/library/album/{{ a.id }}/cover?size=300" alt="">
+  <div class="t" title="{{ a.album }}">{{ a.album or '(untitled)' }}</div>
+  <div class="s" title="{{ a.albumartist }}">{{ a.albumartist }}{% if a.year %} · {{ a.year }}{% endif %}</div>
+</a>
+{% endfor %}
+{% if more %}<a class="more btn btn-sm btn-d" href="/library?q={{ q|q }}&sort={{ sort }}&view={{ view }}&page={{ page + 1 }}" hx-get="/library?q={{ q|q }}&sort={{ sort }}&view={{ view }}&page={{ page + 1 }}" hx-trigger="revealed" hx-swap="outerHTML">Load more</a>{% endif %}

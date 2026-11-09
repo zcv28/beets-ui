@@ -13,6 +13,7 @@
     --line: #444;
 }
 
+[hidden] { display: none !important; }
 body { line-height: 1.45; }
 h1 { font-size: 2.2em; margin: .6em 0 .4em; }
 h2 { font-size: 1.5em; margin: 1.2em 0 .5em; }
@@ -62,6 +63,7 @@ textarea { min-height: 6em; font-family: ui-monospace, monospace; }
 .inline { display: inline; margin: 0; }
 form.inline { display: inline-flex; align-items: center; gap: .5em; margin: 0; vertical-align: middle; }
 form.inline > * { margin: 0; }
+form.inline.wrap { flex-wrap: wrap; }
 form.inline > input[type=hidden] { display: none; }
 
 .table { border-collapse: collapse; margin: .5em 0 1em; }
@@ -130,11 +132,50 @@ form.inline > input[type=hidden] { display: none; }
 .login { max-width: 360px; margin: 10vh auto; }
 .login input { width: 100%; box-sizing: border-box; }
 
+/* Bar pinned to the bottom of the viewport while its form is on screen. */
+.sticky-bar {
+    position: sticky; bottom: 0; z-index: 5;
+    display: flex; flex-wrap: wrap; gap: .6em 1em; align-items: center;
+    margin: 1em 0 0; padding: .7em 1em;
+    background: var(--bg-deep); border-top: 1px solid var(--line);
+    box-shadow: 0 -6px 12px rgba(0, 0, 0, .35);
+}
+.sticky-bar > * { margin: 0; }
+kbd { font-family: ui-monospace, monospace; font-size: 12px; padding: 0 4px; border: 1px solid #555; border-radius: 3px; background: var(--bg-alt); }
+.cand.kfocus { outline: 2px solid var(--yellow); outline-offset: 2px; }
+
+/* Audio preview on the review page. */
+button.play { background: none; border: 1px solid #555; border-radius: 50%; color: var(--link); cursor: pointer; width: 24px; height: 24px; padding: 0; font-size: 11px; line-height: 22px; text-align: center; }
+button.play:hover { border-color: var(--link); }
+.player { position: fixed; right: 16px; bottom: 76px; z-index: 6; display: flex; flex-direction: column; gap: 2px; padding: 8px; background: var(--bg-deep); border: 1px solid var(--line); box-shadow: 0 4px 14px rgba(0, 0, 0, .5); max-width: calc(100vw - 32px); }
+.player audio { width: 320px; max-width: 100%; height: 36px; }
+.player small { max-width: 320px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* Job pop-ups. */
+#toasts { position: fixed; right: 16px; top: 16px; z-index: 20; display: flex; flex-direction: column; gap: 8px; max-width: min(360px, calc(100vw - 32px)); }
+.toast { display: block; padding: .6em .9em; color: var(--fg); background: var(--bg-deep); border-left: 4px solid var(--green); box-shadow: 0 4px 14px rgba(0, 0, 0, .5); animation: toast 8s ease-in forwards; }
+.toast.failed, .toast.cancelled { border-left-color: var(--red); }
+.toast:hover { text-decoration: none; animation-play-state: paused; }
+@keyframes toast { 0% { opacity: 0; transform: translateY(-6px); } 4%, 85% { opacity: 1; transform: none; } 100% { opacity: 0; } }
+
+/* Artists page: letter filter and merge selection. */
+.letters { display: flex; flex-wrap: wrap; gap: 2px; margin: .4em 0; }
+.letters a { padding: 2px 8px; color: var(--muted); border-radius: 3px; }
+.letters a.on { color: var(--fg); background: #444; }
+.card.picked { outline: 2px solid var(--link); }
+.card .s label { color: var(--muted); }
+
+/* Infinite scroll: the "load more" link fetches the next page when it scrolls into view. */
+.grid > .more { grid-column: 1 / -1; justify-self: center; }
+.more-row td { text-align: center; }
+
 .htmx-request.spin::after, .loading::after { content: " …"; }
 .footer { margin: 2em 0 1em; font-size: 14px; }
 
 @media (max-width: 870px) {
     h1 { font-size: 1.7em; }
+    .player { left: 16px; right: 16px; bottom: 84px; }
+    .player audio, .player small { width: 100%; max-width: none; }
     .album-head .art { width: 180px; }
     .hide-sm { display: none; }
 }

@@ -76,6 +76,7 @@ class Settings:
     fanarttv_api_key: str = ""
     theaudiodb_api_key: str = "2"
     discogs_token: str = ""
+    auto_import: int = 0
 
     @property
     def slskd_enabled(self) -> bool:
@@ -116,6 +117,7 @@ class Settings:
             fanarttv_api_key=_str("FANARTTV_API_KEY"),
             theaudiodb_api_key=_str("THEAUDIODB_API_KEY", "2") or "2",
             discogs_token=_str("DISCOGS_TOKEN"),
+            auto_import=min(100, max(0, _int("BEETSUI_AUTO_IMPORT", 0))),
         )
         s.validate()
         return s

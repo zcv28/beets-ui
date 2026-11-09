@@ -15,6 +15,7 @@ from fastapi.responses import RedirectResponse
 from fastapi.templating import Jinja2Templates
 
 from . import __version__
+from .history import UNDOABLE
 
 HERE = Path(__file__).parent
 templates = Jinja2Templates(directory=str(HERE / "templates"))
@@ -69,6 +70,7 @@ templates.env.filters.update(
     uid=lambda s: hashlib.md5(str(s).encode()).hexdigest()[:12],
 )
 templates.env.globals["version"] = __version__
+templates.env.globals["undoable"] = UNDOABLE
 
 
 def flash(request: Request, message: str, kind: str = "msg") -> None:
@@ -88,6 +90,7 @@ def render(request: Request, name: str, status_code: int = 200, **ctx: Any):
         "nav": ctx.pop("nav", ""),
         "running": app.state.jobs.current,
         "pending": app.state.jobs.pending(),
+        "since": time.time(),
     }
     return templates.TemplateResponse(request, name, {**base, **ctx}, status_code=status_code)
 

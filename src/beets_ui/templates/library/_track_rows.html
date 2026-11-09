@@ -1,0 +1,3 @@
+{% for it in items %}<tr><td>{{ it.artist }}</td><td><a href="/library/item/{{ it.id }}">{{ it.title or '(untitled)' }}</a></td><td>{% if it.album_id %}<a href="/library/album/{{ it.album_id }}">{{ it.album }}</a>{% else %}<span class="muted">singleton</span>{% endif %}</td><td class="num">{{ it.length|duration }}</td><td class="hide-sm">{{ it.format }} {{ (it.bitrate // 1000) if it.bitrate else '' }}</td></tr>
+{% endfor %}
+{% if more %}<tr class="more-row" hx-get="/library/tracks?q={{ q|q }}&singletons={{ singletons }}&page={{ page + 1 }}" hx-trigger="revealed" hx-swap="outerHTML"><td colspan="5"><a href="/library/tracks?q={{ q|q }}&singletons={{ singletons }}&page={{ page + 1 }}">Load more</a></td></tr>{% endif %}

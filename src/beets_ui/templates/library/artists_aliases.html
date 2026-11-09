@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% block title %}Artist aliases{% endblock %}
+{% block content %}
+<h1>Library</h1>
+{% set tab = 'artists' %}{% include "library/_tabs.html" %}
+<p class="muted">Merging puts every album of the merged names under one album artist: tags are rewritten and files move to that artist's folder. The names are remembered, so future imports use the kept name as well. Each merge can be undone from its job page. To merge artists not listed here, tick them on the <a href="/library/artists">Artists</a> page.</p>
+
+<h2>Suggested</h2>
+{% for g in groups %}
+<form method="post" action="/library/artists/merge" class="cand">
+  <input type="hidden" name="back" value="aliases">
+  <input type="hidden" name="write" value="1"><input type="hidden" name="move" value="1"><input type="hidden" name="tracks" value="1">
+  <div class="head">
+    {% for n in g.names %}<label><input type="checkbox" name="name" value="{{ n.name }}" checked> {{ n.name }} <small class="muted">({{ n.albums }})</small></label>{% endfor %}
+  </div>
+  <div class="bar">
+    <small class="muted">{{ g.why|join('; ') }}</small>
+    <span class="spacer"></span>
+    <label>keep the name <select name="target">{% for n in g.names %}<option {% if n.name == g.target %}selected{% endif %}>{{ n.name }}</option>{% endfor %}</select></label>
+    <button class="btn btn-sm btn-b">Merge</button>
+  </div>
+</form>
+{% else %}<div class="msg">No likely aliases found. Names only count as aliases when they share an artist ID, differ only in spelling width or case, or one is the other's sort or credited name.</div>{% endfor %}
+
+<h2>Remembered</h2>
+{% if aliases %}
+<div class="scroll"><table class="table">
+  <thead><tr><th>Name on import</th><th></th><th>Becomes</th><th></th></tr></thead>
+  <tbody>{% for alias, name in aliases %}<tr><td>{{ alias }}</td><td class="arrow">→</td><td>{{ name }}</td><td><form class="inline" method="post" action="/library/artists/aliases/delete"><input type="hidden" name="alias" value="{{ alias }}"><button class="link">forget</button></form></td></tr>{% endfor %}</tbody>
+</table></div>
+<p class="muted"><small>Names are matched ignoring case.</small></p>
+{% else %}<div class="msg">No aliases yet.</div>{% endif %}
+{% endblock %}

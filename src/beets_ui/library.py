@@ -9,6 +9,7 @@ from typing import Any
 from beets.dbcore.query import ParsingError
 
 from . import beets_ctx
+from .history import Snapshot
 from .jobs import JobContext, JobQueue
 
 ALBUM_FIELDS = [
@@ -139,7 +140,10 @@ def register_jobs(jobs: JobQueue) -> None:
         if album is None:
             raise KeyError("album not found")
         ctx.log(f"Editing album {album.albumartist} - {album.album}")
+        snap = Snapshot(ctx, f"Edit {album.albumartist} - {album.album}")
+        snap.capture_album(album, ctx.params["fields"])
         if _apply(album, ctx.params["fields"], ctx) or ctx.params.get("move"):
+            snap.save(bool(ctx.params.get("write")), bool(ctx.params.get("move")))
             album.try_sync(write=bool(ctx.params.get("write")), move=bool(ctx.params.get("move")))
             ctx.log("Saved" + (" and wrote tags" if ctx.params.get("write") else ""))
         else:
@@ -151,7 +155,10 @@ def register_jobs(jobs: JobQueue) -> None:
         if item is None:
             raise KeyError("track not found")
         ctx.log(f"Editing track {item.artist} - {item.title}")
+        snap = Snapshot(ctx, f"Edit {item.artist} - {item.title}")
+        snap.capture(item, ctx.params["fields"])
         if _apply(item, ctx.params["fields"], ctx) or ctx.params.get("move"):
+            snap.save(bool(ctx.params.get("write")), bool(ctx.params.get("move")))
             item.try_sync(write=bool(ctx.params.get("write")), move=bool(ctx.params.get("move")))
             ctx.log("Saved")
         else:

@@ -14,23 +14,11 @@
 {% if view == 'table' %}
 <div class="scroll"><table class="table">
   <thead><tr><th>Album artist</th><th>Album</th><th class="num">Year</th><th class="hide-sm">Genres</th><th class="hide-sm">Label</th></tr></thead>
-  <tbody>{% for a in albums %}<tr><td>{{ a.albumartist }}</td><td><a href="/library/album/{{ a.id }}">{{ a.album or '(untitled)' }}</a></td><td class="num">{{ a.year or '' }}</td><td class="hide-sm">{{ a.formatted().get('genres', '') }}</td><td class="hide-sm">{{ a.label }}</td></tr>{% endfor %}</tbody>
+  <tbody>{% include "library/_album_rows.html" %}</tbody>
 </table></div>
 {% else %}
-<div class="grid">
-  {% for a in albums %}
-  <a class="card" href="/library/album/{{ a.id }}">
-    <img loading="lazy" src="/library/album/{{ a.id }}/cover?size=300" alt="">
-    <div class="t" title="{{ a.album }}">{{ a.album or '(untitled)' }}</div>
-    <div class="s" title="{{ a.albumartist }}">{{ a.albumartist }}{% if a.year %} · {{ a.year }}{% endif %}</div>
-  </a>
-  {% endfor %}
-</div>
+<div class="grid">{% include "library/_album_cards.html" %}</div>
 {% endif %}
 {% if not albums and not error %}<div class="msg">No albums{% if q %} match this query{% endif %}.</div>{% endif %}
-<div class="bar">
-  {% if page > 1 %}<a class="btn btn-sm btn-d" href="?q={{ q|q }}&sort={{ sort }}&view={{ view }}&page={{ page - 1 }}">← Previous</a>{% endif %}
-  <span class="spacer"></span>
-  {% if more %}<a class="btn btn-sm btn-d" href="?q={{ q|q }}&sort={{ sort }}&view={{ view }}&page={{ page + 1 }}">Next →</a>{% endif %}
-</div>
+{% if page > 1 %}<div class="bar"><a class="btn btn-sm btn-d" href="?q={{ q|q }}&sort={{ sort }}&view={{ view }}&page={{ page - 1 }}">← Previous</a></div>{% endif %}
 {% endblock %}

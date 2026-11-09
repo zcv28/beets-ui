@@ -3,14 +3,34 @@
 {% block content %}
 <h1>Library</h1>
 {% set tab = 'artists' %}{% include "library/_tabs.html" %}
-<p class="muted">Collaborations such as "A &amp; B" show up as their own artist. <a href="/library/artists/primary">Keep only the primary artist…</a></p>
-<div class="grid">
+<p class="muted">Collaborations such as "A &amp; B" show up as their own artist: <a href="/library/artists/primary">keep only the primary artist…</a> The same artist under several names: <a href="/library/artists/aliases">merge aliases…</a></p>
+{% if artists %}
+<form method="post" action="/library/artists/merge" id="merge-form">
+<div class="bar">
+  <input type="search" id="artist-filter" placeholder="Filter {{ artists|length }} artists" autocomplete="off">
+</div>
+<div class="letters" id="artist-letters">
+  <a href="#" data-letter="" class="on">All</a>{% for l in letters %}<a href="#{{ l }}" data-letter="{{ l }}">{{ l }}</a>{% endfor %}
+</div>
+<div class="grid" id="artist-grid">
   {% for a in artists %}
-  <div class="card">
+  <div class="card" data-name="{{ a.name|lower }}" data-letter="{{ a.letter }}">
     <a href="/library?q={{ ('albumartist:=' ~ a.name)|q }}"><img loading="lazy" src="/artwork/artist/image?name={{ a.name|q }}" alt=""></a>
     <div class="t" title="{{ a.name }}"><a href="/library?q={{ ('albumartist:=' ~ a.name)|q }}">{{ a.name }}</a></div>
-    <div class="s">{{ a.albums }} album{{ 's' if a.albums != 1 }} · <a href="/artwork/artist?name={{ a.name|q }}">picture</a></div>
+    <div class="s">{{ a.albums }} album{{ 's' if a.albums != 1 }} · <a href="/artwork/artist?name={{ a.name|q }}">picture</a> · <label title="Select two or more artists to merge them"><input type="checkbox" name="name" value="{{ a.name }}">merge</label></div>
   </div>
-  {% else %}<div class="msg">The library is empty.</div>{% endfor %}
+  {% endfor %}
 </div>
+<p class="msg" id="artist-none" hidden>No artist matches.</p>
+<div class="sticky-bar" id="merge-bar" hidden>
+  <strong id="merge-count"></strong>
+  <label>keep the name <select name="target" id="merge-target"></select></label>
+  <label><input type="checkbox" name="write" value="1" checked> write tags</label>
+  <label><input type="checkbox" name="move" value="1" checked> move files</label>
+  <label title="Tracks whose whole artist credit is one of the merged names"><input type="checkbox" name="tracks" value="1" checked> rename track artists</label>
+  <span class="spacer"></span>
+  <button class="btn btn-sm btn-b">Merge</button>
+</div>
+</form>
+{% else %}<div class="msg">The library is empty.</div>{% endif %}
 {% endblock %}

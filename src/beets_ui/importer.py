@@ -138,10 +138,12 @@ class ApplySession(_NoResume, ImportSession):
         paths: list[bytes],
         decisions: dict[str, dict[str, Any]],
         primary_artist: bool = False,
+        aliases: dict[str, str] | None = None,
     ):
         super().__init__(lib, None, paths, None)
         self.decisions = decisions
         self.primary_artist = primary_artist
+        self.aliases = aliases or {}
         self.outcomes: dict[str, TaskOutcome] = {}
         self._merge_decision: dict[str, Any] | None = None
 
@@ -167,10 +169,15 @@ class ApplySession(_NoResume, ImportSession):
             cid = info.album_id if task.is_album else info.track_id
             if cid == wanted_id and (not wanted_src or info.data_source == wanted_src):
                 detail = f"{info.data_source} {wanted_id}"
-                if self.primary_artist and task.is_album:
+                if task.is_album and (self.primary_artist or self.aliases):
                     credit = info.artist
-                    if primary := artists.apply_to_info(info, artists.known_artists(self.lib)):
-                        detail += f", album artist {credit!r} -> {primary!r}"
+                    known = artists.known_artists(self.lib, self.aliases)
+                    new = ""
+                    if self.primary_artist:
+                        new = artists.apply_to_info(info, known)
+                    new = artists.apply_aliases_to_info(info, self.aliases, known) or new
+                    if new:
+                        detail += f", album artist {credit!r} -> {new!r}"
                 self.outcomes[key] = TaskOutcome(key, "imported", detail)
                 return cand
         self.outcomes[key] = TaskOutcome(
@@ -233,9 +240,10 @@ def apply_folder(
     decisions: dict[str, dict[str, Any]],
     mode: str = "albums",
     primary_artist: bool = False,
+    aliases: dict[str, str] | None = None,
 ) -> dict[str, TaskOutcome]:
     lib = beets_ctx.lib()
-    session = ApplySession(lib, _paths(folder), decisions, primary_artist)
+    session = ApplySession(lib, _paths(folder), decisions, primary_artist, aliases)
     ids = sorted(
         {d["id"] for d in decisions.values() if d.get("action") == "apply" and d.get("id")}
     )

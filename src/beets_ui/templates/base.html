@@ -8,6 +8,7 @@
   <link rel="stylesheet" href="/static/min.css">
   <link rel="stylesheet" href="/static/app.css?v={{ version }}">
   <script src="/static/htmx.min.js" defer></script>
+  <script src="/static/app.js?v={{ version }}" defer></script>
 </head>
 <body>
 <div id="main">
@@ -20,10 +21,11 @@
     <a href="/artwork" {% if nav == 'artwork' %}class="current"{% endif %}>Artwork</a>
     {% if slskd_enabled %}<a href="/soulseek" {% if nav == 'soulseek' %}class="current"{% endif %}>Soulseek</a>{% endif %}
     <a href="/console" {% if nav == 'console' %}class="current"{% endif %}>Console</a>
-    <a href="/jobs" {% if nav == 'jobs' %}class="current"{% endif %}>Jobs{% if running or pending %} <span class="jobs-pill">●{{ (1 if running else 0) + pending }}</span>{% endif %}</a>
+    <a href="/jobs" {% if nav == 'jobs' %}class="current"{% endif %}>Jobs {% include "partials/jobs_pill.html" %}</a>
     <form class="user inline" method="post" action="/logout">{{ user }}<button type="submit">log out</button></form>
   </div>
 </div>
+<div id="toasts" aria-live="polite"></div>
 {% endif %}
 <div class="container">
   {% for kind, text in flashes %}<div class="{{ kind }}">{{ text }}</div>{% endfor %}

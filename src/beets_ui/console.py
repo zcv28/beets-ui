@@ -50,7 +50,9 @@ class Console:
         jobs.register("console")(self._job)
 
     def submit(self, command: str, user: str | None = None) -> int:
-        argv = parse(command)
+        return self.submit_argv(parse(command), user)
+
+    def submit_argv(self, argv: list[str], user: str | None = None) -> int:
         return self.jobs.submit("console", "beet " + shlex.join(argv), {"argv": argv}, user)
 
     def kill(self) -> bool:

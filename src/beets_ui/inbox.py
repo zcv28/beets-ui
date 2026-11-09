@@ -234,7 +234,7 @@ class Inbox:
         if self.settings.auto_preview:
             for row in self.state.folders():
                 if row["status"] == "new" and now - row["changed_at"] >= self.settings.debounce:
-                    self.queue_preview(row["path"])
+                    self.queue_preview(row["path"], auto=True)
 
     def refresh_library_matches(self, only: str | None = None) -> None:
         """Re-check which inbox folders are already in the library (cheap SQL)."""
@@ -353,6 +353,15 @@ class Inbox:
                 f"  {t['cur_artist']} - {t['cur_album']}: {len(t['candidates'])} candidates"
                 + (f", best {t['best']}%" if t["best"] is not None else "")
             )
+        threshold = self.settings.auto_import
+        if ctx.params.get("auto") and threshold and status == "ready":
+            row = self.state.folder(rel) or {}
+            why = auto_import_blocker(tasks, row.get("library") or [], threshold)
+            if why:
+                ctx.log(f"Not imported automatically: {why}")
+            else:
+                ctx.log(f"Every match is {threshold}% or better: importing automatically")
+                self.queue_import(rel, _default_decisions(tasks), user="auto-import")
 
     def _job_import(self, ctx: JobContext) -> None:
         rel = ctx.params["folder"]
@@ -367,6 +376,7 @@ class Inbox:
                 row["decisions"],
                 row["mode"],
                 primary_artist=self.settings.primary_artist,
+                aliases=self.state.artist_aliases(),
             )
         except Exception as e:
             self.state.upsert_folder(rel, status="failed", error=str(e))
@@ -404,6 +414,24 @@ class Inbox:
             rel, status="imported", signature=sig, files=files, error=None, duplicates={}
         )
         self.refresh_library_matches(only=rel)
+
+
+def auto_import_blocker(tasks: list[dict], library: list[dict], threshold: float) -> str:
+    """Why a looked-up folder must wait for review ("" if it can import on its own)."""
+    if library:
+        return "it looks like it is already in the library"
+    for t in tasks:
+        name = f"{t['cur_artist'] or '?'} - {t['cur_album'] or '?'}"
+        if not t["candidates"]:
+            return f"no candidates for {name}"
+        c = t["candidates"][0]
+        if c["match"] < threshold:
+            return f"best match for {name} is {c['match']}% (needs {threshold}%)"
+        if c.get("extra_tracks"):
+            return f"{name} is missing {len(c['extra_tracks'])} track(s)"
+        if c.get("extra_items"):
+            return f"{name} has {len(c['extra_items'])} file(s) that match no track"
+    return ""
 
 
 def _default_decisions(tasks: list[dict[str, Any]]) -> dict[str, Any]:

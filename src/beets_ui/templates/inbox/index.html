@@ -2,7 +2,7 @@
 {% block title %}Inbox{% endblock %}
 {% block content %}
 <h1>Inbox</h1>
-<p class="muted">Review folder: <code>{{ settings.inbox }}</code>. Each sub-folder is looked up{% if settings.auto_preview %} automatically once it has been unchanged for {{ settings.debounce }}s{% endif %} and waits for you to review it.</p>
+<p class="muted">Review folder: <code>{{ settings.inbox }}</code>. Each sub-folder is looked up{% if settings.auto_preview %} automatically once it has been unchanged for {{ settings.debounce }}s{% endif %} and waits for you to review it.{% if settings.auto_import %} Folders where every album matches {{ settings.auto_import }}% or better, with no missing tracks and nothing already in the library, are imported without review.{% endif %}</p>
 <div class="tabs">
   <a href="/inbox" {% if not status %}class="on"{% endif %}>All</a>
   {% for st, n in summary|dictsort %}<a href="/inbox?status={{ st }}" {% if status == st %}class="on"{% endif %}>{{ labels.get(st, st) }} ({{ n }})</a>{% endfor %}

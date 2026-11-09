@@ -21,12 +21,10 @@
       <dt>Album ID</dt><dd>{{ album.id }}</dd>
     </dl>
     <div class="bar">
-      <a class="btn btn-sm btn-d" href="/console?cmd={{ ('mbsync album_id:' ~ album.id ~ ' -a')|q }}">mbsync</a>
-      <a class="btn btn-sm btn-d" href="/console?cmd={{ ('import -L -q album_id:' ~ album.id)|q }}">re-tag</a>
-      <a class="btn btn-sm btn-d" href="/console?cmd={{ ('fetchart -f album_id:' ~ album.id)|q }}">fetchart</a>
-      <a class="btn btn-sm btn-d" href="/console?cmd={{ ('embedart -y album_id:' ~ album.id)|q }}">embedart</a>
-      <a class="btn btn-sm btn-d" href="/console?cmd={{ ('replaygain -a album_id:' ~ album.id)|q }}">replaygain</a>
-      <a class="btn btn-sm btn-d" href="/console?cmd={{ ('lyrics album_id:' ~ album.id)|q }}">lyrics</a>
+      <form class="inline wrap" method="post" action="/library/album/{{ album.id }}/run">
+        {% for a in ['mbsync', 'fetchart', 'embedart', 'replaygain', 'lyrics'] %}<button class="btn btn-sm btn-d" name="action" value="{{ a }}">{{ a }}</button>{% endfor %}
+      </form>
+      <a class="btn btn-sm btn-d" href="/console?cmd={{ ('import -L -q album_id:' ~ album.id)|q }}" title="Re-imports the album: opens the console so you can check the command first">re-tag…</a>
     </div>
   </div>
 </div>
