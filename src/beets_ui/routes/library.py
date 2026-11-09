@@ -6,7 +6,7 @@ from fastapi import APIRouter, Form, HTTPException, Request
 from fastapi.responses import FileResponse, Response
 
 from .. import artists as artists_svc
-from .. import beets_ctx
+from .. import beets_ctx, romanize
 from .. import library as libsvc
 from ..web import HERE, flash, partial, redirect, render, user
 
@@ -86,6 +86,15 @@ def tracks(request: Request, q: str = "", page: int = 1, singletons: int = 0):
     )
 
 
+def _albumartist_originals() -> dict[str, str]:
+    with beets_ctx.lib().transaction() as tx:
+        rows = tx.query(
+            "SELECT a.albumartist, MAX(f.value) FROM albums a JOIN album_attributes f "
+            "ON f.entity_id = a.id AND f.key = 'albumartist_original' GROUP BY a.albumartist"
+        )
+    return {name: value for name, value in rows if value and value != name}
+
+
 def _letter(name: str) -> str:
     """Bucket for the A–Z bar: a Latin letter, 0–9, あ (Japanese/CJK) or #."""
     ch = unicodedata.normalize("NFKD", name.strip()[:1]).upper()[:1]
@@ -101,8 +110,10 @@ def _letter(name: str) -> str:
 @router.get("/artists")
 def artists(request: Request):
     rows = request.app.state.artwork.artists()
+    originals = _albumartist_originals()
     for a in rows:
         a["letter"] = _letter(a["name"])
+        a["original"] = originals.get(a["name"], "")
     order = [*"ABCDEFGHIJKLMNOPQRSTUVWXYZ", "0–9", "あ", "#"]
     present = {a["letter"] for a in rows}
     return render(
@@ -202,6 +213,7 @@ def album(request: Request, album_id: int):
         fields=fields,
         flex=flex,
         cover=request.app.state.artwork.cover_status(a),
+        romanizable=_romanizable(a),
         path=items[0].filepath.parent if items else None,
     )
 
@@ -223,8 +235,55 @@ def album_run(request: Request, album_id: int, action: str = Form(...)):
         raise HTTPException(400, "unknown action")
     label, argv = ALBUM_ACTIONS[action]
     job = request.app.state.console.submit_argv([*argv, f"album_id:{album_id}"], user(request))
-    flash(request, f"{label} for {a.album} queued as job #{job}.")
+    msg = f"{label} for {a.album} queued as job #{job}."
+    if action == "mbsync" and request.app.state.settings.romanize and _romanizable(a):
+        # mbsync writes the source's names back: romanize again right after it.
+        _queue_romanize(request, [album_id], f"Romanize {a.albumartist} - {a.album}")
+        msg += " Names are romanized again afterwards."
+    flash(request, msg)
     return redirect(f"/library/album/{album_id}")
+
+
+def _romanizable(album) -> bool:
+    return str(album.get("data_source") or "").lower() in romanize.SUPPORTED
+
+
+def _queue_romanize(request: Request, album_ids: list[int] | None, title: str, **opts) -> int:
+    params = {"album_ids": album_ids, "write": True, "move": True, **opts}
+    return request.app.state.jobs.submit("romanize", title, params, user(request))
+
+
+@router.post("/album/{album_id}/romanize")
+def album_romanize(request: Request, album_id: int):
+    a = _album_or_404(album_id)
+    job = _queue_romanize(request, [album_id], f"Romanize {a.albumartist} - {a.album}")
+    return redirect(f"/jobs/{job}")
+
+
+@router.get("/romanize")
+def romanize_page(request: Request):
+    return render(
+        request,
+        "library/romanize.html",
+        nav="library",
+        status=romanize.library_status(),
+        enabled=request.app.state.settings.romanize,
+    )
+
+
+@router.post("/romanize")
+def romanize_run(
+    request: Request, write: str = Form(""), move: str = Form(""), only_new: str = Form("")
+):
+    job = _queue_romanize(
+        request,
+        None,
+        "Romanize names" + (" (albums not done yet)" if only_new else " (whole library)"),
+        write=bool(write),
+        move=bool(move),
+        only_new=bool(only_new),
+    )
+    return redirect(f"/jobs/{job}")
 
 
 @router.get("/album/{album_id}/cover")

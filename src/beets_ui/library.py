@@ -11,6 +11,7 @@ from beets.dbcore.query import ParsingError
 from . import beets_ctx
 from .history import Snapshot
 from .jobs import JobContext, JobQueue
+from .romanize import originals_query
 
 ALBUM_FIELDS = [
     "albumartist",
@@ -60,7 +61,8 @@ def _parts(query: str) -> list[str]:
 
 
 def albums(query: str = "", sort: str = "artist", page: int = 1, per_page: int = 60):
-    parts = _parts(query) + ALBUM_SORTS.get(sort, ALBUM_SORTS["artist"]).split()
+    parts = originals_query(_parts(query), ("album_original", "albumartist_original"))
+    parts = parts + ALBUM_SORTS.get(sort, ALBUM_SORTS["artist"]).split()
     lib = beets_ctx.lib()
     try:
         results = lib.albums(parts)
@@ -72,7 +74,12 @@ def albums(query: str = "", sort: str = "artist", page: int = 1, per_page: int =
 
 
 def items(query: str = "", page: int = 1, per_page: int = 100, singletons: bool = False):
-    parts = _parts(query) + (["singleton:true"] if singletons else []) + ["artist+", "title+"]
+    parts = originals_query(
+        _parts(query),
+        ("title_original", "artist_original"),
+        always=["singleton:true"] if singletons else [],
+    )
+    parts = parts + ["artist+", "title+"]
     lib = beets_ctx.lib()
     try:
         results = lib.items(parts)

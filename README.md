@@ -11,6 +11,7 @@ A small, self-hosted web frontend for [beets](https://beets.io). It runs in one 
   - play the files in the browser before importing,
   - let confident matches import on their own (`BEETSUI_AUTO_IMPORT`).
 - **Library.** Browse and search with beets query syntax, view albums, artists, tracks and singletons, edit any field (and write the tags to the files), move files, and remove albums or tracks. Edits can be undone from their job page.
+- **Romanized names.** Album, artist and track names in romaji (what Jellyfin shows), from VocaDB, UtaiteDB, TouhouDB or MusicBrainz, with the original names kept in extra tags and shown next to them (`BEETSUI_ROMANIZE`).
 - **Artists.** Merge one artist's aliases ("ヌジャベス", "Nujabes") into one album artist; later imports use the kept name too. Collaborations can keep only their primary artist.
 - **Artwork.**
   - Album covers: find, choose, upload or fill in automatically, with an optional embed into the files.
@@ -89,6 +90,7 @@ The container user (`user:`) must be able to read the inbox and write to `/music
 | `BEETSUI_DEBOUNCE` | `30` | A folder must be unchanged this many seconds before it is looked up. This avoids looking up half-finished downloads. |
 | `BEETSUI_DELETE_AFTER_IMPORT` | `false` | Delete the inbox folder after a successful import (beets copies by default). |
 | `BEETSUI_AUTO_IMPORT` | `0` (off) | Import an automatically looked-up folder without review when every album in it matches at least this % (e.g. `95`), has no missing tracks or unmatched files, and nothing in it is already in the library. Duplicates beets finds still wait for you. |
+| `BEETSUI_ROMANIZE` | `false` | Import VocaDB/UtaiteDB/TouhouDB/MusicBrainz matches with romanized names and keep the originals alongside. See *Romanized names* below. |
 | `BEETSUI_PRIMARY_ARTIST` | `false` | Keep only the first credited artist as album artist on import ("ヌジャベス & Joe Claussell" → "ヌジャベス"). Track artists keep the full credit. Albums already in the library can be fixed under *Library → Artists*. |
 | `BEETSUI_LDAP_ENABLED` | `false` | Use LDAP instead of the password. |
 | `LDAP_URL` | — | e.g. `ldap://lldap:3890` or `ldaps://ldap.example.org`. |
@@ -176,7 +178,12 @@ Tags: `latest` (main branch), `X.Y.Z` / `X.Y` (releases), `sha-<commit>`.
    - **Undo.** Album and track edits, artist merges and primary-artist fixes save the old values first. Open the job (a pop-up links to it when it finishes) and press **Undo** to put the old values, tags and folders back.
    - **Artists.** Filter by name or letter. Tick two or more artists to merge them, or open *merge aliases* for suggestions: names that differ only in width or case, share an artist ID from the same source, or where one is the other's sort or credited name (MusicBrainz gives "ヌジャベス" the sort name "Nujabes"). Merged names are remembered and applied to future imports; remove one under *Remembered* to stop that.
 3. **Artwork.** *Album covers* lists albums with missing (or low-resolution) covers. *Artist pictures* lists artists without a picture. Run **Fill automatically** first, then open *needs review* for the few artists it was unsure about (matched by name, several artists with the same name, or not found) and pick or upload those by hand.
-4. **Console.** Type a command without the leading `beet`. Commands that prompt can't be answered, so use `-y`/`-q` (e.g. `import -q -L <query>` to re-tag library albums).
+4. **Romanized names** (*Library → Artists → romanize…*). The main album, artist and track tags get romanized names, which is what Jellyfin and other players show. The original names go into `album_original`, `albumartist_original`, `title_original` and `artist_original`: written to the files as custom tags (`ALBUM_ORIGINAL`, …), shown under the romanized names, and found by library searches.
+   - **VocaDB, UtaiteDB, TouhouDB:** the site's Romaji names ("東方紅魔郷" → "Touhou Koumakyou"). Names nobody has romanized on the site stay as they are.
+   - **MusicBrainz:** the release's Latin-script pseudo-release (*transliterated tracklisting*), when someone has added one. Many doujin releases have none.
+   - With `BEETSUI_ROMANIZE=true` this happens on import; **Romanize library** does it for albums you already have (it can be undone from its job page). Folder names follow your path format, so they change too; Jellyfin treats moved files as new (play counts don't follow).
+   - `vdbsync`, `tdbsync` and `mbsync` write the source's own names back, so run *Romanize library* afterwards (the album page's **mbsync** button does that by itself).
+5. **Console.** Type a command without the leading `beet`. Commands that prompt can't be answered, so use `-y`/`-q` (e.g. `import -q -L <query>` to re-tag library albums).
 
 Not supported:
 - **VGMdb.** It has no official API, its unofficial mirror is offline and the site blocks automated requests.

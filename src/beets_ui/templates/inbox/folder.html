@@ -145,7 +145,7 @@
 </details>
 </section>
 {% endfor %}
-<p class="muted"><small>Copy/move, tag writing and path format come from your beets config.</small></p>
+<p class="muted"><small>Copy/move, tag writing and path format come from your beets config.{% if romanize %} VocaDB, UtaiteDB, TouhouDB and MusicBrainz matches are imported with romanized names where the source has them; the original names are kept alongside.{% endif %}</small></p>
 <div class="sticky-bar">
   <span id="decided" class="muted" data-tasks="{{ folder.tasks|length }}"></span>
   <small class="muted hide-sm"><kbd>j</kbd>/<kbd>k</kbd> move · <kbd>x</kbd> choose · <kbd>o</kbd> open · <kbd>p</kbd> play · <kbd>i</kbd> import</small>

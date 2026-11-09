@@ -242,8 +242,9 @@ def apply_aliases_to_info(info: Any, aliases: dict[str, str], known: dict) -> st
             t["artists_credit"] = [new]
             t["artist_sort"] = sort_of(new) or None
             t["artists_sort"] = [sort_of(new)] if sort_of(new) else []
-    new = target(info.artist)
-    if new:
+    # A romanized album still follows aliases saved under its original name.
+    new = target(info.artist) or target(info.get("albumartist_original"))
+    if new and new != info.artist:
         info["artist"] = new
         info["artists"] = [new]
         info["artist_credit"] = new

@@ -8,8 +8,8 @@
     <p><small>{% if cover.has %}{{ cover.size[0] if cover.size else '?' }}×{{ cover.size[1] if cover.size else '?' }}{% if cover.low %} <span class="warnc">low-res</span>{% endif %}{% elif cover.embedded %}embedded in files{% if cover.size %} ({{ cover.size[0] }}×{{ cover.size[1] }}){% endif %}{% if cover.low %} <span class="warnc">low-res</span>{% endif %}{% else %}no cover{% endif %} · <a href="/artwork/album/{{ album.id }}">change cover</a></small></p>
   </div>
   <div class="meta">
-    <h1>{{ album.album or '(untitled)' }}</h1>
-    <h3><a href="/library?q={{ ('albumartist:=' ~ album.albumartist)|q }}">{{ album.albumartist }}</a>{% if album.year %} · {{ album.year }}{% endif %}</h3>
+    <h1>{{ album.album or '(untitled)' }}{% if album.get('album_original') %}<br><span class="original">{{ album.album_original }}</span>{% endif %}</h1>
+    <h3><a href="/library?q={{ ('albumartist:=' ~ album.albumartist)|q }}">{{ album.albumartist }}</a>{% if album.get('albumartist_original') %} <span class="original">({{ album.albumartist_original }})</span>{% endif %}{% if album.year %} · {{ album.year }}{% endif %}</h3>
     <dl class="kv">
       {% if album.label %}<dt>Label</dt><dd>{{ album.label }}{% if album.catalognum %} ({{ album.catalognum }}){% endif %}</dd>{% endif %}
       {% if fields.genres %}<dt>Genres</dt><dd>{{ fields.genres }}</dd>{% endif %}
@@ -24,6 +24,7 @@
       <form class="inline wrap" method="post" action="/library/album/{{ album.id }}/run">
         {% for a in ['mbsync', 'fetchart', 'embedart', 'replaygain', 'lyrics'] %}<button class="btn btn-sm btn-d" name="action" value="{{ a }}">{{ a }}</button>{% endfor %}
       </form>
+      {% if romanizable %}<form class="inline" method="post" action="/library/album/{{ album.id }}/romanize"><button class="btn btn-sm btn-d" title="Use romanized names from {{ album.get('data_source') }} and keep the original names alongside">romanize</button></form>{% endif %}
       <a class="btn btn-sm btn-d" href="/console?cmd={{ ('import -L -q album_id:' ~ album.id)|q }}" title="Re-imports the album: opens the console so you can check the command first">re-tag…</a>
     </div>
   </div>
@@ -32,7 +33,7 @@
 <h2>Tracks</h2>
 <div class="scroll"><table class="table">
   <thead><tr><th class="num">#</th><th>Title</th><th>Artist</th><th class="num">Length</th><th class="hide-sm">Format</th></tr></thead>
-  <tbody>{% for it in items %}<tr><td class="num">{% if album.disctotal and album.disctotal > 1 %}{{ it.disc }}-{% endif %}{{ it.track }}</td><td><a href="/library/item/{{ it.id }}">{{ it.title }}</a></td><td>{{ it.artist }}</td><td class="num">{{ it.length|duration }}</td><td class="hide-sm">{{ it.format }} {{ (it.bitrate // 1000) if it.bitrate else '' }}{% if it.bitdepth %} · {{ it.bitdepth }}bit/{{ (it.samplerate / 1000)|round(1) }}kHz{% endif %}</td></tr>{% endfor %}</tbody>
+  <tbody>{% for it in items %}<tr><td class="num">{% if album.disctotal and album.disctotal > 1 %}{{ it.disc }}-{% endif %}{{ it.track }}</td><td><a href="/library/item/{{ it.id }}">{{ it.title }}</a>{% if it.get('title_original') %}<br><small class="original">{{ it.title_original }}</small>{% endif %}</td><td>{{ it.artist }}{% if it.get('artist_original') %}<br><small class="original">{{ it.artist_original }}</small>{% endif %}</td><td class="num">{{ it.length|duration }}</td><td class="hide-sm">{{ it.format }} {{ (it.bitrate // 1000) if it.bitrate else '' }}{% if it.bitdepth %} · {{ it.bitdepth }}bit/{{ (it.samplerate / 1000)|round(1) }}kHz{% endif %}</td></tr>{% endfor %}</tbody>
 </table></div>
 
 <details>

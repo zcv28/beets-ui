@@ -111,6 +111,7 @@ def folder_page(request: Request, f: str):
         busy=row["status"] in BUSY,
         dup_actions=list(DUPLICATE_ACTIONS),
         inbox_root=str(s.inbox.resolve()),
+        romanize=s.romanize,
     )
 
 

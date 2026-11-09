@@ -36,6 +36,9 @@ def init(beetsdir: Path | str | None = None, load_plugins: bool = True) -> beets
         logging.getLogger("beets").setLevel(logging.INFO)
         if load_plugins:
             plugins.load_plugins()
+        from .romanize import register_media_fields
+
+        register_media_fields()
         dbpath = config["library"].as_path()
         Path(dbpath).parent.mkdir(parents=True, exist_ok=True)
         directory = config["directory"].as_filename()
