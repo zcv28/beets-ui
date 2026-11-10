@@ -6,7 +6,7 @@
 {% set tab = 'albums' %}{% include "library/_tabs.html" %}
 <div class="tab-content">
 <form class="bar" method="get" action="/library" data-autosubmit>
-  <div class="input-group grow">{{ icon('search') }}<input class="input" data-mono type="search" name="q" value="{{ q }}" placeholder="albumartist:Foo year:2000..2010 genres:rock" aria-label="Beets query"></div>
+  <div class="input-group grow">{{ icon('search') }}<input class="input" data-mono type="search" name="q" value="{{ q }}" placeholder="Search albums and artists, or a beets query: year:2000..2010" aria-label="Search albums"></div>
   <select class="input auto" name="sort" aria-label="Sort">{% for s in sorts %}<option value="{{ s }}" {% if s == sort %}selected{% endif %}>Sort: {{ s }}</option>{% endfor %}</select>
   <select class="input auto" name="view" aria-label="View"><option value="grid" {% if view == 'grid' %}selected{% endif %}>Grid</option><option value="table" {% if view == 'table' %}selected{% endif %}>Table</option></select>
   <button class="btn" data-variant="outline">Search</button>

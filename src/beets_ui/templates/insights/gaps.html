@@ -69,7 +69,7 @@
     <form class="bar tight" method="post" action="/wanted/artist">
       <input type="hidden" name="source" value="{{ r.source }}"><input type="hidden" name="artist_id" value="{{ r.artist_id }}"><input type="hidden" name="back" value="{{ here }}">
       {% for k in picked %}<input type="hidden" name="kinds" value="{{ k }}">{% endfor %}
-      <button class="btn" data-variant="outline" data-size="sm">Get all {{ gettable|length }} missing</button>
+      <button class="btn" data-variant="outline" data-size="sm">Get {{ gettable|length }} missing</button>
       <span class="hint">Searches, downloads and imports them for you, two at a time.</span>
     </form>
     {% endif %}

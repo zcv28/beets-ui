@@ -549,3 +549,14 @@
   /* Stacked rows lead with what the row is about, even when a date column comes first. */
   @media (max-width: 767px) { .stack-sm .col-main { order: -1; } }
 }
+
+/* ================================================================= library */
+@layer app {
+  .album-facts { margin: 0.25rem 0 0; color: var(--muted-foreground); font-size: 0.875rem; }
+  .album-head .meta > .alert { margin-top: 1rem; }
+  .album-details > summary { margin: 1rem 0 0; }
+  .album-details .kv { margin-top: 0.5rem; }
+  .artist-img { border-radius: 50%; }
+  /* A menu at the end of a bar opens leftwards, inside the page. */
+  .menu-end .menu-content { right: 0; left: auto; }
+}

@@ -6,9 +6,13 @@
 <div class="tab-content">
 <form class="bar" method="get" action="/library/tracks">
   <input type="hidden" name="singletons" value="{{ singletons }}">
-  <div class="input-group grow">{{ icon('search') }}<input class="input" data-mono type="search" name="q" value="{{ q }}" placeholder="artist:Foo title:bar format:FLAC" aria-label="Beets query"></div>
+  <div class="input-group grow">{{ icon('search') }}<input class="input" data-mono type="search" name="q" value="{{ q }}" placeholder="Search tracks, or a beets query: artist:Foo format:FLAC" aria-label="Search tracks"></div>
   <button class="btn" data-variant="outline">Search</button>
 </form>
+<nav class="toggles" aria-label="Which tracks">
+  <a class="toggle" data-variant="outline" href="/library/tracks{{ '?q=' ~ q|q if q }}" {% if not singletons %}aria-current="page"{% endif %}>All tracks</a>
+  <a class="toggle" data-variant="outline" href="/library/tracks?singletons=1{{ '&q=' ~ q|q if q }}" {% if singletons %}aria-current="page"{% endif %}>Singletons</a>
+</nav>
 {% if error %}{% call alert('warn') %}Query error: {{ error }}{% endcall %}{% endif %}
 <div class="table-container" data-density="compact"><table class="table">
   <thead><tr><th class="table-head">Artist</th><th class="table-head">Title</th><th class="table-head">Album</th><th class="table-head num">Length</th><th class="table-head hide-sm">Format</th></tr></thead>

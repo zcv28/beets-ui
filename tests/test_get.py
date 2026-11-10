@@ -396,7 +396,7 @@ def test_get_from_the_gaps_page(client, app):
     state.set_discography("vocadb", "77", "Test Artist", [rel])
 
     page = client.get("/insights/gaps").text
-    assert 'action="/wanted/release"' in page and "Get all 1 missing" in page
+    assert 'action="/wanted/release"' in page and "Get 1 missing" in page
     r = client.post(
         "/wanted/release",
         data={"source": "vocadb", "artist_id": "77", "release_id": "500"},

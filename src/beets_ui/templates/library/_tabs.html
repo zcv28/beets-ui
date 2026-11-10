@@ -1,6 +1,5 @@
 <nav class="tab-list" data-variant="line" aria-label="Library views">
   <a class="tab-trigger" href="/library" {% if tab == 'albums' %}aria-current="page"{% endif %}>Albums</a>
   <a class="tab-trigger" href="/library/artists" {% if tab == 'artists' %}aria-current="page"{% endif %}>Artists</a>
-  <a class="tab-trigger" href="/library/tracks" {% if tab == 'tracks' and not singletons %}aria-current="page"{% endif %}>Tracks</a>
-  <a class="tab-trigger" href="/library/tracks?singletons=1" {% if tab == 'tracks' and singletons %}aria-current="page"{% endif %}>Singletons</a>
+  <a class="tab-trigger" href="/library/tracks" {% if tab == 'tracks' %}aria-current="page"{% endif %}>Tracks</a>
 </nav>

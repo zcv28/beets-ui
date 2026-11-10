@@ -89,6 +89,23 @@ def _issues(tracks: list[tuple]) -> dict[str, str]:
     return out
 
 
+def album_issues(lib: Any, state: State, album_id: int) -> dict[str, str]:
+    """Why one album is worth replacing (not counting dismissed reasons)."""
+    with lib.transaction() as tx:
+        tracks = [
+            tuple(r)
+            for r in tx.query(
+                "SELECT format, bitrate, track, tracktotal, disc, disctotal "
+                "FROM items WHERE album_id=?",
+                (album_id,),
+            )
+        ]
+    if not tracks:
+        return {}
+    dismissed = state.dismissed("upgrade")
+    return {k: v for k, v in _issues(tracks).items() if dismiss_key(album_id, k) not in dismissed}
+
+
 def find(lib: Any, state: State, reason: str = "") -> dict[str, Any]:
     """Albums with issues (``reason`` narrows to one kind) and counts per kind."""
     albums, items = _albums(lib)
