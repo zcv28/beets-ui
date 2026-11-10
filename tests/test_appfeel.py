@@ -154,4 +154,4 @@ def test_install_files(client):
 def test_live_regions_are_marked(client):
     assert 'data-refresh="jobs"' in client.get("/jobs").text
     page = client.get("/inbox").text
-    assert 'data-refresh="inbox"' in page and 'data-refresh="jobs downloads"' in page
+    assert 'data-refresh="inbox"' in page and 'data-refresh="jobs downloads wanted"' in page

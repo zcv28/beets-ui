@@ -63,7 +63,15 @@ def gaps_page(
         show=show,
         sort=sort,
         busy=_gaps_busy(request),
+        wanted=_wanted_releases(request),
+        get_enabled=getattr(request.app.state, "acquirer", None) is not None,
     )
+
+
+def _wanted_releases(request: Request) -> dict[str, dict]:
+    """Requests for missing releases, by "source:release id" (latest wins)."""
+    rows = request.app.state.state.wanted_list()
+    return {f"{w['source']}:{w['release_id']}": w for w in rows if w["kind"] == "missing"}
 
 
 def _gaps_busy(request: Request) -> bool:
@@ -128,6 +136,8 @@ def upgrades_page(request: Request, reason: str = ""):
         reason=reason,
         reasons=upgrades.REASONS,
         min_px=request.app.state.settings.min_cover_px,
+        wanted={w["album_id"]: w for w in request.app.state.state.wanted_list() if w["album_id"]},
+        get_enabled=getattr(request.app.state, "acquirer", None) is not None,
         **data,
     )
 

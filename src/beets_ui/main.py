@@ -15,6 +15,7 @@ from starlette.middleware.sessions import SessionMiddleware
 
 from . import __version__, beets_ctx, discography, history, listening, lyrics, romanize, sources
 from . import artists as artists_svc
+from .acquire import Acquirer
 from .artwork.service import Artwork
 from .auth import RateLimiter
 from .console import Console
@@ -69,6 +70,7 @@ def create_app(settings: Settings | None = None, background: bool = True) -> Fas
 
     source = sources.build(settings)
     source_watch = sources.Watcher(source) if source else None
+    acquirer = Acquirer.build(state, inbox, settings, source, source_watch) if source else None
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):
@@ -77,8 +79,12 @@ def create_app(settings: Settings | None = None, background: bool = True) -> Fas
             inbox.start_watcher()
             if source_watch:
                 source_watch.start()
+            if acquirer:
+                acquirer.start()
         yield
         if background:
+            if acquirer:
+                acquirer.stop()
             if source_watch:
                 source_watch.stop()
             inbox.stop_watcher()
@@ -100,6 +106,7 @@ def create_app(settings: Settings | None = None, background: bool = True) -> Fas
     app.state.artwork = artwork
     app.state.source = source
     app.state.source_watch = source_watch
+    app.state.acquirer = acquirer
     app.state.limiter = RateLimiter()
 
     # Order matters: the session middleware must wrap the auth middleware.
@@ -123,6 +130,7 @@ def create_app(settings: Settings | None = None, background: bool = True) -> Fas
     from .routes import insights as r_insights
     from .routes import jobs as r_jobs
     from .routes import library as r_library
+    from .routes import wanted as r_wanted
 
     for r in (
         r_auth,
@@ -134,6 +142,7 @@ def create_app(settings: Settings | None = None, background: bool = True) -> Fas
         r_artwork,
         r_insights,
         r_events,
+        r_wanted,
     ):
         app.include_router(r.router)
     app.include_router(r_find.legacy)

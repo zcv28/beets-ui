@@ -55,6 +55,14 @@ def jobs_pill(request: Request, since: float = 0):
     slsk = watch.events_since(since) if watch else []
     if slsk:
         since = max([since, *(e["at"] for e in slsk)])
+    # Requests (Get) that finished, failed or need you.
+    asked = [
+        w
+        for w in request.app.state.state.wanted_changed_since(since)
+        if w["status"] in ("done", "failed", "choosing", "review")
+    ]
+    if asked:
+        since = max([since, *(w["updated_at"] for w in asked)])
     return partial(
         request,
         "partials/jobs_pill.html",
@@ -63,6 +71,7 @@ def jobs_pill(request: Request, since: float = 0):
         since=since,
         toasts=toasts,
         slsk_toasts=slsk,
+        wanted_toasts=asked,
         oob=True,
     )
 

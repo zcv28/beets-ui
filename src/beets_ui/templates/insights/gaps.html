@@ -64,9 +64,18 @@
   </summary>
   <div class="box-body">
     {% if r.error %}{% set err = (r.error.splitlines() or [''])|first %}{% call alert('warn', 'The last lookup failed') %}<span title="{{ r.error }}">{{ err[:160].rstrip('.') }}{{ '…' if err|length > 160 }}</span>. The source may be down or rate-limiting; press Look up again in a while.{% endcall %}{% endif %}
+    {% set gettable = r.missing|rejectattr('id', 'in', open_ids(wanted, r.source))|list %}
+    {% if get_enabled and gettable %}
+    <form class="bar tight" method="post" action="/wanted/artist">
+      <input type="hidden" name="source" value="{{ r.source }}"><input type="hidden" name="artist_id" value="{{ r.artist_id }}"><input type="hidden" name="back" value="{{ here }}">
+      {% for k in picked %}<input type="hidden" name="kinds" value="{{ k }}">{% endfor %}
+      <button class="btn" data-variant="outline" data-size="sm">Get all {{ gettable|length }} missing</button>
+      <span class="hint">Searches, downloads and imports them for you, two at a time.</span>
+    </form>
+    {% endif %}
     {% for title, list in [('Missing', r.missing), ('Upcoming', r.upcoming)] if list %}
     {% if title == 'Upcoming' %}<h3>Upcoming</h3>{% endif %}
-    <div class="table-container" data-density="compact"><table class="table">
+    <div class="table-container" data-density="compact"><table class="table stack-sm">
       <thead><tr><th class="table-head">Date</th><th class="table-head">Release</th><th class="table-head hide-sm">Type</th><th class="table-head hide-sm">Catalog</th><th class="table-head"><span class="sr-only">Actions</span></th></tr></thead>
       <tbody>
       {% for rel in list %}
@@ -74,13 +83,18 @@
       {% set orig_q = (r.artist_original or r.artist) ~ ' ' ~ rel.original %}
       <tr class="table-row">
         <td class="table-cell nowrap mono">{{ rel.date or '?' }}</td>
-        <td class="table-cell"><a href="{{ rel.url }}" target="_blank" rel="noopener noreferrer"{{ rel.title|lang }}>{{ rel.title }}</a>{% if rel.original and rel.original != rel.title %}<span class="original"{{ rel.original|lang }}>{{ rel.original }}</span>{% endif %}{% if rel.artists and rel.artists != r.artist %}<p class="hint">{{ rel.artists }}</p>{% endif %}</td>
+        <td class="table-cell col-main"><a href="{{ rel.url }}" target="_blank" rel="noopener noreferrer"{{ rel.title|lang }}>{{ rel.title }}</a>{% if rel.original and rel.original != rel.title %}<span class="original"{{ rel.original|lang }}>{{ rel.original }}</span>{% endif %}{% if rel.artists and rel.artists != r.artist %}<p class="hint">{{ rel.artists }}</p>{% endif %}</td>
         <td class="table-cell hide-sm hint">{{ rel.type }}</td>
         <td class="table-cell hide-sm nowrap mono hint">{{ rel.catalog }}</td>
-        <td class="table-cell nowrap">
+        <td class="table-cell nowrap col-actions">
+          {% set w = wanted.get(r.source ~ ':' ~ rel.id) %}
+          {% if get_enabled %}<span class="get-slot">{% if w and w.status != 'cancelled' %}{% include "wanted/_chip.html" %}{% else %}<form class="inline" method="post" action="/wanted/release" hx-post="/wanted/release" hx-target="closest .get-slot" hx-swap="innerHTML">
+            <input type="hidden" name="source" value="{{ r.source }}"><input type="hidden" name="artist_id" value="{{ r.artist_id }}"><input type="hidden" name="release_id" value="{{ rel.id }}"><input type="hidden" name="back" value="{{ here }}">
+            <button class="btn" data-size="xs" title="Search, download and import {{ rel.title }}">Get</button>
+          </form>{% endif %}</span>{% endif %}
           {% if sources_enabled %}
-          <a class="btn" data-variant="outline" data-size="xs" href="/inbox/find?q={{ roman_q|q }}" title="Find {{ roman_q }}">Find</a>
-          {% if rel.original and rel.original != rel.title %}<a class="btn" data-variant="outline" data-size="xs" href="/inbox/find?q={{ orig_q|q }}" title="Find {{ orig_q }}">Find (original)</a>{% endif %}
+          <a class="btn" data-variant="outline" data-size="xs" href="/inbox/find?q={{ roman_q|q }}" title="Find {{ roman_q }} by hand">Find</a>
+          {% if not get_enabled and rel.original and rel.original != rel.title %}<a class="btn" data-variant="outline" data-size="xs" href="/inbox/find?q={{ orig_q|q }}" title="Find {{ orig_q }}">Find (original)</a>{% endif %}
           {% endif %}
           <form class="inline" method="post" action="/insights/gaps/dismiss" hx-post="/insights/gaps/dismiss" hx-target="closest tr" hx-swap="delete">
             <input type="hidden" name="source" value="{{ r.source }}">

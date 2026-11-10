@@ -6,7 +6,7 @@ from ..settings import Settings
 from .base import Source, SourceError
 from .watch import Watcher
 
-__all__ = ["Source", "SourceError", "Watcher", "build", "incoming"]
+__all__ = ["Source", "SourceError", "Watcher", "build", "incoming", "requests_in_flight"]
 
 
 def build(settings: Settings) -> Source | None:
@@ -25,4 +25,25 @@ def incoming(app) -> list[dict]:
     Finished ones are left out: by then they are folders in the inbox.
     """
     watch = getattr(app.state, "source_watch", None)
-    return [r for r in (watch.rows if watch else []) if r["state"] != "done"]
+    # Downloads for a request show with the request instead.
+    mine = {
+        (w["origin"], w["remote_folder"]) for w in app.state.state.wanted_list(("downloading",))
+    }
+    return [
+        r
+        for r in (watch.rows if watch else [])
+        if r["state"] != "done" and (r["origin"], r["folder"]) not in mine
+    ]
+
+
+def requests_in_flight(app) -> list[dict]:
+    """Requests not yet in the library (or failed), with download progress where known."""
+    from ..acquire import OPEN
+
+    watch = getattr(app.state, "source_watch", None)
+    rows = {(r["origin"], r["folder"]): r for r in (watch.rows if watch else [])}
+    out = app.state.state.wanted_list(OPEN)
+    for w in out:
+        t = rows.get((w["origin"], w["remote_folder"])) if w["status"] == "downloading" else None
+        w["progress"] = t["percent"] if t else None
+    return out

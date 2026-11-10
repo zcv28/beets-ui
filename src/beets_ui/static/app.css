@@ -536,3 +536,16 @@
   .section-head > h2 { margin: 0; }
   .stack-sm .col-main > .hint { margin: 0.125rem 0 0; }
 }
+
+/* ===================================================================== get */
+@layer app {
+  /* A request's state is a link to its page. */
+  a.wanted-state { color: inherit; text-decoration: none; }
+  a.wanted-state:hover { text-decoration: underline; text-underline-offset: 4px; }
+  .get-slot { display: inline-flex; align-items: center; vertical-align: middle; }
+  .request-state { margin-top: 0; }
+}
+@layer app {
+  /* Stacked rows lead with what the row is about, even when a date column comes first. */
+  @media (max-width: 767px) { .stack-sm .col-main { order: -1; } }
+}

@@ -27,6 +27,36 @@ CREATE TABLE IF NOT EXISTS folders (
     decisions TEXT NOT NULL DEFAULT '{}',
     job_id INTEGER
 );
+CREATE TABLE IF NOT EXISTS wanted (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    kind TEXT NOT NULL,
+    artist TEXT NOT NULL DEFAULT '',
+    album TEXT NOT NULL DEFAULT '',
+    artist_original TEXT NOT NULL DEFAULT '',
+    album_original TEXT NOT NULL DEFAULT '',
+    year TEXT NOT NULL DEFAULT '',
+    source TEXT NOT NULL DEFAULT '',
+    release_id TEXT NOT NULL DEFAULT '',
+    lookup_id TEXT NOT NULL DEFAULT '',
+    album_id INTEGER,
+    want_lossless INTEGER NOT NULL DEFAULT 0,
+    min_bitrate INTEGER NOT NULL DEFAULT 0,
+    tracks TEXT,
+    status TEXT NOT NULL DEFAULT 'queued',
+    status_text TEXT NOT NULL DEFAULT '',
+    query_idx INTEGER NOT NULL DEFAULT 0,
+    search_id TEXT NOT NULL DEFAULT '',
+    offers TEXT NOT NULL DEFAULT '[]',
+    tried TEXT NOT NULL DEFAULT '[]',
+    origin TEXT NOT NULL DEFAULT '',
+    remote_folder TEXT NOT NULL DEFAULT '',
+    folder TEXT NOT NULL DEFAULT '',
+    attempts INTEGER NOT NULL DEFAULT 0,
+    error TEXT,
+    created_at REAL NOT NULL,
+    updated_at REAL NOT NULL
+);
+CREATE INDEX IF NOT EXISTS wanted_status ON wanted(status);
 CREATE TABLE IF NOT EXISTS jobs (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     kind TEXT NOT NULL,
@@ -101,8 +131,10 @@ FOLDER_MIGRATIONS = (
     ("files", "TEXT NOT NULL DEFAULT '[]'"),
     ("tagkeys", "TEXT NOT NULL DEFAULT '{}'"),
     ("library", "TEXT NOT NULL DEFAULT '[]'"),
+    ("wanted_id", "INTEGER"),
 )
 
+WANTED_JSON = ("tracks", "offers", "tried")
 FOLDER_JSON = ("tasks", "duplicates", "decisions", "files", "tagkeys", "library")
 FOLDER_JSON_LISTS = ("tasks", "files", "library")
 
@@ -130,6 +162,10 @@ class State:
             self._conn.execute(
                 "UPDATE folders SET status='new', job_id=NULL "
                 "WHERE status IN ('queued','previewing','importing')"
+            )
+            # Their folders are looked up again, so their requests pick up from there.
+            self._conn.execute(
+                "UPDATE wanted SET status='arrived' WHERE status IN ('lookup','importing')"
             )
 
     def _exec(self, sql: str, args: tuple = ()) -> sqlite3.Cursor:
@@ -173,6 +209,80 @@ class State:
 
     def delete_folder(self, path: str) -> None:
         self._exec("DELETE FROM folders WHERE path=?", (path,))
+
+    # ------------------------------------------------------------------ wanted
+    # Albums you asked beets-ui to get (see acquire.py).
+
+    @staticmethod
+    def _wanted(row: sqlite3.Row | None) -> dict[str, Any] | None:
+        if row is None:
+            return None
+        d = dict(row)
+        for k in WANTED_JSON:
+            d[k] = json.loads(d[k]) if d[k] is not None else None
+        d["want_lossless"] = bool(d["want_lossless"])
+        return d
+
+    def add_wanted(self, **fields: Any) -> int:
+        now = time.time()
+        fields = {k: (json.dumps(v) if k in WANTED_JSON else v) for k, v in fields.items()}
+        fields.setdefault("created_at", now)
+        fields["updated_at"] = now
+        cols = ", ".join(fields)
+        qs = ", ".join("?" * len(fields))
+        cur = self._exec(f"INSERT INTO wanted ({cols}) VALUES ({qs})", tuple(fields.values()))
+        return int(cur.lastrowid)  # type: ignore[arg-type]
+
+    def wanted(self, wanted_id: int) -> dict[str, Any] | None:
+        return self._wanted(self._exec("SELECT * FROM wanted WHERE id=?", (wanted_id,)).fetchone())
+
+    def wanted_list(self, statuses: tuple[str, ...] | None = None) -> list[dict[str, Any]]:
+        if statuses:
+            qs = ", ".join("?" * len(statuses))
+            rows = self._exec(
+                f"SELECT * FROM wanted WHERE status IN ({qs}) ORDER BY id", statuses
+            ).fetchall()
+        else:
+            rows = self._exec("SELECT * FROM wanted ORDER BY id").fetchall()
+        return [self._wanted(r) for r in rows]  # type: ignore[misc]
+
+    def wanted_for_release(self, source: str, release_id: str) -> dict[str, Any] | None:
+        row = self._exec(
+            "SELECT * FROM wanted WHERE source=? AND release_id=? ORDER BY id DESC LIMIT 1",
+            (source, release_id),
+        ).fetchone()
+        return self._wanted(row)
+
+    def wanted_for_album(self, album_id: int) -> dict[str, Any] | None:
+        row = self._exec(
+            "SELECT * FROM wanted WHERE album_id=? ORDER BY id DESC LIMIT 1", (album_id,)
+        ).fetchone()
+        return self._wanted(row)
+
+    def update_wanted(self, wanted_id: int, **fields: Any) -> None:
+        fields = {k: (json.dumps(v) if k in WANTED_JSON else v) for k, v in fields.items()}
+        fields["updated_at"] = time.time()
+        sets = ", ".join(f"{k}=?" for k in fields)
+        self._exec(f"UPDATE wanted SET {sets} WHERE id=?", (*fields.values(), wanted_id))
+
+    def link_folder(self, path: str, wanted_id: int) -> None:
+        """Mark an inbox folder as the download for a request."""
+        self._exec("UPDATE folders SET wanted_id=? WHERE path=?", (wanted_id, path))
+
+    def delete_wanted(self, wanted_id: int) -> None:
+        self._exec("DELETE FROM wanted WHERE id=?", (wanted_id,))
+        self._exec("UPDATE folders SET wanted_id=NULL WHERE wanted_id=?", (wanted_id,))
+
+    def wanted_changed_since(self, ts: float) -> list[dict[str, Any]]:
+        rows = self._exec(
+            "SELECT * FROM wanted WHERE updated_at > ? ORDER BY updated_at LIMIT 20", (ts,)
+        ).fetchall()
+        return [self._wanted(r) for r in rows]  # type: ignore[misc]
+
+    def wanted_version(self) -> str:
+        """Changes whenever a request is added, moves on or goes away."""
+        row = self._exec("SELECT COUNT(*), MAX(updated_at) FROM wanted").fetchone()
+        return ":".join(str(v) for v in tuple(row))
 
     # -------------------------------------------------------------------- jobs
 

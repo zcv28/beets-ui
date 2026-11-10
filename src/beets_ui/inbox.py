@@ -10,7 +10,7 @@ import time
 from pathlib import Path
 from typing import Any
 
-from . import importer, romanize
+from . import acquire, importer, romanize
 from .jobs import JobContext, JobQueue
 from .settings import Settings
 from .state import State
@@ -231,10 +231,15 @@ class Inbox:
             if row["path"] not in seen and row["status"] not in ("previewing", "importing"):
                 self.state.delete_folder(row["path"])
         self.refresh_library_matches()
-        if self.settings.auto_preview:
-            for row in self.state.folders():
-                if row["status"] == "new" and now - row["changed_at"] >= self.settings.debounce:
-                    self.queue_preview(row["path"], auto=True)
+        for row in self.state.folders():
+            # Folders you asked for (Get) are looked up even when auto-lookup is off.
+            if not (self.settings.auto_preview or row.get("wanted_id")):
+                continue
+            w = self._wanted(row)
+            if w and w["status"] not in ("arrived", "lookup", "review"):
+                continue  # still downloading: the request looks it up when it arrives
+            if row["status"] == "new" and now - row["changed_at"] >= self.settings.debounce:
+                self.queue_preview(row["path"], auto=True, **self._wanted_search(row))
 
     def refresh_library_matches(self, only: str | None = None) -> None:
         """Re-check which inbox folders are already in the library (cheap SQL)."""
@@ -290,6 +295,18 @@ class Inbox:
         )
         self.state.upsert_folder(rel, status="queued", mode=mode, job_id=job_id, error=None)
         return job_id
+
+    def _wanted(self, row: dict[str, Any] | None) -> dict[str, Any] | None:
+        wid = (row or {}).get("wanted_id")
+        return self.state.wanted(wid) if wid else None
+
+    def _wanted_search(self, row: dict[str, Any]) -> dict[str, Any]:
+        """A requested folder is looked up by the release that was asked for."""
+        w = self._wanted(row)
+        if w is None:
+            return {}
+        ids = acquire.lookup_ids(w)
+        return {"wanted": w["id"], **({"ids": ids} if ids else {})}
 
     def queue_import(self, rel: str, decisions: dict[str, Any], user: str | None = None) -> int:
         row = self.state.folder(rel)
@@ -353,15 +370,33 @@ class Inbox:
                 f"  {t['cur_artist']} - {t['cur_album']}: {len(t['candidates'])} candidates"
                 + (f", best {t['best']}%" if t["best"] is not None else "")
             )
-        threshold = self.settings.auto_import
-        if ctx.params.get("auto") and threshold and status == "ready":
-            row = self.state.folder(rel) or {}
-            why = auto_import_blocker(tasks, row.get("library") or [], threshold)
+        row = self.state.folder(rel) or {}
+        wanted = self._wanted(row)
+        # A folder you asked for imports on its own at its own threshold.
+        threshold = self.settings.get_auto_import if wanted else self.settings.auto_import
+        why = err or ""
+        imported = False
+        if ctx.params.get("auto") and status == "ready":
+            library = [] if wanted and wanted["kind"] == "upgrade" else row.get("library") or []
+            if not threshold:
+                why = "automatic import is off"
+            else:
+                why = auto_import_blocker(tasks, library, threshold)
+            if not why and wanted:
+                why = _not_the_release(tasks, acquire.lookup_ids(wanted))
             if why:
                 ctx.log(f"Not imported automatically: {why}")
             else:
                 ctx.log(f"Every match is {threshold}% or better: importing automatically")
-                self.queue_import(rel, _default_decisions(tasks), user="auto-import")
+                decisions = _default_decisions(tasks)
+                if wanted and wanted["kind"] == "upgrade":
+                    # A better copy replaces the album it was asked for.
+                    for d in decisions.values():
+                        d["duplicate"] = "remove"
+                self.queue_import(rel, decisions, user="auto-import")
+                imported = True
+        if wanted:
+            acquire.inbox_previewed(self.state, wanted, imported, why)
 
     def _job_import(self, ctx: JobContext) -> None:
         rel = ctx.params["folder"]
@@ -385,6 +420,7 @@ class Inbox:
         except Exception as e:
             self.state.upsert_folder(rel, status="failed", error=str(e))
             raise
+        wanted = self._wanted(row)
         dups: dict[str, Any] = {}
         problems = []
         for key, o in outcomes.items():
@@ -401,13 +437,21 @@ class Inbox:
                 duplicates=dups,
                 error="Already in library: choose how to resolve the duplicate",
             )
+            if wanted:
+                acquire.inbox_imported(self.state, wanted, False, "already in your library")
             return
         if problems:
             self.state.upsert_folder(rel, status="attention", error="; ".join(problems))
+            if wanted:
+                acquire.inbox_imported(self.state, wanted, False, "; ".join(problems))
             return
         if not imported:
             self.state.upsert_folder(rel, status="ready", error="Nothing was imported")
+            if wanted:
+                acquire.inbox_imported(self.state, wanted, False, "nothing was imported")
             return
+        if wanted:
+            acquire.inbox_imported(self.state, wanted, True)
         if path.exists() and self.settings.delete_after_import:
             ctx.log(f"Deleting source folder {path}")
             shutil.rmtree(path, ignore_errors=True)
@@ -435,6 +479,17 @@ def auto_import_blocker(tasks: list[dict], library: list[dict], threshold: float
             return f"{name} is missing {len(c['extra_tracks'])} track(s)"
         if c.get("extra_items"):
             return f"{name} has {len(c['extra_items'])} file(s) that match no track"
+    return ""
+
+
+def _not_the_release(tasks: list[dict], ids: list[str]) -> str:
+    """Why a requested folder must wait: its best match is another release than the one asked for."""
+    if not ids:
+        return ""
+    for t in tasks:
+        best = t["candidates"][0] if t["candidates"] else None
+        if best and str(best["id"]) not in ids:
+            return f"it matches {best.get('album') or 'another album'}, not the album asked for"
     return ""
 
 

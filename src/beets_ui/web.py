@@ -18,7 +18,7 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from markupsafe import Markup
 
-from . import __version__
+from . import __version__, acquire
 from .history import UNDOABLE
 from .lyrics import grouped, is_synced
 
@@ -100,6 +100,13 @@ templates.env.globals["version"] = __version__
 templates.env.globals["undoable"] = UNDOABLE
 templates.env.globals["synced"] = is_synced
 templates.env.globals["lyric_lines"] = grouped
+templates.env.globals["wanted_label"] = acquire.label
+# Release ids from one source with a request still under way (gaps page).
+templates.env.globals["open_ids"] = lambda wanted, source: [
+    w["release_id"]
+    for w in wanted.values()
+    if w["source"] == source and w["status"] not in ("cancelled", "failed")
+]
 
 
 def flash(request: Request, message: str, kind: str = "msg") -> None:

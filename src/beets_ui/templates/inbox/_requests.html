@@ -1,0 +1,35 @@
+{% from "partials/macros.html" import icon %}
+{# Albums you asked for (Get), until they are in the library. #}
+{% if requests %}
+<div class="section-head">
+  <h2>Requested</h2>
+  {% set waiting = requests|selectattr('status', 'in', ['choosing', 'review', 'failed'])|list|length %}
+  {% if waiting %}<span class="hint">{{ waiting }} need{{ 's' if waiting == 1 }} you</span>{% endif %}
+</div>
+<div class="table-container"><table class="table stack-sm">
+  <thead><tr><th class="table-head">Album</th><th class="table-head">State</th><th class="table-head"><span class="sr-only">Progress</span></th><th class="table-head num"><span class="sr-only">Actions</span></th></tr></thead>
+  <tbody>
+  {% for w in requests %}
+  <tr class="table-row">
+    <td class="table-cell col-main">
+      <a class="strong" href="/wanted/{{ w.id }}"{{ w.album|lang }}>{{ w.album }}</a>
+      <p class="hint"><span{{ w.artist|lang }}>{{ w.artist }}</span>{% if w.kind == 'upgrade' %} · better copy{% endif %}</p>
+    </td>
+    <td class="table-cell">{% include "wanted/_chip.html" %}{% if w.status_text and w.status_text != wanted_label(w)[1] %}<p class="hint">{{ w.status_text }}</p>{% endif %}</td>
+    <td class="table-cell nowrap">{% if w.progress is not none %}<span class="match"><span class="mono">{{ w.progress }}%</span><progress class="progress" value="{{ w.progress }}" max="100" aria-label="{{ w.album }} progress"></progress></span>{% endif %}</td>
+    <td class="table-cell num col-actions">
+      {% if w.status == 'choosing' %}<a class="btn" data-variant="outline" data-size="sm" href="/wanted/{{ w.id }}">Choose a copy</a>
+      {% elif w.status == 'review' and w.folder %}<a class="btn" data-variant="outline" data-size="sm" href="/inbox/folder?f={{ w.folder|q }}">Review</a>
+      {% elif w.status == 'failed' %}<form class="inline" method="post" action="/wanted/{{ w.id }}/retry" hx-post="/wanted/{{ w.id }}/retry" hx-swap="none"><button class="btn" data-variant="outline" data-size="sm">Try again</button></form>
+      {% endif %}
+      {% if w.status in ('queued', 'searching', 'choosing', 'downloading') %}
+      <form class="inline" method="post" action="/wanted/{{ w.id }}/cancel" hx-post="/wanted/{{ w.id }}/cancel" hx-swap="none" data-confirm="Stop getting {{ w.album }}?{% if w.status == 'downloading' %} Its download stops too.{% endif %}" data-confirm-button="Stop getting it"><button class="btn" data-variant="ghost" data-size="sm">Cancel</button></form>
+      {% elif w.status == 'failed' %}
+      <form class="inline" method="post" action="/wanted/{{ w.id }}/remove" hx-post="/wanted/{{ w.id }}/remove" hx-target="closest tr" hx-swap="delete"><button class="btn" data-variant="ghost" data-size="icon-sm" aria-label="Remove {{ w.album }} from the list" title="Remove from the list">{{ icon('x') }}</button></form>
+      {% endif %}
+    </td>
+  </tr>
+  {% endfor %}
+  </tbody>
+</table></div>
+{% endif %}

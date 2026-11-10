@@ -20,8 +20,8 @@ A small, self-hosted web frontend for [beets](https://beets.io). It runs in one 
   - **Fill automatically** works through every artist on its own. A picture found through the MusicBrainz ID is used straight away. A name search is used when exactly one artist has that spelling. Shared names (e.g. "since") are left for you under *needs review*.
   - Albums whose art is only embedded in the files show as *embedded only*, and the fill job can extract that art to a cover file.
 - **Insights.**
-  - *Discography gaps:* releases by your artists and circles that the library doesn't have, from VocaDB, TouhouDB, UtaiteDB or MusicBrainz, with a search for each.
-  - *Upgrades:* lossy, low-bitrate, incomplete and mixed-format albums.
+  - *Discography gaps:* releases by your artists and circles that the library doesn't have, from VocaDB, TouhouDB, UtaiteDB or MusicBrainz. **Get** one, or all of an artist's, and beets-ui finds, downloads and imports them for you.
+  - *Upgrades:* lossy, low-bitrate, incomplete and mixed-format albums. **Get a better copy** replaces one.
   - *Listening:* never played, not played in a year and most played, from Jellyfin's play counts.
   - *Synced lyrics:* from LRCLIB, with romaji under Japanese lines.
 - **Find music.** Search for albums and download them into the inbox, which shows them while they come in and then for review. Download whole folders or choose the files, retry failed ones, and get a pop-up when one finishes. Downloads come from a *download source*; today that is Soulseek, through your existing [slskd](https://github.com/slskd/slskd), and pages don't depend on which source it is.
@@ -94,6 +94,7 @@ The container user (`user:`) must be able to read the inbox and write to `/music
 | `BEETSUI_SCAN_INTERVAL` | `30` | Seconds between inbox scans. |
 | `BEETSUI_DEBOUNCE` | `30` | A folder must be unchanged this many seconds before it is looked up. This avoids looking up half-finished downloads. |
 | `BEETSUI_DELETE_AFTER_IMPORT` | `false` | Delete the inbox folder after a successful import (beets copies by default). |
+| `BEETSUI_GET_AUTO_IMPORT` | `90` | An album you asked for with **Get** imports on its own when it matches the release you asked for at least this %, with no missing tracks or unmatched files. `0` makes every one wait for review. |
 | `BEETSUI_AUTO_IMPORT` | `0` (off) | Import an automatically looked-up folder without review when every album in it matches at least this % (e.g. `95`), has no missing tracks or unmatched files, and nothing in it is already in the library. Duplicates beets finds still wait for you. |
 | `BEETSUI_ROMANIZE` | `false` | Import VocaDB/UtaiteDB/TouhouDB/MusicBrainz matches with romanized names and keep the originals alongside. See *Romanized names* below. |
 | `BEETSUI_THEME` | `auto` | Color theme: `auto` (follows the browser's light or dark setting), `light` or `dark`. The old theme names (`graphite`, `slate`, `mahogany`, `phosphor`) still work and mean `dark`. |
@@ -157,6 +158,17 @@ Search from **Inbox → Find music**. Results are grouped into one row per folde
 - When a download finishes or fails, a pop-up says so on whatever page you're on. The **Inbox** link in the sidebar gets a dot when the source can't be reached or isn't connected, and the inbox offers **Reconnect**.
 
 **Find music** on an inbox folder fills in the search from its tags, and Insights links to searches for missing and upgradeable albums. Old `/soulseek` links redirect to the new places.
+
+#### Get
+
+**Get** (on a missing release in *Discography gaps*, **Get all missing** for an artist, or **Get a better copy** in *Upgrades*) does the searching for you:
+
+1. It looks up the release's tracklist (VocaDB, TouhouDB, UtaiteDB or MusicBrainz; an upgrade uses the album's own tracks), then searches with the romanized names, then with the names as written. Two requests search at a time.
+2. It scores every folder found: the album's name in the path, the expected number of tracks and their total length, lossless first, then 320 kbps, free upload slots and short queues. A folder is only taken without asking when the name and the tracks fit (and, for an upgrade, when it beats the copy you have). It downloads the whole folder, after checking its full listing.
+3. If a download fails it moves on to the next good copy (up to three). If no copy is clearly right, the request asks you to **choose a copy** from the ones found.
+4. When the download is in, the folder is looked up by the exact release you asked for and imported on its own when it matches (`BEETSUI_GET_AUTO_IMPORT`, 90% by default). Otherwise it waits in the inbox for review like any other folder. An upgrade replaces the album it was asked for.
+
+Requests show at the top of the inbox under **Requested**, with their state and progress, and a pop-up says when one is in your library, needs you, or failed. Nothing watches for new releases: that is what [Lidarr](https://lidarr.audio) is for.
 
 beets-ui checks slskd every 5 seconds in the background. Uploads, shares, rooms and chat stay in slskd's own web UI.
 
