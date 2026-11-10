@@ -333,29 +333,29 @@ def test_library_next_page_is_a_fragment(client, env, monkeypatch):
 
 
 def test_review_queue_moves_to_the_next_folder(app, client, env):
-    for name in ("a", "b"):
+    for name in ("a", "b", "c"):
         make_album(env["inbox"] / name, album=f"Album {name}")
     client.post("/inbox/scan")
-    for name in ("a", "b"):
+    for name in ("a", "b", "c"):
         client.post("/inbox/folder/preview", data={"f": name})
     run_jobs(app)
-    page = client.get("/inbox").text
-    assert "Review 2 folders" in page
+    assert "Review 3 folders" in client.get("/inbox").text
     page = client.get("/inbox/folder?f=a").text
-    assert '1</span> of <span class="mono">2</span> to review' in page
+    assert '1</span> of <span class="mono">3</span> to review' in page
     assert 'id="queue-next" href="/inbox/folder?f=b"' in page and "Import and next" in page
+
+    def imp(f, nxt):
+        data = {"f": f, "choice-0": "c:0"} | ({"next": "1"} if nxt else {})
+        return client.post("/inbox/folder/import", data=data, follow_redirects=False)
+
     # "Import and next" queues the import and opens the next folder.
-    r = client.post(
-        "/inbox/folder/import",
-        data={"f": "a", "choice-0": "c:0", "next": "1"},
-        follow_redirects=False,
-    )
-    assert r.headers["location"] == "/inbox/folder?f=b"
+    assert imp("a", True).headers["location"] == "/inbox/folder?f=b"
     # Plain Import stays on the folder.
-    r = client.post(
-        "/inbox/folder/import", data={"f": "b", "choice-0": "c:0"}, follow_redirects=False
-    )
-    assert r.headers["location"] == "/inbox/folder?f=b"
+    assert imp("c", False).headers["location"] == "/inbox/folder?f=c"
+    # The last folder offers "Import and finish": back to the inbox with a summary.
+    assert "Import and finish" in client.get("/inbox/folder?f=b").text
+    assert imp("b", True).headers["location"] == "/inbox"
+    assert "2 folders imported in this session" in client.get("/inbox").text
 
 
 def test_inbox_table_answers_204_when_unchanged(app, client, env):

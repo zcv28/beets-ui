@@ -406,3 +406,78 @@
     .input { min-height: 2.75rem; }
   }
 }
+
+/* ======================================================= lists, ends and phone */
+@layer app {
+  /* Number columns take only the room their numbers need. */
+  :is(.table-head, .table-cell).num { width: 1%; }
+
+  /* Quiet destructive controls: a grey icon that turns red on hover, and red menu items. */
+  .btn[data-variant="ghost"][data-tone="destructive"] { color: var(--muted-foreground); }
+  .btn[data-variant="ghost"][data-tone="destructive"]:hover { color: var(--destructive); }
+  .menu-item[data-tone="destructive"] { color: var(--destructive); }
+  .menu-item[data-tone="destructive"]:hover, .menu-item[data-tone="destructive"]:focus-visible {
+    background: color-mix(in oklch, var(--destructive) 8%, transparent); color: var(--destructive);
+  }
+  .menu-content .separator { margin: 0.25rem 0; }
+
+  /* The inbox when nothing waits: a calm line, not an alert. */
+  .caught-up { gap: 0.5rem; color: var(--muted-foreground); }
+  .caught-up .icon { color: var(--success); }
+  .toolbar-actions { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+
+  /* Discography gaps: one list, one row per artist, numbers in columns. */
+  .gap-list { margin: 1rem 0; border: 1px solid var(--border); border-radius: var(--radius-xl); background: var(--card); overflow: hidden; }
+  .gap-head, .gap > summary {
+    display: grid; grid-template-columns: 1rem minmax(0, 1fr) 4.5rem 10rem 8rem;
+    align-items: baseline; gap: 0.25rem 1rem; padding: 0.5rem 1rem;
+  }
+  .gap-head { border-bottom: 1px solid var(--border); background: var(--muted); color: var(--foreground); font-size: 0.8125rem; font-weight: 500; }
+  .gap-head a { color: var(--foreground); text-decoration: none; }
+  .gap-head a:hover { text-decoration: underline; }
+  .gap-head a { display: inline-flex; align-items: center; gap: 0.25rem; }
+  .sort-icon { width: 0.875rem; height: 0.875rem; rotate: 90deg; color: var(--muted-foreground); }
+  .gap + .gap { border-top: 1px solid var(--border); }
+  .gap > summary { list-style: none; cursor: pointer; }
+  .gap > summary::-webkit-details-marker { display: none; }
+  .gap > summary:hover { background: var(--muted); }
+  .gap > summary:focus-visible { outline-offset: -2px; }
+  .gap-chevron { align-self: center; width: 1rem; height: 1rem; color: var(--muted-foreground); transition: rotate 150ms ease; }
+  .gap[open] > summary .gap-chevron { rotate: 90deg; }
+  .gap-artist { margin: 0; min-width: 0; font-size: 0.875rem; font-weight: 500; line-height: 1.5; letter-spacing: 0; }
+  .gap-artist .original { display: inline; margin-left: 0.5rem; }
+  .gap-owned { font-family: var(--font-mono); font-size: 0.8125rem; font-variant-numeric: tabular-nums; text-align: right; }
+  .gap-missing, .gap-source { font-size: 0.8125rem; }
+  .gap[open] > summary { border-bottom: 1px solid var(--border); }
+  .gap > .box-body { padding: 1rem 1rem 0.5rem 3rem; background: var(--background); }
+
+  @media (max-width: 767px) {
+    .gap-head { display: none; }
+    .gap > summary { grid-template-columns: 1rem minmax(0, 1fr) auto; }
+    .gap-artist { grid-column: 2 / -1; }
+    .gap-owned { grid-column: 2; grid-row: 2; text-align: left; }
+    .gap-missing { grid-column: 3; grid-row: 2; justify-self: end; }
+    .gap-source { display: none; }
+    .gap > .box-body { padding: 0.75rem 1rem 0.5rem; }
+
+    /* Sticky import bar: the primary action first and full width, under the summary. */
+    .sticky-bar { gap: 0.5rem; }
+    .sticky-bar > .spacer { display: none; }
+    .sticky-bar > #decided { flex-basis: 100%; }
+    .sticky-bar > .btn { flex: 1 1 0; }
+    .sticky-bar > #import-next { order: 1; flex: 2 1 0; }
+    .sticky-bar > .btn[data-variant="outline"] { order: 2; }
+
+    /* Tabs fit the phone width instead of clipping the last one. */
+    .tab-list[data-variant="line"] .tab-trigger { padding: 0.5rem 0.625rem; }
+
+    .toolbar > .spacer { display: none; }
+    .toolbar-actions { width: 100%; }
+  }
+}
+
+@layer app {
+  .tab-list[data-overflow="end"] { mask-image: linear-gradient(to right, #000 calc(100% - 2.5rem), transparent); }
+  .tab-list[data-overflow="start"] { mask-image: linear-gradient(to left, #000 calc(100% - 2.5rem), transparent); }
+  .tab-list[data-overflow="both"] { mask-image: linear-gradient(to right, transparent, #000 2.5rem, #000 calc(100% - 2.5rem), transparent); }
+}

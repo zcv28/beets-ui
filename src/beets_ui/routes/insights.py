@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from fastapi import APIRouter, Form, Query, Request
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, Response
 
 from .. import beets_ctx, discography, listening, lyrics, upgrades
 from ..web import flash, redirect, render, user
@@ -28,7 +28,12 @@ def index():
 
 
 @router.get("/gaps")
-def gaps_page(request: Request, kinds: list[str] = Query(default=[]), show: str = "gaps"):
+def gaps_page(
+    request: Request,
+    kinds: list[str] = Query(default=[]),
+    show: str = "gaps",
+    sort: str = "missing",
+):
     picked = tuple(k for k in (kinds or discography.DEFAULT_KINDS) if k in discography.KINDS)
     picked = picked or discography.DEFAULT_KINDS
     rows = discography.gaps(beets_ctx.lib(), request.app.state.state, picked)
@@ -39,7 +44,11 @@ def gaps_page(request: Request, kinds: list[str] = Query(default=[]), show: str 
         shown = [r for r in looked if not r["missing"]]
     else:
         shown = rows
-    jobs = request.app.state.state.jobs(5, kind="discography")
+    sort = sort if sort in ("missing", "name") else "missing"
+    shown = sorted(shown, key=lambda r: r["artist"].lower())
+    if sort == "missing":
+        # Most missing first; artists not looked up yet go last.
+        shown.sort(key=lambda r: (not r["looked_up"], -len(r["missing"])))
     return render(
         request,
         "insights/gaps.html",
@@ -51,8 +60,22 @@ def gaps_page(request: Request, kinds: list[str] = Query(default=[]), show: str 
         kinds=discography.KINDS,
         picked=picked,
         show=show,
-        busy=any(j["status"] in ("queued", "running") for j in jobs),
+        sort=sort,
+        busy=_gaps_busy(request),
     )
+
+
+def _gaps_busy(request: Request) -> bool:
+    jobs = request.app.state.state.jobs(5, kind="discography")
+    return any(j["status"] in ("queued", "running") for j in jobs)
+
+
+@router.get("/gaps/busy")
+def gaps_busy(request: Request):
+    """Polled while a lookup runs: 204 until it is done, then the page reloads itself."""
+    if _gaps_busy(request):
+        return Response(status_code=204)
+    return Response(headers={"HX-Refresh": "true"})
 
 
 @router.post("/gaps/refresh")

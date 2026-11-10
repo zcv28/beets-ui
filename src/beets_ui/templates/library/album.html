@@ -35,6 +35,9 @@
           </form>
           {% if romanizable %}<form method="post" action="/library/album/{{ album.id }}/romanize"><button class="menu-item">Romanize names<span class="hint">from {{ album.get('data_source') }}</span></button></form>{% endif %}
           <a class="menu-item" href="/console?cmd={{ ('import -L -q album_id:' ~ album.id)|q }}">Re-tag in the console…<span class="mono hint">beet import -L</span></a>
+          <hr class="separator" role="none">
+          <form method="post" action="/library/album/{{ album.id }}/remove" data-confirm="Remove {{ album.album }} from the library? Its files stay on disk." data-confirm-button="Remove album"><button class="menu-item" data-tone="destructive">Remove from library…<span class="hint">Files stay on disk</span></button></form>
+          <form method="post" action="/library/album/{{ album.id }}/remove" data-confirm="Remove {{ album.album }} and delete its files from disk? This cannot be undone." data-confirm-button="Delete album and files"><input type="hidden" name="delete" value="1"><button class="menu-item" data-tone="destructive">Delete album and files…<span class="hint">Removes the files from disk</span></button></form>
         </div>
       </details>
     </div>
@@ -66,14 +69,4 @@
 </form>
 </details>
 
-<details class="box">
-<summary>Remove album</summary>
-<form method="post" action="/library/album/{{ album.id }}/remove" class="box-body" data-confirm="Remove the album from the library? Its files stay on disk." data-confirm-checked="delete" data-confirm-alt="Remove the album and delete its files from disk? This cannot be undone." data-confirm-button="Remove album" data-confirm-alt-button="Remove album and files">
-  <div class="bar">
-    <label class="checkbox-item"><input class="checkbox" type="checkbox" name="delete" value="1">Also delete the files from disk</label>
-    <span class="spacer"></span>
-    <button class="btn" data-variant="outline" data-tone="destructive" data-size="sm" data-label-alt="Remove album and files">Remove album</button>
-  </div>
-</form>
-</details>
 {% endblock %}

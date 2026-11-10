@@ -6,6 +6,8 @@
 <p class="lead">Review folder: <code>{{ settings.inbox }}</code>. Each sub-folder is looked up{% if settings.auto_preview %} automatically once it has been unchanged for {{ settings.debounce }}s{% endif %} and waits for you to review it.{% if settings.auto_import %} Folders where every album matches {{ settings.auto_import }}% or better, with no missing tracks and nothing already in the library, are imported without review.{% endif %}</p>
 {% if to_review.next %}
 <div class="bar"><a class="btn" href="/inbox/folder?f={{ to_review.next|q }}">Review {{ to_review.total }} folder{{ 's' if to_review.total != 1 }}{{ icon('arrow-right') }}</a></div>
+{% elif folders %}
+<p class="bar caught-up">{{ icon('check') }}Nothing is waiting for review.</p>
 {% endif %}
 <div class="toolbar">
   <nav class="toggles" aria-label="Inbox filters">
@@ -14,6 +16,7 @@
     {% if imported %}<a class="toggle" data-variant="outline" href="/inbox?status=inlib" {% if status == 'inlib' %}aria-current="page"{% endif %}>In library · {{ imported }}</a>{% endif %}
   </nav>
   <span class="spacer"></span>
+  <div class="toolbar-actions">
   <form class="inline" method="post" action="/inbox/preview-all"><button class="btn" data-variant="outline" data-size="sm">Look up new</button></form>
   <form class="inline" method="post" action="/inbox/scan"><button class="btn" data-variant="outline" data-size="sm">Rescan</button></form>
   {% if imported %}
@@ -21,6 +24,7 @@
     <button class="btn" data-variant="outline" data-tone="destructive" data-size="sm">Delete imported ({{ imported }})</button>
   </form>
   {% endif %}
+  </div>
 </div>
 {% include "inbox/_table.html" %}
 {% endblock %}

@@ -13,7 +13,7 @@
     <option value="all" {% if filter == 'all' %}selected{% endif %}>All albums</option>
   </select>
   <div class="input-group grow">{{ icon('search') }}<input class="input" data-mono type="search" name="q" value="{{ q }}" placeholder="Beets query" aria-label="Beets query"></div>
-  <button class="btn" data-variant="outline">Filter</button>
+  <button class="btn" data-variant="outline">Search</button>
 </form>
 <details class="box">
   <summary>Fill automatically <span class="hint">Uses the first match from the sources, in order</span></summary>
@@ -36,7 +36,7 @@
     <span class="tile-sub">{{ a.albumartist }}</span>
     {% set px = (st.size[0] ~ 'px') if st.size else ('?px' if st.has else '') %}
     {% set label = (('Embedded ' if st.embedded and not st.has else '') ~ px)|trim %}
-    <span class="tile-sub">{% if not (st.has or st.embedded) %}<span class="status" data-status="warning">No cover</span>{% elif st.low %}<span class="status" data-status="warning">{{ label }} · Low</span>{% else %}{{ label }}{% endif %}</span>
+    <span class="tile-sub">{% if not (st.has or st.embedded) %}{% if filter != 'missing' %}<span class="status" data-status="warning">No cover</span>{% endif %}{% elif st.low %}<span class="status" data-status="warning">{{ label }} · Low</span>{% else %}{{ label }}{% endif %}</span>
   </a>
   {% else %}<div class="grid-all">{% call empty() %}Nothing to do here{% if filter != 'all' %}: every {{ 'album' if tab == 'covers' else 'artist' }} passes this filter{% endif %}.{% endcall %}</div>{% endfor %}
 </div>

@@ -366,3 +366,14 @@ def test_align_skips_lines_the_human_romaji_lacks():
         None,
         "meruto tokete shimaisou",
     ]
+
+
+def test_gaps_busy_poll_and_sort_links(app, client):
+    # Nothing running: the poll tells htmx to reload the page.
+    r = client.get("/insights/gaps/busy")
+    assert r.headers.get("HX-Refresh") == "true"
+    app.state.state.create_job("discography", "Look up discographies", {})
+    assert client.get("/insights/gaps/busy").status_code == 204
+    page = client.get("/insights/gaps?sort=name").text
+    balanced(page)
+    assert 'hx-get="/insights/gaps/busy"' in page

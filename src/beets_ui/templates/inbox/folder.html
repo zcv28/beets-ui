@@ -137,7 +137,7 @@
 {% set changed = c.tracks|selectattr('title_changed')|list|length %}
 <div class="diff" id="diff-{{ ti }}-{{ task.candidates.index(c) }}" {% if not chosen %}hidden{% endif %}>
   <h3>Track changes <span class="hint">{{ c.artist }} – {{ c.album }}, {{ c.source }}</span></h3>
-  <p class="bar tight"><span class="status"{% if changed %} data-status="warning"{% endif %}>{{ changed }} changed</span><span class="status">{{ c.tracks|length - changed }} unchanged</span></p>
+  <p class="bar tight">{% if changed %}<span class="status" data-status="warning">{{ changed }} changed</span>{% else %}<span class="hint">No title changes</span>{% endif %}<span class="hint">{{ c.tracks|length - changed }} unchanged</span></p>
   <div class="table-container" data-density="compact">
     <table class="table">
       <thead><tr><th class="table-head num">#</th><th class="table-head">Current tags</th><th class="table-head">New title</th><th class="table-head hide-sm">Change</th><th class="table-head num">Length</th><th class="table-head pick"><span class="sr-only">Play</span></th></tr></thead>
@@ -174,9 +174,9 @@
   <span id="decided" class="strong" data-tasks="{{ folder.tasks|length }}"></span>
   <span class="hint hide-sm keys"><span><kbd>j</kbd> <kbd>k</kbd> move</span> <span><kbd>x</kbd> choose</span> <span><kbd>o</kbd> files</span> <span><kbd>p</kbd> play</span> <span><kbd>i</kbd> import</span>{% if queue.next %} <span><kbd>n</kbd> next folder</span>{% endif %}</span>
   <span class="spacer"></span>
-  {% if queue.next %}
+  {% if queue.next or queue.pos %}
   <button class="btn" data-variant="outline" name="next" value="" {% if busy %}disabled{% endif %}>Import</button>
-  <button class="btn" name="next" value="1" id="import-next" {% if busy %}disabled{% endif %}>Import and next</button>
+  <button class="btn" name="next" value="1" id="import-next" {% if busy %}disabled{% endif %}>{{ 'Import and next' if queue.next else 'Import and finish' }}</button>
   {% else %}
   <button class="btn" {% if busy %}disabled{% endif %}>Import</button>
   {% endif %}

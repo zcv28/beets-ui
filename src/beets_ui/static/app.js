@@ -326,3 +326,28 @@ document.addEventListener("click", (e) => {
     if (!m.contains(e.target)) m.open = false;
   }
 });
+
+// -------------------------------------------------------- auto-applied filters
+// Forms with data-autosubmit apply as soon as a checkbox or select changes.
+document.addEventListener("change", (e) => {
+  const form = e.target.form;
+  if (form && form.hasAttribute("data-autosubmit") && e.target.matches("select, input[type=checkbox], input[type=radio]")) {
+    form.requestSubmit();
+  }
+});
+
+// ------------------------------------------------------- tabs that overflow
+// A tab row too wide for the screen scrolls; a fade marks the side with more tabs,
+// and the current tab is kept in view.
+for (const list of document.querySelectorAll(".tab-list")) {
+  const update = () => {
+    const max = list.scrollWidth - list.clientWidth;
+    const x = list.scrollLeft;
+    list.dataset.overflow = max <= 1 ? "" : x < 2 ? "end" : x >= max - 2 ? "start" : "both";
+  };
+  const current = list.querySelector('[aria-current="page"]');
+  if (current) list.scrollLeft = current.offsetLeft + current.offsetWidth - list.clientWidth + 24;
+  list.addEventListener("scroll", update, { passive: true });
+  window.addEventListener("resize", update);
+  update();
+}
