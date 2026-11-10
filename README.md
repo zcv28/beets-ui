@@ -96,6 +96,7 @@ The container user (`user:`) must be able to read the inbox and write to `/music
 | `BEETSUI_SCAN_INTERVAL` | `30` | Seconds between inbox scans. |
 | `BEETSUI_DEBOUNCE` | `30` | A folder must be unchanged this many seconds before it is looked up. This avoids looking up half-finished downloads. |
 | `BEETSUI_DELETE_AFTER_IMPORT` | `false` | Delete the inbox folder after a successful import (beets copies by default). |
+| `BEETSUI_STALL_MINUTES` | `15` | A download that gets no bytes and doesn't move up the uploader's queue for this many minutes is given up on, and another uploader is tried. `0` waits forever. |
 | `BEETSUI_GET_AUTO_IMPORT` | `90` | An album you asked for with **Get** imports on its own when it matches the release you asked for at least this %, with no missing tracks or unmatched files. `0` makes every one wait for review. |
 | `BEETSUI_AUTO_IMPORT` | `0` (off) | Import an automatically looked-up folder without review when every album in it matches at least this % (e.g. `95`), has no missing tracks or unmatched files, and nothing in it is already in the library. Duplicates beets finds still wait for you. |
 | `BEETSUI_ROMANIZE` | `false` | Import VocaDB/UtaiteDB/TouhouDB/MusicBrainz matches with romanized names and keep the originals alongside. See *Romanized names* below. |
@@ -157,6 +158,7 @@ Search from **Get → Find**. Results are grouped into one row per folder and wh
 - **Open a folder** to see every file in it, untick what you don't want, and download the rest.
 - **Options** under the search box set how long to wait for answers and skip uploaders with a long queue or a slow connection. They stay set for later searches. A running search can be stopped.
 - **Downloading**, under **Get → Coming in**, shows progress, speed and your place in the uploader's queue. Failed files can be retried, and failed rows removed. A finished download becomes an ordinary inbox folder.
+- A download from **Find** that the uploader rejects, or that doesn't move for `BEETSUI_STALL_MINUTES`, switches by itself to **the same folder** (same name, same number of tracks) from another uploader in that search, fetching only the tracks still missing. When nobody else has it, the download says so. **Try another copy** does the same at any time, or opens the search results to choose a different copy.
 - When a download finishes or fails, a pop-up says so on whatever page you're on. The **Get** link in the sidebar gets a dot when the source can't be reached or isn't connected, Home lists it under *Needs you*, and the Get pages offer **Reconnect**.
 
 **Find music** on an inbox folder fills in the search from its tags, and *Missing* and *Upgrades* link to searches for their albums. Old `/soulseek`, `/inbox/find` and `/insights/gaps` links redirect to the new places.
@@ -167,7 +169,7 @@ Search from **Get → Find**. Results are grouped into one row per folder and wh
 
 1. It looks up the release's tracklist (VocaDB, TouhouDB, UtaiteDB or MusicBrainz; an upgrade uses the album's own tracks), then searches with the romanized names, then with the names as written. Two requests search at a time.
 2. It scores every folder found: the album's name in the path, the expected number of tracks and their total length, lossless first, then 320 kbps, free upload slots and short queues. A folder is only taken without asking when the name and the tracks fit (and, for an upgrade, when it beats the copy you have). It downloads the whole folder, after checking its full listing.
-3. If a download fails it moves on to the next good copy (up to three). If no copy is clearly right, the request asks you to **choose a copy** from the ones found.
+3. If a download fails, the uploader rejects it, or nothing moves for `BEETSUI_STALL_MINUTES` (15 by default: no bytes, and no move up the uploader's queue), it cancels that download and moves on to the next good copy from another uploader. Once every good copy has been tried, it searches once more, skipping the uploaders that already failed. After three downloads, or if no copy is clearly right, the request asks you to **choose a copy**: copies already tried are marked. **Try another copy** on a downloading request gives up on its uploader at once.
 4. When the download is in, the folder is looked up by the exact release you asked for and imported on its own when it matches (`BEETSUI_GET_AUTO_IMPORT`, 90% by default). Otherwise it waits in the inbox for review like any other folder. An upgrade replaces the album it was asked for.
 
 Requests show at the top of the inbox under **Requested**, with their state and progress, and a pop-up says when one is in your library, needs you, or failed. Nothing watches for new releases: that is what [Lidarr](https://lidarr.audio) is for.

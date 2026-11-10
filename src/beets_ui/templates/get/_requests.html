@@ -22,6 +22,7 @@
       {% elif w.status == 'review' and w.folder %}<a class="btn" data-variant="outline" data-size="sm" href="/inbox/folder?f={{ w.folder|q }}">Review</a>
       {% elif w.status == 'failed' %}<form class="inline" method="post" action="/wanted/{{ w.id }}/retry" hx-post="/wanted/{{ w.id }}/retry" hx-swap="none"><button class="btn" data-variant="outline" data-size="sm">Try again</button></form>
       {% endif %}
+      {% if w.status == 'downloading' %}<form class="inline" method="post" action="/wanted/{{ w.id }}/skip" hx-post="/wanted/{{ w.id }}/skip" hx-swap="none"><button class="btn" data-variant="outline" data-size="sm" title="Stop downloading from {{ w.origin }} and try another uploader">Try another copy</button></form>{% endif %}
       {% if w.status in ('queued', 'searching', 'choosing', 'downloading') %}
       <form class="inline" method="post" action="/wanted/{{ w.id }}/cancel" hx-post="/wanted/{{ w.id }}/cancel" hx-swap="none" data-confirm="Stop getting {{ w.album }}?{% if w.status == 'downloading' %} Its download stops too.{% endif %}" data-confirm-button="Stop getting it"><button class="btn" data-variant="ghost" data-size="sm">Cancel</button></form>
       {% elif w.status == 'failed' %}

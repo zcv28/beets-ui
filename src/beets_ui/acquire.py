@@ -27,7 +27,7 @@ from collections import Counter
 from typing import Any
 
 from . import beets_ctx, discography
-from .rank import audio_count, rank
+from .rank import audio_count, for_search, rank
 from .sources import Source, SourceError
 from .state import State
 
@@ -51,7 +51,8 @@ DRIVEN = ("queued", "searching", "downloading", "arrived")
 OPEN = (*DRIVEN, "choosing", "lookup", "importing", "review", "failed")
 NEEDS_YOU = ("choosing", "review", "failed")
 MAX_SEARCHES = 2
-MAX_ATTEMPTS = 3
+MAX_ATTEMPTS = 3  # downloads started for one request before it asks you
+MAX_RESEARCH = 1  # searches started again once every copy found has been tried
 SEARCH_WAIT = 30  # seconds a request's search waits for answers
 # A finished download whose folder never shows up in the inbox gives up after this.
 ARRIVAL_TIMEOUT = 600
@@ -225,8 +226,11 @@ class Acquirer:
         inbox_folder_exists=None,
         transfers=None,
         on_arrival=None,
+        discard_folder=None,
+        inbox_files=None,
         client_factory=discography.Client,
         interval: float = 5,
+        stall_minutes: float = 15,
     ):
         self.state = state
         self.source = source
@@ -236,6 +240,12 @@ class Acquirer:
         self.transfers = transfers or source.transfers
         # Called with the folder name when a download has arrived: the inbox looks it up.
         self.on_arrival = on_arrival or (lambda name: None)
+        # Called with the inbox folder of a copy that was given up on part way.
+        self.discard_folder = discard_folder or (lambda name: None)
+        # File names already in an inbox folder (a fallback copy only fetches the rest).
+        self.inbox_files = inbox_files or (lambda name: set())
+        # A download with no progress for this long is given up on (0: never).
+        self.stall_after = stall_minutes * 60
         self.client_factory = client_factory
         self.interval = interval
         self._client: discography.Client | None = None
@@ -259,12 +269,30 @@ class Acquirer:
             if row and row["status"] not in ("queued", "previewing", "importing"):
                 inbox.queue_preview(name, auto=True, **inbox._wanted_search(row))
 
+        def discard(name: str) -> None:
+            """The part of an abandoned copy that reached the inbox, unless it is in use."""
+            row = state.folder(name)
+            if row and row["status"] not in ("queued", "previewing", "importing", "imported"):
+                try:
+                    inbox.delete_source(name)
+                except OSError as e:
+                    log.warning("could not remove the partial download %s: %s", name, e)
+
+        def files_in(name: str) -> set[str]:
+            folder = settings.inbox / name
+            if not name or not folder.is_dir():
+                return set()
+            return {p.name.casefold() for p in folder.rglob("*") if p.is_file()}
+
         return cls(
             state,
             source,
             inbox_folder_exists=folder_ready,
+            inbox_files=files_in,
             transfers=lambda: (watch.rows if watch else []) or source.transfers(),
             on_arrival=arrived,
+            discard_folder=discard,
+            stall_minutes=settings.stall_minutes,
         )
 
     # --------------------------------------------------------------- helpers
@@ -308,6 +336,125 @@ class Acquirer:
                 except Exception as e:  # a bug must not stop the other requests
                     log.exception("request %s", w["id"])
                     self._set(w, "failed", "Something went wrong", error=str(e))
+            try:
+                self._watch_fetches()
+            except SourceError as e:
+                log.info("watching downloads: %s", e)
+            except Exception:
+                log.exception("watching downloads")
+
+    # ------------------------------------------------ downloads from Find
+
+    def _watch_fetches(self) -> None:
+        """Downloads started by hand: switch to the same folder from someone else when the
+        uploader rejects it or stalls; otherwise mark it stuck for you to choose."""
+        fetches = self.state.meta(FETCHES_KEY) or {}
+        if not fetches:
+            return
+        rows = {f"{r['origin']}|{r['folder']}": r for r in self.transfers()}
+        requested = {f"{w['origin']}|{w['remote_folder']}" for w in self.state.wanted_list(DRIVEN)}
+        now = time.time()
+        changed = False
+        for key, f in list(fetches.items()):
+            row = rows.get(key)
+            if row is None or row["state"] in ("done", "cancelled") or key in requested:
+                # Finished, cleared or cancelled by you: forget it after a while.
+                if now - f.get("at", now) > FETCH_KEEP:
+                    del fetches[key]
+                    changed = True
+                continue
+            if f.get("stuck"):
+                continue
+            if row["state"] == "failed":
+                label = row["label"][:1].lower() + row["label"][1:]
+                reason = f"{label} from {row['origin']}"
+            elif moved(row, f.get("progress_bytes", 0), f.get("progress_place")):
+                f.update(
+                    progress_bytes=row.get("transferred", 0),
+                    progress_place=row.get("place"),
+                    progress_at=now,
+                )
+                changed = True
+                continue
+            else:
+                reason = self.giving_up(row, f.get("progress_at"))
+            if not reason:
+                if row.get("place") is not None and f.get("progress_place") is None:
+                    f["progress_place"] = row["place"]
+                    changed = True
+                continue
+            new_key = self._switch(f, row, reason)
+            if new_key:
+                fetches[new_key] = fetches.pop(key)
+            changed = True
+        if changed:
+            self.state.set_meta(FETCHES_KEY, fetches)
+
+    def another(self, origin: str, folder: str) -> tuple[str, dict[str, Any] | None]:
+        """You asked for another copy of a download from Find: (new key or "", its record)."""
+        with self._lock:
+            fetches = self.state.meta(FETCHES_KEY) or {}
+            key = f"{origin}|{folder}"
+            f = fetches.get(key)
+            row = next(
+                (r for r in self.transfers() if r["origin"] == origin and r["folder"] == folder),
+                None,
+            )
+            if f is None or row is None:
+                return "", f
+            new_key = self._switch(f, row, f"you skipped {origin}")
+            if new_key:
+                fetches[new_key] = fetches.pop(key)
+            self.state.set_meta(FETCHES_KEY, fetches)
+            return new_key, f
+
+    def _switch(self, f: dict[str, Any], row: dict[str, Any], reason: str) -> str:
+        """Fetch the rest of the same folder from another uploader. Its key, or "" if
+        nobody else has it (the download is then marked stuck)."""
+        tried = {*f.get("tried", []), f"{row['origin']}|{row['folder']}"}
+        tried_origins = {k.split("|", 1)[0] for k in tried}
+        offers = []
+        if f.get("search_id"):
+            try:
+                offers = self.source.offers(f["search_id"])
+            except SourceError:
+                offers = []
+        same = [
+            o
+            for o in offers
+            if o["origin"] not in tried_origins
+            and discography.norm(o["folder_name"]) == discography.norm(f["folder_name"])
+            and (not f.get("tracks") or int(o.get("tracks") or 0) == f["tracks"])
+        ]
+        for o in for_search(same, f.get("text", "")):
+            try:
+                files = self.source.listing(o["origin"], o["path"]) or o.get("files") or []
+            except SourceError:
+                files = o.get("files") or []
+            have = self.inbox_files(f["folder_name"])
+            rest = [x for x in files if file_name(x["filename"]).casefold() not in have]
+            if not rest:
+                continue
+            ids = [x["id"] for x in row.get("files") or [] if x.get("kind") in ("queued", "active")]
+            try:
+                if ids:
+                    self.source.cancel(row["origin"], ids, remove=True)
+                self.source.fetch(o["origin"], rest)
+            except SourceError as e:
+                log.info("switching %s: %s", f["folder_name"], e)
+                continue
+            f.update(
+                at=time.time(),
+                progress_bytes=0,
+                progress_at=time.time(),
+                tried=sorted(tried),
+                note=f"Switched to {o['origin']}: {reason}",
+                stuck="",
+            )
+            log.info("download %s: switched to %s (%s)", f["folder_name"], o["origin"], reason)
+            return f"{o['origin']}|{o['folder']}"
+        f.update(stuck=reason, tried=sorted(tried))
+        return ""
 
     def _run(self) -> None:
         while not self._stop.is_set():
@@ -362,10 +509,13 @@ class Acquirer:
         if info["running"]:
             return
         tried = set(w["tried"] or [])
+        # Uploaders already tried for this request let it down: skip their other folders too.
+        tried_origins = {k.split("|", 1)[0] for k in tried}
         picks = [
             p
             for p in rank(self.source.offers(w["search_id"]), w)
             if f"{p.offer['origin']}|{p.offer['folder']}" not in tried
+            and p.offer["origin"] not in tried_origins
         ]
         # Keep the best few for choosing by hand, whatever happens next.
         keep = [self._slim(p) for p in picks[:5]]
@@ -439,6 +589,8 @@ class Acquirer:
             folder=offer["folder_name"],
             tried=tried,
             attempts=w["attempts"] + 1,
+            progress_bytes=0,
+            progress_at=time.time(),
         )
         return True
 
@@ -470,29 +622,107 @@ class Acquirer:
             return
         if row["state"] == "done":
             self._set(w, "arrived", "Downloaded")
-        elif row["state"] in ("failed", "cancelled"):
-            self._next_offer(w, row["label"])
-        else:
-            pct = row["percent"]
-            text = (
-                f"Downloading, {pct:.0f}%"
-                if row["state"] == "downloading"
-                else "Queued at the uploader"
+            return
+        if row["state"] in ("failed", "cancelled"):
+            label = row["label"][:1].lower() + row["label"][1:]
+            self.abandon(w, row, f"{label} from {row['origin']}")
+            return
+        seen = (w["progress_bytes"] or 0, w["progress_place"])
+        if moved(row, *seen) or not w["progress_at"]:
+            self.state.update_wanted(
+                w["id"],
+                progress_bytes=row.get("transferred", 0),
+                progress_place=row.get("place"),
+                progress_at=time.time(),
             )
-            if row.get("place"):
-                text += f", place {row['place']}"
-            if text != w["status_text"]:
-                self.state.update_wanted(w["id"], status_text=text)
+        else:
+            reason = self.giving_up(row, w["progress_at"])
+            if reason:
+                self.abandon(w, row, reason)
+                return
+            if row.get("place") is not None and w["progress_place"] is None:
+                # The first place seen in the queue: a mark to measure from.
+                self.state.update_wanted(w["id"], progress_place=row["place"])
+        pct = row["percent"]
+        text = (
+            f"Downloading, {pct:.0f}%"
+            if row["state"] == "downloading"
+            else "Queued at the uploader"
+        )
+        if row.get("place"):
+            text += f", place {row['place']}"
+        if text != w["status_text"]:
+            self.state.update_wanted(w["id"], status_text=text)
+
+    def giving_up(self, row: dict[str, Any], since: float | None) -> str:
+        """Why to stop waiting on this uploader ("" to keep waiting), when nothing moved."""
+        files = row.get("files") or []
+        if any(f.get("failure") == "Rejected" for f in files) and not any(
+            f.get("kind") == "active" for f in files
+        ):
+            return f"{row['origin']} rejected it"
+        if self.stall_after and since:
+            idle = time.time() - since
+            if idle > self.stall_after:
+                minutes = round(idle / 60)
+                if row["state"] == "queued":
+                    return f"still queued at {row['origin']} after {minutes} minutes"
+                return f"no progress from {row['origin']} for {minutes} minutes"
+        return ""
+
+    def abandon(self, w: dict[str, Any], row: dict[str, Any] | None, reason: str) -> None:
+        """Stop this copy (at the uploader, and what reached the inbox), then try another."""
+        if row is not None:
+            ids = [f["id"] for f in row.get("files") or [] if f.get("kind") in ("queued", "active")]
+            try:
+                if ids:
+                    self.source.cancel(row["origin"], ids, remove=True)
+            except SourceError as e:
+                log.info("cancelling %s for request %s: %s", row["origin"], w["id"], e)
+        if w["folder"]:
+            self.discard_folder(w["folder"])
+        log.info("request %s: %s", w["id"], reason)
+        self._next_offer(w, reason)
+
+    def skip(self, w: dict[str, Any]) -> None:
+        """You asked for another copy than the one downloading."""
+        with self._lock:
+            row = next(
+                (
+                    r
+                    for r in self.transfers()
+                    if r["origin"] == w["origin"] and r["folder"] == w["remote_folder"]
+                ),
+                None,
+            )
+            self.abandon(w, row, f"you skipped {w['origin'] or 'it'}")
 
     def _next_offer(self, w: dict[str, Any], reason: str) -> None:
+        tried = set(w["tried"] or [])
         if w["attempts"] < MAX_ATTEMPTS:
-            tried = set(w["tried"] or [])
             for o in w["offers"]:
                 fresh = f"{o['origin']}|{o['folder']}" not in tried
                 if o.get("confident") and fresh and self._fetch(w, o):
+                    self.state.update_wanted(w["id"], error=f"Switched: {reason}")
                     return
-        if w["offers"]:
+            # Every good copy found so far was tried: look for other uploaders.
+            if (w.get("researched") or 0) < MAX_RESEARCH and w["kind"] in ("missing", "upgrade"):
+                self._set(
+                    w,
+                    "queued",
+                    f"{reason[:1].upper()}{reason[1:]}: searching for another uploader",
+                    query_idx=0,
+                    search_id="",
+                    researched=(w.get("researched") or 0) + 1,
+                    error=None,
+                )
+                return
+        if any(f"{o['origin']}|{o['folder']}" not in tried for o in w["offers"]):
             self._set(w, "choosing", f"The download failed ({reason}): choose another copy")
+        elif w["offers"]:
+            self._set(
+                w, "choosing", f"Every copy found failed ({reason}): choose one, or search again"
+            )
         else:
             self._set(w, "failed", f"The download failed ({reason})")
 
@@ -533,6 +763,44 @@ def settle(state: State, lib: Any) -> int:
             state.update_wanted(w["id"], status="done", status_text="In your library", error=None)
             n += 1
     return n
+
+
+# ------------------------------------------------------- downloads from Find
+
+FETCHES_KEY = "fetches"  # downloads started from Find, by "origin|remote folder"
+FETCH_KEEP = 7 * 86400
+
+
+def moved(row: dict[str, Any], seen_bytes: int, seen_place: int | None) -> bool:
+    """Did a download progress since the last look: more bytes, or up the uploader's queue?"""
+    if row.get("transferred", 0) > (seen_bytes or 0):
+        return True
+    place = row.get("place")
+    return place is not None and seen_place is not None and place < seen_place
+
+
+def file_name(filename: str) -> str:
+    """The last part of a remote path (Soulseek paths use backslashes)."""
+    return filename.replace("\\", "/").rsplit("/", 1)[-1]
+
+
+def remember_fetch(
+    state: State, origin: str, folder: str, folder_name: str, search_id: str, text: str, tracks: int
+) -> None:
+    """A download started from Find: enough to find the same folder elsewhere if it stalls."""
+    fetches = state.meta(FETCHES_KEY) or {}
+    now = time.time()
+    fetches[f"{origin}|{folder}"] = {
+        "folder_name": folder_name,
+        "search_id": search_id,
+        "text": text,
+        "tracks": tracks,
+        "at": now,
+        "progress_bytes": 0,
+        "progress_at": now,
+        "tried": [],
+    }
+    state.set_meta(FETCHES_KEY, fetches)
 
 
 # -------------------------------------------------------------- inbox hooks

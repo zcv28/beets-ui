@@ -145,12 +145,29 @@ def retry(request: Request, wanted_id: int):
         status_text="Waiting to search",
         query_idx=0,
         attempts=0,
+        researched=0,
         search_id="",
         error=None,
     )
     acq.wake()
     if is_fragment(request):
         return toast(f"Trying {w['album']} again")
+    return redirect(f"/wanted/{wanted_id}")
+
+
+@router.post("/{wanted_id}/skip")
+def skip(request: Request, wanted_id: int):
+    """Give up on the uploader it is downloading from, and try another copy."""
+    acq = _engine(request)
+    w = _wanted_or_404(request, wanted_id)
+    if w["status"] != "downloading":
+        if is_fragment(request):
+            return toast("It isn't downloading any more", kind="destructive")
+        return redirect(f"/wanted/{wanted_id}")
+    acq.skip(w)
+    acq.wake()
+    if is_fragment(request):
+        return toast(f"Trying another copy of {w['album']}")
     return redirect(f"/wanted/{wanted_id}")
 
 

@@ -17,9 +17,10 @@
   {% include "wanted/_chip.html" %}
   {% if w.status_text and w.status_text != wanted_label(w)[1] %}<span class="hint">{{ w.status_text }}</span>{% endif %}
 </div>
-{% if w.error and w.status in ('failed', 'queued', 'searching', 'downloading') %}<p class="hint mono">{{ w.error }}</p>{% endif %}
+{% if w.error and w.status in ('failed', 'queued', 'searching', 'downloading') %}<p class="hint">{{ w.error }}</p>{% endif %}
 <div class="bar">
   {% if w.status == 'review' and folder %}<a class="btn" href="/inbox/folder?f={{ w.folder|q }}">Review it in the inbox{{ icon('arrow-right') }}</a>{% endif %}
+  {% if w.status == 'downloading' %}<form class="inline" method="post" action="/wanted/{{ w.id }}/skip"><button class="btn" data-variant="outline" data-size="sm" title="Stop downloading from {{ w.origin }} and try another uploader">Try another copy</button></form>{% endif %}
   {% if w.status in ('failed', 'choosing', 'cancelled') %}<form class="inline" method="post" action="/wanted/{{ w.id }}/retry"><button class="btn" data-variant="outline" data-size="sm">Search again</button></form>{% endif %}
   {% if sources_enabled %}<a class="btn" data-variant="outline" data-size="sm" href="/get/find?q={{ (w.artist ~ ' ' ~ w.album)|q }}">Find music by hand</a>{% endif %}
   {% if w.status in ('queued', 'searching', 'choosing', 'downloading') %}<form class="inline" method="post" action="/wanted/{{ w.id }}/cancel" data-confirm="Stop getting {{ w.album }}?" data-confirm-button="Stop getting it"><button class="btn" data-variant="ghost" data-size="sm">Cancel</button></form>{% endif %}
@@ -34,12 +35,13 @@
   <tbody>
   {% for o in w.offers %}
   <tr class="table-row">
-    <td class="table-cell col-main"><span class="strong"{{ o.folder_name|lang }}>{{ o.folder_name }}</span>{% if loop.first %} <span class="badge" data-variant="secondary">Best match</span>{% endif %}{% if o.why %}<p class="hint">{{ o.why|join(' · ')|capitalize }}</p>{% endif %}</td>
+    {% set was_tried = (o.origin ~ '|' ~ o.folder) in (w.tried or []) %}
+    <td class="table-cell col-main"><span class="strong"{{ o.folder_name|lang }}>{{ o.folder_name }}</span>{% if was_tried %} <span class="badge" data-variant="outline">Tried</span>{% elif loop.first %} <span class="badge" data-variant="secondary">Best match</span>{% endif %}{% if o.why %}<p class="hint">{{ o.why|join(' · ')|capitalize }}</p>{% endif %}</td>
     <td class="table-cell"><span class="badge" data-variant="outline" data-mono>{{ o.format }}{% if o.bitrate and not o.lossless %} {{ o.bitrate }}{% endif %}</span></td>
     <td class="table-cell num">{{ o.tracks }}{% if w.tracks %}<span class="hint">/{{ w.tracks|length }}</span>{% endif %}<span class="show-sm"> tracks</span></td>
     <td class="table-cell num">{{ (o.size or 0)|size }}</td>
     <td class="table-cell hide-sm hint">{{ o.origin }}{% if o.free_slot %} · free slot{% elif o.queue %} · {{ o.queue }} queued{% endif %}</td>
-    <td class="table-cell num col-actions"><form class="inline" method="post" action="/wanted/{{ w.id }}/choose"><input type="hidden" name="origin" value="{{ o.origin }}"><input type="hidden" name="folder" value="{{ o.folder }}"><button class="btn" {% if not loop.first %}data-variant="outline" {% endif %}data-size="sm">Download this one</button></form></td>
+    <td class="table-cell num col-actions"><form class="inline" method="post" action="/wanted/{{ w.id }}/choose"><input type="hidden" name="origin" value="{{ o.origin }}"><input type="hidden" name="folder" value="{{ o.folder }}"><button class="btn" {% if not loop.first or was_tried %}data-variant="outline" {% endif %}data-size="sm">{{ 'Try it again' if was_tried else 'Download this one' }}</button></form></td>
   </tr>
   {% endfor %}
   </tbody>
