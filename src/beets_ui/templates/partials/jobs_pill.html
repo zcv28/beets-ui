@@ -6,7 +6,7 @@
 </a>
 {% endif %}</div>
 {% if oob %}{% include "partials/jobs_mobile.html" %}{% endif %}
-{% if toasts %}<div hx-swap-oob="beforeend:#toasts">{% for j in toasts %}
+{% if toasts or slsk_toasts %}<div hx-swap-oob="beforeend:#toasts">{% for j in toasts %}
 {% set ok = j.status == 'done' %}
 <div class="toast" data-variant="{{ 'success' if ok else 'destructive' }}" role="status"{% if not ok or j.kind in undoable %} data-sticky{% endif %}>
   <div class="toast-content">
@@ -15,6 +15,19 @@
       <p class="toast-title">{{ j.title }}</p>
       <p class="toast-description">{% if ok %}Finished{% if j.kind in undoable %}. You can undo it from the job page.{% endif %}{% else %}{{ j.status|capitalize }}{% if j.error %}: {{ j.error[:120] }}{% endif %}{% endif %}</p>
       <div class="toast-actions"><a class="btn" data-variant="outline" data-size="xs" href="/jobs/{{ j.id }}">{{ "Open job to undo" if ok and j.kind in undoable else "View job" }}</a></div>
+    </div>
+    <button class="toast-close" type="button" aria-label="Dismiss">{{ icon('x') }}</button>
+  </div>
+</div>
+{% endfor %}
+{% for e in slsk_toasts or [] %}
+<div class="toast" data-variant="{{ 'success' if e.ok else 'destructive' }}" role="status"{% if not e.ok %} data-sticky{% endif %}>
+  <div class="toast-content">
+    {{ icon('success' if e.ok else 'destructive', 'toast-icon') }}
+    <div class="toast-text">
+      <p class="toast-title">{{ 'Downloaded ' if e.ok else 'Download failed: ' }}<span{{ e.folder_name|lang }}>{{ e.folder_name }}</span></p>
+      <p class="toast-description">{% if e.ok %}From {{ e.username }}. It shows up in the inbox once the files settle.{% else %}{{ e.label }}. You can retry from Soulseek downloads.{% endif %}</p>
+      <div class="toast-actions"><a class="btn" data-variant="outline" data-size="xs" href="{{ '/inbox' if e.ok else '/soulseek/transfers' }}">{{ 'Open inbox' if e.ok else 'View downloads' }}</a></div>
     </div>
     <button class="toast-close" type="button" aria-label="Dismiss">{{ icon('x') }}</button>
   </div>

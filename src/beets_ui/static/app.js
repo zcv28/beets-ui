@@ -351,3 +351,41 @@ for (const list of document.querySelectorAll(".tab-list")) {
   window.addEventListener("resize", update);
   update();
 }
+
+// ------------------------------------------------- Soulseek: choose files
+// The folder page's file list: a tick-all box, and a count and size on the button.
+document.addEventListener("change", (e) => {
+  const form = e.target.closest("#pick-form");
+  if (!form) return;
+  const boxes = [...form.querySelectorAll('input[name="file"]')];
+  if (e.target.id === "pick-all") boxes.forEach((b) => { b.checked = e.target.checked; });
+  const on = boxes.filter((b) => b.checked);
+  const all = form.querySelector("#pick-all");
+  all.checked = on.length === boxes.length;
+  all.indeterminate = on.length > 0 && on.length < boxes.length;
+  let bytes = on.reduce((n, b) => n + Number(b.dataset.bytes || 0), 0);
+  const units = ["B", "KB", "MB", "GB", "TB"];
+  let u = 0;
+  while (bytes >= 1024 && u < units.length - 1) { bytes /= 1024; u++; }
+  const size = u ? `${bytes.toFixed(1)} ${units[u]}` : `${bytes} B`;
+  form.querySelector("#pick-count").textContent = `${on.length} of ${boxes.length} files · ${size}`;
+  const button = form.querySelector("#pick-submit");
+  button.textContent = on.length ? `Download ${on.length} file${on.length === 1 ? "" : "s"}` : "Download";
+  button.disabled = on.length === 0;
+});
+
+// ----------------------------------------------- polled lists keep open rows
+// A polled region marked data-keep-open re-opens the details that were open before the swap.
+document.addEventListener("htmx:beforeSwap", (e) => {
+  const el = e.detail.target;
+  if (!el.hasAttribute || !el.hasAttribute("data-keep-open")) return;
+  el.dataset.openIds = [...el.querySelectorAll("details[open][id]")].map((d) => d.id).join(" ");
+});
+document.addEventListener("htmx:afterSwap", (e) => {
+  const el = e.detail.target;
+  if (!el.dataset || !el.dataset.openIds) return;
+  for (const id of el.dataset.openIds.split(" ")) {
+    const d = document.getElementById(id);
+    if (d) d.open = true;
+  }
+});

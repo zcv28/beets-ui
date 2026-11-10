@@ -115,6 +115,7 @@ def render(request: Request, name: str, status_code: int = 200, **ctx: Any):
         "user": request.session.get("user") if "session" in request.scope else None,
         "flashes": flashes,
         "slskd_enabled": app.state.settings.slskd_enabled,
+        "slskd_status": getattr(app.state, "slskd_watch", None) and app.state.slskd_watch.status,
         "nav": ctx.pop("nav", ""),
         "running": len(app.state.jobs.running()),
         "pending": app.state.jobs.pending(),

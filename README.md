@@ -24,7 +24,7 @@ A small, self-hosted web frontend for [beets](https://beets.io). It runs in one 
   - *Upgrades:* lossy, low-bitrate, incomplete and mixed-format albums.
   - *Listening:* never played, not played in a year and most played, from Jellyfin's play counts.
   - *Synced lyrics:* from LRCLIB, with romaji under Japanese lines.
-- **Soulseek.** Search and download through your existing [slskd](https://github.com/slskd/slskd), one folder at a time. Finished downloads land in the inbox for review.
+- **Soulseek.** Search and download through your existing [slskd](https://github.com/slskd/slskd), so you don't need its own web UI day to day. Download whole folders or choose the files, follow and retry downloads, and get a pop-up when one finishes. Finished downloads land in the inbox for review.
 - **Console.** Run any non-interactive `beet` command (`update`, `move`, `fetchart`, `replaygain`, `convert`, `mbsync`, plugin commands and so on) and follow its output live. Anything beets can do is reachable from here.
 - **Jobs.** Every change to the library goes through a single queue, so nothing fights over the database, and each job keeps its log. Lookups that only read the library (discographies, the Jellyfin sync) run in a second queue, so they never hold up an import.
 - **Login.** A single password, or LDAP (lldap, OpenLDAP, Authentik and others).
@@ -148,7 +148,17 @@ The `gui:` section of a beets-flask config is ignored.
 2. Set `SLSKD_URL` (as seen from the beets-ui container, e.g. `http://slskd:5030` on the same Docker network) and `SLSKD_API_KEY`.
 3. Mount slskd's **downloads** directory as `/inbox`. slskd keeps partial files in its separate *incomplete* folder, so only finished files show up. The debounce waits until a folder has stopped changing before looking it up.
 
-Use **Soulseek → Search**, open a result and press **Download**. The whole remote folder is queued. When it finishes it appears in the Inbox. **Search Soulseek for this album** on a review page pre-fills the search from the folder's tags.
+Search from **Soulseek → Search**. Results are grouped into one row per user and folder, with the free upload slots and lossless folders first.
+
+- **Download** queues the whole remote folder. beets-ui asks the user for the folder's full listing first, because a search only returns the files that matched it: covers, cue sheets and logs come along too. If the user doesn't answer, only the matched files are queued, and the message says so.
+- **Open a folder** to see every file in it, untick what you don't want, and download the rest.
+- **Options** under the search box set how long to wait for answers and skip users with a long queue or a slow connection. They stay set for later searches. A running search can be stopped.
+- **Downloads** shows progress, speed and your place in each user's queue. Failed files can be retried, and finished or failed rows removed from the list.
+- When a download finishes or fails, a pop-up says so on whatever page you're on. The **Soulseek** link in the sidebar gets a dot when slskd can't be reached or isn't connected to Soulseek, and the Soulseek pages offer **Reconnect**.
+
+When a download finishes it appears in the inbox. **Search Soulseek** on an inbox folder fills in the search from its tags, and Insights links to searches for missing and upgradeable albums.
+
+beets-ui checks slskd every 10 seconds in the background. Uploads, shares, rooms and chat stay in slskd's own web UI.
 
 ### LDAP examples
 
