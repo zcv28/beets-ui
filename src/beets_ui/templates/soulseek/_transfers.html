@@ -1,26 +1,48 @@
-{% from "partials/macros.html" import alert, empty, status %}
+{% from "partials/macros.html" import alert, empty, icon, status %}
 {% if error %}{% call alert('warn') %}{{ error }}{% endcall %}{% endif %}
 {% if rows %}
-<div class="table-container"><table class="table">
-  <thead><tr><th class="table-head">Folder</th><th class="table-head">State</th><th class="table-head">Progress</th><th class="table-head num">Size</th><th class="table-head hide-sm">User</th><th class="table-head"><span class="sr-only">Actions</span></th></tr></thead>
+<div class="table-container"><table class="table stack-sm">
+  <thead><tr><th class="table-head">Folder</th><th class="table-head">State</th><th class="table-head">Progress</th><th class="table-head num">Size</th><th class="table-head hide-sm">User</th><th class="table-head num"><span class="sr-only">Actions</span></th></tr></thead>
   <tbody>
   {% for r in rows %}
   <tr class="table-row">
-    <td class="table-cell"><details><summary>{{ r.folder_name }}</summary><ol class="file-list">{% for f in r.files %}<li class="hint">{{ f.name }} · {{ f.state }} · {{ f.percent }}%</li>{% endfor %}</ol></details></td>
-    <td class="table-cell nowrap">{{ status(r.state) }}</td>
-    <td class="table-cell nowrap"><span class="match"><span class="mono">{{ r.percent }}%</span><progress class="progress" value="{{ r.percent }}" max="100" aria-label="{{ r.folder_name }} progress"{% if r.state == 'done' %} data-status="success"{% endif %}></progress></span></td>
-    <td class="table-cell num">{{ r.size|size }}</td>
+    <td class="table-cell col-main">
+      <details class="files" id="t-{{ (r.username ~ r.folder)|uid }}"><summary{{ r.folder_name|lang }}>{{ r.folder_name }}</summary>
+        <ol class="file-list">{% for f in r.files %}<li class="hint"><span{{ f.name|lang }}>{{ f.name }}</span> · {% if f.kind == 'done' %}Done{% elif f.kind == 'active' %}{{ f.percent }}%{% elif f.kind == 'failed' %}{{ f.failure }}{% else %}Queued{% if f.place %}, place {{ f.place }}{% endif %}{% endif %}</li>{% endfor %}</ol>
+      </details>
+    </td>
+    <td class="table-cell nowrap">{{ status(r.state, r.label) }}</td>
+    <td class="table-cell nowrap">
+      <span class="match"><span class="mono">{{ r.percent }}%</span><progress class="progress" value="{{ r.percent }}" max="100" aria-label="{{ r.folder_name }} progress"{% if r.state == 'done' %} data-status="success"{% endif %}></progress></span>
+      {% if r.state == 'downloading' and r.speed %}<p class="hint">{{ r.speed|size }}/s</p>{% elif r.state == 'queued' and r.place %}<p class="hint">Place {{ r.place }} in {{ r.username }}'s queue</p>{% endif %}
+    </td>
+    <td class="table-cell num hide-sm">{{ r.size|size }}</td>
     <td class="table-cell hide-sm hint">{{ r.username }}</td>
-    <td class="table-cell nowrap">{% if r.state in ('queued', 'downloading') %}
+    <td class="table-cell num col-actions">
+      {% if r.state in ('queued', 'downloading') %}
       <form class="inline" method="post" action="/soulseek/transfers/cancel">
         <input type="hidden" name="username" value="{{ r.username }}">
-        {% for f in r.files %}{% if 'Succeeded' not in f.state %}<input type="hidden" name="id" value="{{ f.id }}">{% endif %}{% endfor %}
+        {% for f in r.files %}{% if f.kind in ('queued', 'active') %}<input type="hidden" name="id" value="{{ f.id }}">{% endif %}{% endfor %}
         <button class="btn" data-variant="ghost" data-size="xs">Cancel</button>
-      </form>{% endif %}</td>
+      </form>
+      {% elif r.state in ('failed', 'cancelled') %}
+      <form class="inline" method="post" action="/soulseek/transfers/retry">
+        <input type="hidden" name="username" value="{{ r.username }}">
+        {% for f in r.failed_files %}<input type="hidden" name="file" value="{{ f.size }}:{{ f.filename }}"><input type="hidden" name="id" value="{{ f.id }}">{% endfor %}
+        <button class="btn" data-variant="outline" data-size="xs" title="Queue the {{ r.failed_files|length }} failed file{{ 's' if r.failed_files|length != 1 }} again">Retry</button>
+      </form>
+      <form class="inline" method="post" action="/soulseek/transfers/cancel">
+        <input type="hidden" name="username" value="{{ r.username }}">
+        <input type="hidden" name="remove" value="1">
+        {% for f in r.files %}<input type="hidden" name="id" value="{{ f.id }}">{% endfor %}
+        <button class="btn" data-variant="ghost" data-size="icon-sm" aria-label="Remove {{ r.folder_name }} from the list" title="Remove from the list">{{ icon('x') }}</button>
+      </form>
+      {% endif %}
+    </td>
   </tr>
   {% endfor %}
   </tbody>
 </table></div>
 {% elif not error %}
-{% call empty() %}No downloads. Start one from a search result.{% endcall %}
+{% call empty() %}No downloads. Search for an album and download a folder, and it shows up here.{% endcall %}
 {% endif %}

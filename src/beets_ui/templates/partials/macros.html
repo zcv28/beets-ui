@@ -80,7 +80,7 @@
 <button type="button" class="play btn" data-variant="ghost" data-size="icon-sm" data-src="{{ src }}" aria-label="Play {{ label }}" title="Play">{{ icon('play', 'i-play') }}{{ icon('pause', 'i-pause') }}</button>
 {%- endmacro %}
 
-{% macro nav_links(nav, slskd_enabled) -%}
+{% macro nav_links(nav, slskd_enabled, slskd_status=None) -%}
 <nav class="sidebar-nav" aria-label="Sections">
   {% for key, href, label, ic in [
     ('inbox', '/inbox', 'Inbox', 'inbox'),
@@ -91,7 +91,7 @@
     ('console', '/console', 'Console', 'terminal'),
     ('jobs', '/jobs', 'Jobs', 'activity'),
   ] if key != 'soulseek' or slskd_enabled %}
-  <a class="sidebar-link" href="{{ href }}" {% if nav == key %}aria-current="page"{% endif %}>{{ icon(ic) }}<span>{{ label }}</span></a>
+  <a class="sidebar-link" href="{{ href }}" {% if nav == key %}aria-current="page"{% endif %}>{{ icon(ic) }}<span>{{ label }}</span>{% if key == 'soulseek' and slskd_status and not slskd_status.connected %}<span class="nav-alert" title="{{ 'slskd is not answering' if not slskd_status.reachable else 'slskd is not connected to Soulseek' }}"><span class="sr-only">(not connected)</span></span>{% endif %}</a>
   {% endfor %}
 </nav>
 {%- endmacro %}

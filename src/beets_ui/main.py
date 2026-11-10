@@ -22,7 +22,7 @@ from .inbox import Inbox
 from .jobs import JobQueue
 from .library import register_jobs
 from .settings import Settings
-from .slskd import Slskd
+from .slskd import Slskd, Watcher
 from .state import State
 from .web import HERE
 
@@ -68,13 +68,20 @@ def create_app(settings: Settings | None = None, background: bool = True) -> Fas
     listening.register_jobs(jobs, settings)
     lyrics.register_jobs(jobs, settings)
 
+    slskd = Slskd(settings.slskd_url, settings.slskd_api_key) if settings.slskd_enabled else None
+    slskd_watch = Watcher(slskd) if slskd else None
+
     @asynccontextmanager
     async def lifespan(app: FastAPI):
         if background:
             jobs.start()
             inbox.start_watcher()
+            if slskd_watch:
+                slskd_watch.start()
         yield
         if background:
+            if slskd_watch:
+                slskd_watch.stop()
             inbox.stop_watcher()
             jobs.stop()
 
@@ -92,9 +99,8 @@ def create_app(settings: Settings | None = None, background: bool = True) -> Fas
     app.state.inbox = inbox
     app.state.console = console
     app.state.artwork = artwork
-    app.state.slskd = (
-        Slskd(settings.slskd_url, settings.slskd_api_key) if settings.slskd_enabled else None
-    )
+    app.state.slskd = slskd
+    app.state.slskd_watch = slskd_watch
     app.state.limiter = RateLimiter()
 
     # Order matters: the session middleware must wrap the auth middleware.

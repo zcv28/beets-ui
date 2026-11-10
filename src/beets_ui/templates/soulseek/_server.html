@@ -1,0 +1,9 @@
+{% from "partials/macros.html" import alert %}
+{% if slskd_status and not slskd_status.connected %}
+{% if not slskd_status.reachable %}
+{% call alert('warn', "Can't reach slskd") %}Searches and downloads need it. Check that slskd is running and that <code>SLSKD_URL</code> points at it from the beets-ui container.<p class="hint mono">{{ slskd_status.error }}</p>{% endcall %}
+{% else %}
+{% call alert('wip', "slskd isn't connected to Soulseek") %}Searches return nothing and downloads wait until it reconnects.
+<form class="bar" method="post" action="/soulseek/server/connect"><input type="hidden" name="back" value="{{ request.url.path }}"><button class="btn" data-variant="outline" data-size="sm">Reconnect</button></form>{% endcall %}
+{% endif %}
+{% endif %}

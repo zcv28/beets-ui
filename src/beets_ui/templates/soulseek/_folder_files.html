@@ -1,0 +1,41 @@
+{% from "partials/macros.html" import alert %}
+{% if gone %}
+{% call alert('warn') %}That folder is no longer in the search results.{% endcall %}
+{% else %}
+{% if problem %}
+{% call alert('wip', g.username ~ " didn't send the full folder") %}These are the files that matched your search; the folder may hold more.<p class="hint mono">{{ problem }}</p>{% endcall %}
+{% elif extra > 0 %}
+<p class="hint">{{ extra }} more file{{ 's' if extra != 1 }} than the search showed.</p>
+{% endif %}
+{% set total = files|sum(attribute='size') %}
+<form method="post" action="/soulseek/download" id="pick-form">
+  <input type="hidden" name="search_id" value="{{ search_id }}">
+  <input type="hidden" name="username" value="{{ g.username }}">
+  <input type="hidden" name="folder" value="{{ g.folder }}">
+  <div class="table-container" data-density="compact"><table class="table">
+    <thead><tr>
+      <th class="table-head pick"><input class="checkbox" type="checkbox" id="pick-all" checked aria-label="Choose every file"></th>
+      <th class="table-head">File</th>
+      <th class="table-head num">Length</th>
+      <th class="table-head num hide-sm">kbps</th>
+      <th class="table-head num">Size</th>
+    </tr></thead>
+    <tbody>
+    {% for f in files %}
+    <tr class="table-row">
+      <td class="table-cell pick"><input class="checkbox" type="checkbox" name="file" id="pf-{{ loop.index }}" value="{{ f.size }}:{{ f.filename }}" data-bytes="{{ f.size }}" checked></td>
+      <td class="table-cell"><label for="pf-{{ loop.index }}"{% if not f.audio %} class="hint"{% endif %}{{ f.name|lang }}>{{ f.name }}</label></td>
+      <td class="table-cell num">{{ f.length|duration if f.length else '' }}</td>
+      <td class="table-cell num hide-sm">{{ f.bitrate or '' }}</td>
+      <td class="table-cell num">{{ f.size|size }}</td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table></div>
+  <div class="sticky-bar">
+    <span class="strong" id="pick-count" aria-live="polite">{{ files|length }} of {{ files|length }} files · {{ total|size }}</span>
+    <span class="spacer"></span>
+    <button class="btn" id="pick-submit">Download {{ files|length }} file{{ 's' if files|length != 1 }}</button>
+  </div>
+</form>
+{% endif %}

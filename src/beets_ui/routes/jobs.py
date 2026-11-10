@@ -50,6 +50,11 @@ def jobs_pill(request: Request, since: float = 0):
     if done:
         since = max(j["finished_at"] for j in done)
     toasts = [j for j in done if j["kind"] not in QUIET or j["status"] == "failed"]
+    # Soulseek downloads that finished or failed, as seen by the slskd watcher.
+    watch = getattr(request.app.state, "slskd_watch", None)
+    slsk = watch.events_since(since) if watch else []
+    if slsk:
+        since = max([since, *(e["at"] for e in slsk)])
     return partial(
         request,
         "partials/jobs_pill.html",
@@ -57,6 +62,7 @@ def jobs_pill(request: Request, since: float = 0):
         pending=jobs.pending(),
         since=since,
         toasts=toasts,
+        slsk_toasts=slsk,
         oob=True,
     )
 
