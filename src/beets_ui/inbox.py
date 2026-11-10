@@ -354,6 +354,7 @@ class Inbox:
             status, err = "attention", "No candidates found for at least one album"
         else:
             status, err = "ready", None
+        ctx.note = err
         self.state.upsert_folder(
             rel,
             status=status,

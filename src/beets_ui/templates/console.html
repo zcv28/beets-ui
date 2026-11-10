@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% from "partials/macros.html" import status %}
+{% from "partials/macros.html" import empty, status %}
 {% block title %}Console{% endblock %}
 {% block content %}
 <p class="lead">Runs any <code>beet</code> command against your library, queued with the other jobs. Commands cannot answer prompts, so use the non-interactive flags (<code>-y</code>, <code>-q</code>, …).</p>
@@ -20,10 +20,11 @@
   </section>
   <section>
     <h2>Recent</h2>
-    <div class="table-container"><table class="table"><tbody>
-    {% for j in recent %}<tr class="table-row"><td class="table-cell"><a href="/jobs/{{ j.id }}" class="mono">{{ j.title }}</a></td><td class="table-cell nowrap">{{ status(j.status) }}</td><td class="table-cell nowrap mono hint">{{ j.created_at|ts }}</td></tr>
-    {% else %}<tr class="table-row"><td class="table-cell hint">No commands yet.</td></tr>{% endfor %}
+    {% if recent %}<div class="table-container"><table class="table"><tbody>
+    {% for j in recent %}<tr class="table-row"><td class="table-cell"><a href="/jobs/{{ j.id }}" class="mono">{{ j.title }}</a></td><td class="table-cell nowrap">{% if j.status == 'done' and j.error %}{{ status('attention', 'Needs attention') }}{% else %}{{ status(j.status) }}{% endif %}</td><td class="table-cell nowrap mono hint">{{ j.created_at|ts }}</td></tr>
+    {% endfor %}
     </tbody></table></div>
+    {% else %}{% call empty() %}Commands you run show up here.{% endcall %}{% endif %}
     <h3>Loaded plugins</h3>
     <p class="hint">{{ plugins|join(', ') or 'None' }}</p>
   </section>

@@ -1,15 +1,24 @@
 {% extends "base.html" %}
-{% from "partials/macros.html" import alert, empty, icon %}
-{% block title %}Discography gaps{% endblock %}
-{% block status %}{{ looked }} of {{ artists }} artist{{ 's' if artists != 1 }} looked up{% if looked %} · {{ missing }} release{{ 's' if missing != 1 }} missing{% endif %}{% endblock %}
+{% from "partials/macros.html" import alert, empty, icon, row_menu %}
+{% block title %}Missing{% endblock %}
+{% block header %}
+<header class="page-header">
+  <h1>Get</h1>
+  <p class="page-description">{% if looked %}{{ missing }} release{{ 's' if missing != 1 }} missing · {% endif %}{{ looked }} of {{ artists }} artist{{ 's' if artists != 1 }} looked up</p>
+</header>
+{% endblock %}
 {% block content %}
-{% set tab = 'gaps' %}{% include "insights/_tabs.html" %}
+{% set tab = 'missing' %}{% include "get/_tabs.html" %}
 {% set here = request.url.path ~ ('?' ~ request.url.query if request.url.query else '') %}
 <div class="tab-content">
-<p class="lead">Releases by the artists in your library that the library doesn't have. Each artist is looked up where its albums were tagged from: VocaDB, TouhouDB or UtaiteDB by the artist's own releases, MusicBrainz by release group. Albums count as owned by ID or by title.</p>
+<p class="lead">Releases by your artists that the library doesn't have.</p>
+<details class="about">
+  <summary>How this is worked out</summary>
+  <p class="hint">Each artist is looked up where its albums were tagged from: VocaDB, TouhouDB or UtaiteDB by the artist's own releases, MusicBrainz by release group. An album counts as owned by its ID or by its title.</p>
+</details>
 
 {% if busy %}
-<div class="alert" data-status="info" role="status" hx-get="/insights/gaps/busy" hx-trigger="refresh, every 30s [!document.hidden]" hx-swap="none" data-refresh="jobs">
+<div class="alert" data-status="info" role="status" hx-get="/get/missing/busy" hx-trigger="refresh, every 30s [!document.hidden]" hx-swap="none" data-refresh="jobs">
   <svg class="alert-icon spinner" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>
   <div class="alert-content"><p class="alert-title">Looking up discographies</p><p class="alert-description">The list updates by itself when the job is done. It runs alongside imports.</p></div>
 </div>
@@ -19,7 +28,7 @@
 {% endif %}
 
 {% if artists %}
-<form class="toolbar" method="get" action="/insights/gaps" data-autosubmit>
+<form class="toolbar" method="get" action="/get/missing" data-autosubmit>
   <input type="hidden" name="sort" value="{{ sort }}">
   <span class="choice-row" role="group" aria-label="Release types">
     {% for k in kinds %}<label class="checkbox-item"><input class="checkbox" type="checkbox" name="kinds" value="{{ k }}" {% if k in picked %}checked{% endif %}>{{ {'ep': 'EPs', 'other': 'Other'}.get(k, k|capitalize ~ 's') }}</label>{% endfor %}
@@ -33,7 +42,7 @@
   <span class="spacer"></span>
   <button class="btn" data-size="sm" {% if looked %}data-variant="outline"{% endif %} form="refresh-all" {% if busy %}disabled{% endif %}>{{ 'Look up all artists' if not looked else 'Refresh all' }}</button>
 </form>
-<form id="refresh-all" method="post" action="/insights/gaps/refresh"></form>
+<form id="refresh-all" method="post" action="/get/missing/refresh"></form>
 {% else %}
 {% call empty() %}No artist in the library comes from VocaDB, TouhouDB, UtaiteDB or MusicBrainz yet, so there is nothing to look up.{% endcall %}
 {% endif %}
@@ -55,7 +64,7 @@
     <h3 class="gap-artist"><span{{ r.artist|lang }}>{{ r.artist }}</span>{% if r.artist_original and r.artist_original != r.artist %}<span class="original"{{ r.artist_original|lang }}>{{ r.artist_original }}</span>{% endif %}</h3>
     {% if r.looked_up %}
     <span class="gap-owned num" title="{{ r.owned|length }} of {{ r.owned|length + r.missing|length }} owned"><span class="sr-only">Owned </span>{{ r.owned|length }}/{{ r.owned|length + r.missing|length }}</span>
-    <span class="gap-missing">{% if r.missing %}<span class="status" data-status="warning">{{ r.missing|length }} missing</span>{% else %}<span class="hint">Complete</span>{% endif %}{% if r.upcoming %}<span class="hint"> · {{ r.upcoming|length }} upcoming</span>{% endif %}</span>
+    <span class="gap-missing">{% if r.missing %}<span class="gap-count">{{ r.missing|length }} missing</span>{% else %}<span class="hint">Complete</span>{% endif %}{% if r.upcoming %}<span class="hint"> · {{ r.upcoming|length }} upcoming</span>{% endif %}</span>
     {% else %}
     <span class="gap-owned num hint">–</span>
     <span class="gap-missing hint">{{ 'Lookup failed' if r.error else 'Not looked up yet' }}</span>
@@ -69,8 +78,8 @@
     <form class="bar tight" method="post" action="/wanted/artist">
       <input type="hidden" name="source" value="{{ r.source }}"><input type="hidden" name="artist_id" value="{{ r.artist_id }}"><input type="hidden" name="back" value="{{ here }}">
       {% for k in picked %}<input type="hidden" name="kinds" value="{{ k }}">{% endfor %}
-      <button class="btn" data-variant="outline" data-size="sm">Get {{ gettable|length }} missing</button>
-      <span class="hint">Searches, downloads and imports them for you, two at a time.</span>
+      <button class="btn" data-size="sm">Get {{ gettable|length }} missing</button>
+      <span class="hint">Searches, downloads and imports each one. Anything it isn't sure about waits for you.</span>
     </form>
     {% endif %}
     {% for title, list in [('Missing', r.missing), ('Upcoming', r.upcoming)] if list %}
@@ -83,26 +92,28 @@
       {% set orig_q = (r.artist_original or r.artist) ~ ' ' ~ rel.original %}
       <tr class="table-row">
         <td class="table-cell nowrap mono">{{ rel.date or '?' }}</td>
-        <td class="table-cell col-main"><a href="{{ rel.url }}" target="_blank" rel="noopener noreferrer"{{ rel.title|lang }}>{{ rel.title }}</a>{% if rel.original and rel.original != rel.title %}<span class="original"{{ rel.original|lang }}>{{ rel.original }}</span>{% endif %}{% if rel.artists and rel.artists != r.artist %}<p class="hint">{{ rel.artists }}</p>{% endif %}</td>
+        <td class="table-cell col-main"><a href="{{ rel.url }}" target="_blank" rel="noopener noreferrer"{{ rel.title|lang }}>{{ rel.title }}</a>{% if rel.original and rel.original != rel.title %}<span class="original"{{ rel.original|lang }}>{{ rel.original }}</span>{% endif %}{% if rel.artists and rel.artists != r.artist %}<p class="hint"{{ rel.artists|lang }}>{{ rel.artists }}</p>{% endif %}</td>
         <td class="table-cell hide-sm hint">{{ rel.type }}</td>
         <td class="table-cell hide-sm nowrap mono hint">{{ rel.catalog }}</td>
         <td class="table-cell nowrap col-actions">
           {% set w = wanted.get(r.source ~ ':' ~ rel.id) %}
           {% if get_enabled %}<span class="get-slot">{% if w and w.status != 'cancelled' %}{% include "wanted/_chip.html" %}{% else %}<form class="inline" method="post" action="/wanted/release" hx-post="/wanted/release" hx-target="closest .get-slot" hx-swap="innerHTML">
             <input type="hidden" name="source" value="{{ r.source }}"><input type="hidden" name="artist_id" value="{{ r.artist_id }}"><input type="hidden" name="release_id" value="{{ rel.id }}"><input type="hidden" name="back" value="{{ here }}">
-            <button class="btn" data-size="xs" title="Search, download and import {{ rel.title }}">Get</button>
+            <button class="btn" data-variant="outline" data-size="xs" title="Search, download and import {{ rel.title }}">Get</button>
           </form>{% endif %}</span>{% endif %}
-          {% if sources_enabled %}
-          <a class="btn" data-variant="outline" data-size="xs" href="/inbox/find?q={{ roman_q|q }}" title="Find {{ roman_q }} by hand">Find</a>
-          {% if not get_enabled and rel.original and rel.original != rel.title %}<a class="btn" data-variant="outline" data-size="xs" href="/inbox/find?q={{ orig_q|q }}" title="Find {{ orig_q }}">Find (original)</a>{% endif %}
-          {% endif %}
-          <form class="inline" method="post" action="/insights/gaps/dismiss" hx-post="/insights/gaps/dismiss" hx-target="closest tr" hx-swap="delete">
-            <input type="hidden" name="source" value="{{ r.source }}">
-            <input type="hidden" name="release_id" value="{{ rel.id }}">
-            <input type="hidden" name="label" value="{{ r.artist }} – {{ rel.title }}">
-            <input type="hidden" name="back" value="{{ here }}">
-            <button class="btn" data-variant="ghost" data-size="xs" title="Not interested: hide this release" aria-label="Dismiss {{ rel.title }}">Dismiss</button>
-          </form>
+          {% call row_menu('m-' ~ (r.source ~ rel.id)|uid, 'More for ' ~ rel.title) %}
+            {% if sources_enabled %}
+            <a class="menu-item" href="/get/find?q={{ roman_q|q }}">Find by hand<span class="hint"{{ roman_q|lang }}>{{ roman_q }}</span></a>
+            {% if rel.original and rel.original != rel.title %}<a class="menu-item" href="/get/find?q={{ orig_q|q }}">Find by the original name<span class="hint"{{ orig_q|lang }}>{{ orig_q }}</span></a>{% endif %}
+            {% endif %}
+            <form method="post" action="/get/missing/dismiss" hx-post="/get/missing/dismiss" hx-target="closest tr" hx-swap="delete">
+              <input type="hidden" name="source" value="{{ r.source }}">
+              <input type="hidden" name="release_id" value="{{ rel.id }}">
+              <input type="hidden" name="label" value="{{ r.artist }} – {{ rel.title }}">
+              <input type="hidden" name="back" value="{{ here }}">
+              <button class="menu-item">Dismiss<span class="hint">Not interested: hide this release</span></button>
+            </form>
+          {% endcall %}
         </td>
       </tr>
       {% endfor %}
@@ -113,17 +124,17 @@
     {% if r.owned %}
     <details class="sub">
       <summary class="hint">Owned ({{ r.owned|length }})</summary>
-      <ul class="plain">{% for rel in r.owned %}<li class="hint"><span class="mono">{{ rel.date[:4] or '?' }}</span> · {{ rel.title }}</li>{% endfor %}</ul>
+      <ul class="plain">{% for rel in r.owned %}<li class="hint"><span class="mono">{{ rel.date[:4] or '?' }}</span> · <span{{ rel.title|lang }}>{{ rel.title }}</span></li>{% endfor %}</ul>
     </details>
     {% endif %}
     {% if r.dismissed %}
     <details class="sub">
       <summary class="hint">Dismissed ({{ r.dismissed|length }})</summary>
-      <ul class="plain">{% for rel in r.dismissed %}<li class="hint"><span class="mono">{{ rel.date[:4] or '?' }}</span> · {{ rel.title }}
-        <form class="inline" method="post" action="/insights/gaps/restore"><input type="hidden" name="source" value="{{ r.source }}"><input type="hidden" name="release_id" value="{{ rel.id }}"><button class="btn" data-variant="link">Restore</button></form></li>{% endfor %}</ul>
+      <ul class="plain">{% for rel in r.dismissed %}<li class="hint"><span class="mono">{{ rel.date[:4] or '?' }}</span> · <span{{ rel.title|lang }}>{{ rel.title }}</span>
+        <form class="inline" method="post" action="/get/missing/restore"><input type="hidden" name="source" value="{{ r.source }}"><input type="hidden" name="release_id" value="{{ rel.id }}"><button class="btn" data-variant="link">Restore</button></form></li>{% endfor %}</ul>
     </details>
     {% endif %}
-    <form class="bar right" method="post" action="/insights/gaps/refresh">
+    <form class="bar right" method="post" action="/get/missing/refresh">
       <input type="hidden" name="source" value="{{ r.source }}">
       <input type="hidden" name="artist_id" value="{{ r.artist_id }}">
       <span class="hint">{{ r.albums }} album{{ 's' if r.albums != 1 }} in the library{% if r.looked_up %} · looked up {{ r.looked_up|ts }}{% endif %}</span>

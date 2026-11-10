@@ -1,9 +1,8 @@
 {% extends "base.html" %}
 {% from "partials/macros.html" import empty, icon %}
 {% block title %}Home{% endblock %}
-{% block status %}{{ '{:,}'.format(stats.albums) }} albums · {{ '{:,}'.format(stats.artists) }} artists{% if source_status %} · {{ source_label }} {{ 'connected' if source_status.connected else 'not connected' }}{% endif %}{% if running or pending %} · {{ running }} job{{ 's' if running != 1 }} running{% if pending %}, {{ pending }} queued{% endif %}{% endif %}{% endblock %}
+{% block status %}{{ stats.albums|plural('album') }} · {{ stats.artists|plural('artist') }}{% if source_status %} · {{ source_label }} {{ 'connected' if source_status.connected else 'not connected' }}{% endif %}{% if running or pending %} · {{ running }} job{{ 's' if running != 1 }} running{% if pending %}, {{ pending }} queued{% endif %}{% endif %}{% endblock %}
 {% block content %}
-{% include "inbox/_source.html" %}
 <div class="home-columns">
   <div class="home-col" id="home-now" hx-get="/home/now" hx-trigger="refresh, every 60s [!document.hidden]" hx-swap="innerHTML" data-refresh="jobs inbox downloads wanted">{% include "home/_now.html" %}</div>
 
@@ -28,13 +27,13 @@
         </li>
         {% endfor %}
       </ul>
-      <p class="more-link"><a href="/insights/gaps">All discography gaps{{ icon('arrow-right') }}</a></p>
+      <p class="more-link"><a href="/get/missing">Everything missing{{ icon('arrow-right') }}</a></p>
       {% elif missing.looked %}
       <p class="caught-up">{{ icon('check') }}Nothing missing from the {{ missing.looked }} discograph{{ 'ies' if missing.looked != 1 else 'y' }} looked up.</p>
       {% elif missing.groups %}
-      {% call empty() %}Look up your artists' discographies to see which of their albums you don't have. <a href="/insights/gaps">Discography gaps</a>{% endcall %}
+      {% call empty() %}Look up your artists' discographies to see which of their albums you don't have. <a href="/get/missing">Look them up</a>{% endcall %}
       {% else %}
-      <p class="hint">Albums tagged from VocaDB, TouhouDB, UtaiteDB or MusicBrainz get a discography to compare against.</p>
+      {% call empty() %}Albums tagged from VocaDB, TouhouDB, UtaiteDB or MusicBrainz get a discography to compare against.{% endcall %}
       {% endif %}
     </section>
 

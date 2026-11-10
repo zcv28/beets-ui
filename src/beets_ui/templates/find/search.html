@@ -1,11 +1,11 @@
 {% extends "base.html" %}
 {% from "partials/macros.html" import icon %}
 {% block title %}{{ search.text }}{% endblock %}
-{% block header %}<header class="page-header"><h1>Inbox</h1></header>{% endblock %}
+{% block header %}<header class="page-header"><h1>Get</h1></header>{% endblock %}
 {% block content %}
-{% set tab = 'find' %}{% include "inbox/_tabs.html" %}
+{% set tab = 'find' %}{% include "get/_tabs.html" %}
 <div class="tab-content">
-<form method="post" action="/inbox/find/search" class="bar">
+<form method="post" action="/get/find/search" class="bar">
   <div class="input-group grow">{{ icon('search') }}<input class="input" type="search" name="q" value="{{ search.text }}" required minlength="3" aria-label="Find music"></div>
   <button class="btn" data-variant="outline">Search again</button>
 </form>

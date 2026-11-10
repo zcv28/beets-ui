@@ -1,21 +1,22 @@
 {% extends "base.html" %}
 {% from "partials/macros.html" import alert, empty, icon, status %}
-{% block title %}Find music{% endblock %}
-{% block header %}<header class="page-header"><h1>Inbox</h1></header>{% endblock %}
+{% block title %}Find{% endblock %}
+{% block header %}<header class="page-header"><h1>Get</h1></header>{% endblock %}
 {% block content %}
-{% set tab = 'find' %}{% include "inbox/_tabs.html" %}
+{% set tab = 'find' %}{% include "get/_tabs.html" %}
 <div class="tab-content">
-{% if error %}{% call alert('warn') %}{{ error }}{% endcall %}{% endif %}
+{# When the source is down, the alert above the tabs says so; this one is for other errors. #}
+{% if error and (not source_status or source_status.connected) %}{% call alert('warn', "Couldn't load recent searches") %}{{ error }}{% endcall %}{% endif %}
 {% set WAIT = {15: '15 seconds', 30: '30 seconds', 60: '1 minute', 120: '2 minutes'} %}
 {% set QUEUE = {0: 'Any queue', 10: 'At most 10 queued', 50: 'At most 50 queued', 200: 'At most 200 queued'} %}
 {% set SPEED = {0: 'Any speed', 100000: '100 KB/s', 500000: '500 KB/s', 1000000: '1 MB/s', 5000000: '5 MB/s'} %}
-<form method="post" action="/inbox/find/search">
+<form method="post" action="/get/find/search">
   <div class="bar">
     <div class="input-group grow">{{ icon('search') }}<input class="input" type="search" name="q" value="{{ q }}" placeholder="Artist album" data-autofocus required minlength="3" aria-label="Find music"></div>
     <button class="btn">Search</button>
   </div>
   <details class="search-options">
-    <summary>{{ icon('chevron', 'icon disclosure-icon') }}Options <span class="hint">Wait {{ WAIT[opts.wait] }} · {{ QUEUE[opts.max_queue]|lower }} · {{ SPEED[opts.min_speed]|lower if not opts.min_speed else 'at least ' ~ SPEED[opts.min_speed] }}</span></summary>
+    <summary>Options <span class="hint">Wait {{ WAIT[opts.wait] }} · {{ QUEUE[opts.max_queue]|lower }} · {{ SPEED[opts.min_speed]|lower if not opts.min_speed else 'at least ' ~ SPEED[opts.min_speed] }}</span></summary>
     <div class="fields">
       <label class="field">Wait for answers
         <select class="input" name="wait">{% for v in wait_choices %}<option value="{{ v }}" {% if v == opts.wait %}selected{% endif %}>{{ WAIT[v] }}</option>{% endfor %}</select>
@@ -30,25 +31,25 @@
     <p class="hint">Longer waits find more, slower uploaders. The options stay set for your next searches.</p>
   </details>
 </form>
-<p class="hint">A download shows in the inbox while it comes in, then waits there for review like any other folder.</p>
-<h2>Recent searches</h2>
+<p class="hint">A download shows under <a href="/get/coming">Coming in</a> while it arrives, then waits in the inbox for review like any other folder.</p>
 {% if searches %}
+<h2>Recent searches</h2>
 <div class="table-container"><table class="table">
   <thead><tr><th class="table-head">Search</th><th class="table-head">State</th><th class="table-head num">Answers</th><th class="table-head num hide-sm">Files</th><th class="table-head num"><span class="sr-only">Actions</span></th></tr></thead>
   <tbody>
   {% for s in searches %}
   <tr class="table-row">
-    <td class="table-cell"><a class="strong" href="/inbox/find/s/{{ s.id }}"{{ s.text|lang }}>{{ s.text }}</a></td>
+    <td class="table-cell"><a class="strong" href="/get/find/s/{{ s.id }}"{{ s.text|lang }}>{{ s.text }}</a></td>
     <td class="table-cell nowrap">{% if s.running %}{{ status('running', s.label) }}{% else %}<span class="hint">{{ s.label }}</span>{% endif %}</td>
     <td class="table-cell num">{{ s.answers }}</td>
     <td class="table-cell num hide-sm">{{ s.files }}</td>
-    <td class="table-cell num"><form class="inline" method="post" action="/inbox/find/s/{{ s.id }}/delete" hx-post="/inbox/find/s/{{ s.id }}/delete" hx-target="closest tr" hx-swap="delete"><button class="btn" data-variant="ghost" data-tone="destructive" data-size="icon-sm" aria-label="Delete search {{ s.text }}" title="Delete search">{{ icon('trash') }}</button></form></td>
+    <td class="table-cell num"><form class="inline" method="post" action="/get/find/s/{{ s.id }}/delete" hx-post="/get/find/s/{{ s.id }}/delete" hx-target="closest tr" hx-swap="delete"><button class="btn" data-variant="ghost" data-tone="destructive" data-size="icon-sm" aria-label="Delete search {{ s.text }}" title="Delete search">{{ icon('trash') }}</button></form></td>
   </tr>
   {% endfor %}
   </tbody>
 </table></div>
 {% elif not error %}
-{% call empty() %}No searches yet. Search for an artist and album above, or use Find on an inbox folder or in Insights.{% endcall %}
+{% call empty() %}No searches yet. Search for an artist and album above, or use Find by hand on a missing album.{% endcall %}
 {% endif %}
 </div>
 {% endblock %}

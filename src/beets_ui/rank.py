@@ -129,3 +129,48 @@ def rank(offers: list[dict[str, Any]], want: dict[str, Any]) -> list[Pick]:
 
 def audio_count(files: list[dict[str, Any]]) -> int:
     return sum(1 for f in files if f.get("audio", True))
+
+
+# ----------------------------------------------------------- searches by hand
+
+
+def _search_score(offer: dict[str, Any], words: list[str]) -> float:
+    path = norm(offer.get("folder") or offer.get("path") or "")
+    s = 6 * (sum(1 for w in words if w in path) / len(words)) if words else 0.0
+    rate = _bitrate(offer)
+    if offer.get("lossless"):
+        s += 4
+    elif rate >= 320:
+        s += 2
+    elif rate >= 256:
+        s += 1
+    if offer.get("free_slot"):
+        s += 2
+    s -= min(int(offer.get("queue") or 0) / 10, 3)
+    s += min(int(offer.get("speed") or 0) / 1_000_000, 2)
+    if offer.get("locked"):
+        s -= 5
+    return s
+
+
+def strengths(offer: dict[str, Any]) -> list[str]:
+    """What speaks for a copy, in a few words: quality, then how soon it arrives."""
+    out = []
+    rate = _bitrate(offer)
+    if offer.get("lossless"):
+        out.append("lossless")
+    elif rate >= 320:
+        out.append(f"{rate} kbps")
+    if offer.get("free_slot"):
+        out.append("free upload slot")
+    elif int(offer.get("queue") or 0) <= 5:
+        out.append("short queue")
+    if int(offer.get("speed") or 0) >= 1_000_000:
+        out.append("fast")
+    return out
+
+
+def for_search(offers: list[dict[str, Any]], text: str) -> list[dict[str, Any]]:
+    """A search by hand, best copy first: the words searched for, quality, availability."""
+    words = [w for w in (norm(t) for t in text.split()) if len(w) >= 2]
+    return sorted(offers, key=lambda o: -_search_score(o, words))

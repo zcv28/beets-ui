@@ -395,7 +395,7 @@ def test_get_from_the_gaps_page(client, app):
     }
     state.set_discography("vocadb", "77", "Test Artist", [rel])
 
-    page = client.get("/insights/gaps").text
+    page = client.get("/get/missing").text
     assert 'action="/wanted/release"' in page and "Get 1 missing" in page
     r = client.post(
         "/wanted/release",
@@ -411,8 +411,8 @@ def test_get_from_the_gaps_page(client, app):
         "/wanted/release", data={"source": "vocadb", "artist_id": "77", "release_id": "500"}
     )
     assert len(state.wanted_list()) == 1
-    # The inbox lists it, and its page says where it stands.
-    assert "New EP" in client.get("/inbox").text
+    # Coming in lists it, and its page says where it stands.
+    assert "New EP" in client.get("/get/coming").text
     wid = state.wanted_list()[0]["id"]
     assert "Waiting to search" in client.get(f"/wanted/{wid}").text
 
@@ -452,7 +452,7 @@ def test_request_page_lets_you_choose(client, app):
         data={"origin": "bob", "folder": "Music/Test Album"},
         follow_redirects=False,
     )
-    assert r.headers["location"] == "/inbox"
+    assert r.headers["location"] == "/get/coming"
     assert state.wanted(wid)["status"] == "downloading"
 
 

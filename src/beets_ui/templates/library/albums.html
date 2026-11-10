@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% from "partials/macros.html" import alert, empty, icon %}
 {% block title %}Library{% endblock %}
-{% block status %}{% if stats %}{{ '{:,}'.format(stats.albums) }} albums · {{ '{:,}'.format(stats.artists) }} artists · {{ '{:,}'.format(stats['items']) }} tracks · {{ '{:,.0f}'.format(stats.hours) }} hours{% else %}{{ albums|length }}{{ '+' if more }} albums shown{% endif %}{% endblock %}
+{% block status %}{% if stats %}{{ stats.albums|plural('album') }} · {{ stats.artists|plural('artist') }} · {{ stats['items']|plural('track') }} · {{ stats.hours|hours }}{% else %}{{ albums|length }}{{ '+' if more }} albums shown{% endif %}{% endblock %}
 {% block content %}
 {% set tab = 'albums' %}{% include "library/_tabs.html" %}
 <div class="tab-content">

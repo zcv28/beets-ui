@@ -61,6 +61,27 @@ def label(w: dict[str, Any]) -> tuple[str, str]:
     return STATES.get(w["status"], ("", w["status"]))
 
 
+# The one path a release takes: 0 missing, 1 getting, 2 review, 3 in your library.
+STAGES = {
+    "queued": 1,
+    "searching": 1,
+    "choosing": 1,
+    "downloading": 1,
+    "arrived": 1,
+    "lookup": 2,
+    "importing": 2,
+    "review": 2,
+    "done": 3,
+}
+
+
+def stage(w: dict[str, Any]) -> tuple[int, bool]:
+    """Where a request is on the path, and whether it stopped there (failed or cancelled)."""
+    if w["status"] in STAGES:
+        return STAGES[w["status"]], False
+    return (2 if w.get("folder") else 1), True
+
+
 # ------------------------------------------------------------------ requests
 
 

@@ -8,7 +8,7 @@
 <p class="hint">{{ extra }} more file{{ 's' if extra != 1 }} than the search showed.</p>
 {% endif %}
 {% set total = files|sum(attribute='size') %}
-<form method="post" action="/inbox/find/download" id="pick-form">
+<form method="post" action="/get/find/download" id="pick-form">
   <input type="hidden" name="search_id" value="{{ search_id }}">
   <input type="hidden" name="username" value="{{ g.origin }}">
   <input type="hidden" name="folder" value="{{ g.folder }}">

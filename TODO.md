@@ -10,5 +10,5 @@
 
 - **New release alerts.** Watching artists and announcing new releases is what
   [Lidarr](https://lidarr.audio) already does, and it can hand downloads to slskd
-  through Soularr. Revisit only if Insights → Discography gaps (VocaDB, TouhouDB,
+  through Soularr. Revisit only if Get → Missing (VocaDB, TouhouDB,
   UtaiteDB, MusicBrainz) should turn into a scheduled check with notifications.

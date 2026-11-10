@@ -238,12 +238,12 @@ def slsk(env, fake_source, monkeypatch):
 def test_folder_page_lists_the_full_folder(slsk):
     c, fake, _ = slsk
     fake.listing = [_file(f, f"{FOLDER}\\{f['filename']}") for f in LISTING["files"]]
-    r = c.get("/inbox/find/s/s1/results")
-    assert "/inbox/find/s/s1/folder?u=alice&amp;f=Music%2FArtist%2FAlbum%20%282020%29" in r.text
-    page = c.get("/inbox/find/s/s1/folder", params={"u": "alice", "f": "Music/Artist/Album (2020)"})
+    r = c.get("/get/find/s/s1/results")
+    assert "/get/find/s/s1/folder?u=alice&amp;f=Music%2FArtist%2FAlbum%20%282020%29" in r.text
+    page = c.get("/get/find/s/s1/folder", params={"u": "alice", "f": "Music/Artist/Album (2020)"})
     assert page.status_code == 200 and "Asking alice for the full folder" in page.text
     files = c.get(
-        "/inbox/find/s/s1/folder/files", params={"u": "alice", "f": "Music/Artist/Album (2020)"}
+        "/get/find/s/s1/folder/files", params={"u": "alice", "f": "Music/Artist/Album (2020)"}
     )
     assert "03 c.flac" in files.text and "cover.jpg" in files.text
     assert "2 more files than the search showed" in files.text
@@ -254,7 +254,7 @@ def test_folder_page_falls_back_to_matched_files(slsk):
     c, fake, _ = slsk
     fake.listing = SlskdError("timed out")
     r = c.get(
-        "/inbox/find/s/s1/folder/files", params={"u": "alice", "f": "Music/Artist/Album (2020)"}
+        "/get/find/s/s1/folder/files", params={"u": "alice", "f": "Music/Artist/Album (2020)"}
     )
     assert "didn" in r.text and "full folder" in r.text and "2 of 2 files" in r.text
 
@@ -263,7 +263,7 @@ def test_download_whole_folder_uses_the_listing(slsk):
     c, fake, _ = slsk
     fake.listing = [_file(f, f"{FOLDER}\\{f['filename']}") for f in LISTING["files"]]
     r = c.post(
-        "/inbox/find/download",
+        "/get/find/download",
         data={"search_id": "s1", "username": "alice", "folder": "Music/Artist/Album (2020)"},
     )
     assert r.status_code == 200 and "Downloading 4 files from alice" in r.text
@@ -274,7 +274,7 @@ def test_download_falls_back_and_says_so(slsk):
     c, fake, _ = slsk
     fake.listing = SlskdError("offline")
     r = c.post(
-        "/inbox/find/download",
+        "/get/find/download",
         data={"search_id": "s1", "username": "alice", "folder": "Music/Artist/Album (2020)"},
     )
     assert "Downloading 2 files" in r.text and "only the files that matched" in r.text
@@ -283,7 +283,7 @@ def test_download_falls_back_and_says_so(slsk):
 def test_download_chosen_files(slsk):
     c, fake, _ = slsk
     r = c.post(
-        "/inbox/find/download",
+        "/get/find/download",
         data={
             "search_id": "s1",
             "username": "alice",
@@ -303,12 +303,12 @@ def test_retry_requeues_and_drops_old_entries(slsk):
     )
     app = c.app
     app.state.source_watch.poll()
-    # The inbox lists the download that is still not done, with Retry.
-    page = c.get("/inbox")
+    # Coming in lists the download that is still not done, with Retry.
+    page = c.get("/get/coming")
     assert 'id="downloads"' in page.text
     assert "1 of 2 failed" in page.text and "Retry" in page.text
     r = c.post(
-        "/inbox/downloads/retry",
+        "/get/downloads/retry",
         data={
             "username": "alice",
             "name": "Album (2020)",
@@ -326,21 +326,21 @@ def test_retry_requeues_and_drops_old_entries(slsk):
 def test_search_options_are_remembered(slsk):
     c, fake, _ = slsk
     c.post(
-        "/inbox/find/search",
+        "/get/find/search",
         data={"q": "artist album", "wait": "60", "max_queue": "10", "min_speed": "999"},
     )
     assert fake.searched[-1][1] == {"wait": 60, "max_queue": 10, "min_speed": 0}
     # "Search again" sends only the text: the saved options apply.
-    c.post("/inbox/find/search", data={"q": "other album"})
+    c.post("/get/find/search", data={"q": "other album"})
     assert fake.searched[-1][1]["wait"] == 60
-    assert 'value="60" selected' in c.get("/inbox/find").text
+    assert 'value="60" selected' in c.get("/get/find").text
 
 
 def test_stop_search_and_recent_list(slsk):
     c, fake, _ = slsk
-    page = c.get("/inbox/find")
+    page = c.get("/get/find")
     assert "Searching" in page.text and "Delete search artist album" in page.text
-    c.post("/inbox/find/s/s1/stop")
+    c.post("/get/find/s/s1/stop")
     assert fake.stopped == ["s1"]
 
 
@@ -349,9 +349,9 @@ def test_disconnected_slskd_shows_everywhere(slsk):
     fake.connected = False
     app.state.source_watch.poll()
     assert 'class="nav-alert"' in c.get("/inbox").text
-    page = c.get("/inbox/find")
+    page = c.get("/get/find")
     assert "Downloads are paused" in page.text and "Reconnect" in page.text
-    c.post("/inbox/sources/connect", data={"back": "/inbox"})
+    c.post("/get/sources/connect", data={"back": "/inbox"})
     assert fake.connected and not app.state.source_watch.down
     assert 'class="nav-alert"' not in c.get("/inbox").text
 
@@ -374,29 +374,27 @@ def test_finished_downloads_leave_the_list(slsk):
     c, fake, app = slsk
     fake.transfers = downloads(transfer("1", "01.flac", "Completed, Succeeded", done=100))
     app.state.source_watch.poll()
-    assert 'id="downloads"' in c.get("/inbox").text
-    assert "Album (2020)" not in c.get("/inbox/downloads").text
+    assert 'id="downloads"' in c.get("/get/coming").text
+    assert "Album (2020)" not in c.get("/get/downloads").text
 
 
 def test_pages_do_not_name_the_source(slsk):
     c, fake, app = slsk
     fake.transfers = downloads(transfer("1", "01.flac", "InProgress"))
     app.state.source_watch.poll()
-    for url in ("/inbox", "/inbox/find", "/inbox/find/s/s1", "/inbox/downloads"):
+    for url in ("/inbox", "/get/find", "/get/find/s/s1", "/get/downloads"):
         assert "Soulseek" not in c.get(url).text, url
     sidebar = c.get("/library").text
     assert 'href="/soulseek"' not in sidebar
     # The folder page says where it comes from, once.
-    folder = c.get(
-        "/inbox/find/s/s1/folder", params={"u": "alice", "f": "Music/Artist/Album (2020)"}
-    )
+    folder = c.get("/get/find/s/s1/folder", params={"u": "alice", "f": "Music/Artist/Album (2020)"})
     assert folder.text.count("Soulseek") == 1
 
 
 def test_old_addresses_redirect(slsk):
     c, _, _ = slsk
     r = c.get("/soulseek?q=yorushika%20elma", follow_redirects=False)
-    assert r.status_code == 307 and r.headers["location"] == "/inbox/find?q=yorushika%20elma"
+    assert r.status_code == 307 and r.headers["location"] == "/get/find?q=yorushika%20elma"
     r = c.get("/soulseek/s/s1", follow_redirects=False)
-    assert r.headers["location"] == "/inbox/find/s/s1"
-    assert c.get("/soulseek/transfers", follow_redirects=False).headers["location"] == "/inbox"
+    assert r.headers["location"] == "/get/find/s/s1"
+    assert c.get("/soulseek/transfers", follow_redirects=False).headers["location"] == "/get/coming"

@@ -198,8 +198,27 @@ const typing = (t, allowChoice) => t.closest && t.closest(
 );
 
 // Review queue: n / N open the next and previous folder.
+// Single-key shortcuts can be turned off (a screen reader or voice control may type them).
+const keysOff = () => { try { return localStorage.getItem("beetsui-keys") === "off"; } catch { return false; } };
+const showKeys = () => {
+  const off = keysOff();
+  for (const el of document.querySelectorAll("[data-keys-toggle]")) {
+    el.textContent = off ? "Turn shortcuts on" : "Turn shortcuts off";
+    el.setAttribute("aria-pressed", String(!off));
+  }
+  for (const el of document.querySelectorAll(".keys-list")) el.hidden = off;
+};
+document.addEventListener("click", (e) => {
+  const t = e.target.closest && e.target.closest("[data-keys-toggle]");
+  if (!t) return;
+  try { localStorage.setItem("beetsui-keys", keysOff() ? "on" : "off"); } catch { /* stays as it was */ }
+  showKeys();
+});
+document.addEventListener("DOMContentLoaded", showKeys);
+document.addEventListener("htmx:load", showKeys);
+
 document.addEventListener("keydown", (e) => {
-  if (e.ctrlKey || e.metaKey || e.altKey || typing(e.target, true)) return;
+  if (keysOff() || e.ctrlKey || e.metaKey || e.altKey || typing(e.target, true)) return;
   const next = document.getElementById("queue-next");
   const prev = document.getElementById("queue-prev");
   if (e.key === "n" && next) { e.preventDefault(); next.click(); }
@@ -209,7 +228,7 @@ document.addEventListener("keydown", (e) => {
 // Inbox review page: j/k move between candidates, x/Enter choose, o files, p play, i import.
 document.addEventListener("keydown", (e) => {
   const form = document.getElementById("import-form");
-  if (!form || e.ctrlKey || e.metaKey || e.altKey) return;
+  if (!form || keysOff() || e.ctrlKey || e.metaKey || e.altKey) return;
   const t = e.target;
   // A candidate's radio has focus after j/k: the shortcuts keep working from there.
   const onCand = t.matches && t.matches("tr.cand input[type=radio]");
@@ -267,6 +286,25 @@ document.addEventListener("click", (e) => {
     if (!m.contains(e.target)) m.open = false;
   }
 });
+
+// A row menu ([popover].menu-content) opens in the top layer, under its button,
+// right-aligned to it and flipped above when there is no room below.
+document.addEventListener("toggle", (e) => {
+  const pop = e.target;
+  if (!pop.matches || !pop.matches(".menu-content[popover]") || e.newState !== "open") return;
+  const btn = document.querySelector(`[popovertarget="${CSS.escape(pop.id)}"]`);
+  if (!btn) return;
+  const r = btn.getBoundingClientRect();
+  const w = pop.offsetWidth, h = pop.offsetHeight, gap = 4;
+  const left = Math.max(8, Math.min(r.right - w, window.innerWidth - w - 8));
+  const below = r.bottom + gap + h <= window.innerHeight - 8;
+  pop.style.left = `${left}px`;
+  pop.style.top = `${below ? r.bottom + gap : Math.max(8, r.top - gap - h)}px`;
+}, true);
+// It belongs to a spot on the page: scrolling closes it rather than leaving it adrift.
+document.addEventListener("scroll", () => {
+  for (const p of document.querySelectorAll(".menu-content[popover]:popover-open")) p.hidePopover();
+}, { passive: true, capture: true });
 
 // -------------------------------------------------------- auto-applied filters
 // Forms with data-autosubmit apply as soon as a checkbox or select changes.

@@ -3,17 +3,20 @@
 {% block title %}Inbox{% endblock %}
 {% block status %}{{ folders|length }} folder{{ 's' if folders|length != 1 }}{% if status %} shown{% endif %}{% if to_review.total %} · {{ to_review.total }} to review{% endif %}{% endblock %}
 {% block content %}
-{% set tab = 'inbox' %}{% include "inbox/_tabs.html" %}
-<div class="tab-content">
-<p class="lead">Review folder: <code>{{ settings.inbox }}</code>. Each sub-folder is looked up{% if settings.auto_preview %} automatically once it has been unchanged for {{ settings.debounce }}s{% endif %} and waits for you to review it.{% if settings.auto_import %} Folders where every album matches {{ settings.auto_import }}% or better, with no missing tracks and nothing already in the library, are imported without review.{% endif %}</p>
+<p class="lead">Folders are looked up and wait here for your review.</p>
+<details class="about">
+  <summary>How the inbox works</summary>
+  <p class="hint">The inbox is <code>{{ settings.inbox }}</code>. Each sub-folder is looked up{% if settings.auto_preview %} automatically once it has been unchanged for {{ settings.debounce }}s{% else %} when you press Look up new{% endif %}.{% if settings.auto_import %} Folders where every album matches {{ settings.auto_import }}% or better, with no missing tracks and nothing already in the library, are imported without review.{% endif %}{% if sources_enabled %} Downloads on their way are under <a href="/get/coming">Get › Coming in</a>.{% endif %}</p>
+</details>
+{% set unlooked = summary.get('new', 0) %}
 {% if to_review.next %}
-<div class="bar"><a class="btn" href="/inbox/folder?f={{ to_review.next|q }}">Review {{ to_review.total }} folder{{ 's' if to_review.total != 1 }}{{ icon('arrow-right') }}</a></div>
+<div class="bar"><a class="btn" href="/inbox/folder?f={{ to_review.next|q }}">Review {{ to_review.total }} folder{{ 's' if to_review.total != 1 }}{{ icon('arrow-right') }}</a>{% if unlooked %}<span class="hint">{{ unlooked }} more not looked up yet</span>{% endif %}</div>
+{% elif unlooked and settings.auto_preview %}
+<p class="bar hint">{{ unlooked }} folder{{ 's are' if unlooked != 1 else ' is' }} looked up once {{ 'they stop' if unlooked != 1 else 'it stops' }} changing for {{ settings.debounce }}s, then {{ 'wait' if unlooked != 1 else 'waits' }} here for review.</p>
+{% elif unlooked %}
+<div class="bar"><form class="inline" method="post" action="/inbox/preview-all"><button class="btn">Look up {{ unlooked }} new folder{{ 's' if unlooked != 1 }}</button></form><span class="hint">You review them once they are looked up.</span></div>
 {% elif folders %}
 <p class="bar caught-up">{{ icon('check') }}Nothing is waiting for review.</p>
-{% endif %}
-{% if sources_enabled %}
-<section id="requests" aria-label="Requested" hx-get="/inbox/requests" hx-trigger="refresh, every 30s [!document.hidden]" hx-swap="innerHTML" data-refresh="wanted downloads">{% include "inbox/_requests.html" %}</section>
-<section id="downloads" aria-label="Downloading" hx-get="/inbox/downloads" hx-trigger="refresh, every 30s [!document.hidden]" hx-swap="innerHTML" data-refresh="downloads" data-keep-open>{% include "inbox/_downloads.html" %}</section>
 {% endif %}
 <div class="toolbar">
   <nav class="toggles" aria-label="Inbox filters">
@@ -23,7 +26,7 @@
   </nav>
   <span class="spacer"></span>
   <div class="toolbar-actions">
-  <form class="inline" method="post" action="/inbox/preview-all"><button class="btn" data-variant="outline" data-size="sm">Look up new</button></form>
+  {% if not (unlooked and not settings.auto_preview and not to_review.next) %}<form class="inline" method="post" action="/inbox/preview-all"><button class="btn" data-variant="outline" data-size="sm">Look up new</button></form>{% endif %}
   <form class="inline" method="post" action="/inbox/scan"><button class="btn" data-variant="outline" data-size="sm">Rescan</button></form>
   {% if imported %}
   <form class="inline" method="post" action="/inbox/delete-imported" data-confirm="Delete {{ imported }} folder{{ 's' if imported != 1 }} that {{ 'are' if imported != 1 else 'is' }} imported or already in the library? Their files are removed from the inbox; the library copies stay." data-confirm-button="Delete {{ imported }} folder{{ 's' if imported != 1 }}">
@@ -33,5 +36,4 @@
   </div>
 </div>
 {% include "inbox/_table.html" %}
-</div>
 {% endblock %}
