@@ -32,6 +32,7 @@ def versions(app) -> dict[str, str]:
         "jobs": state.jobs_version(),
         "inbox": inbox_version(state.folders()),
         "downloads": watch.version if watch else "",
+        "wanted": state.wanted_version(),
     }
 
 

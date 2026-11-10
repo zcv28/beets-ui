@@ -12,6 +12,7 @@
 <p class="bar caught-up">{{ icon('check') }}Nothing is waiting for review.</p>
 {% endif %}
 {% if sources_enabled %}
+<section id="requests" aria-label="Requested" hx-get="/inbox/requests" hx-trigger="refresh, every 30s [!document.hidden]" hx-swap="innerHTML" data-refresh="wanted downloads">{% include "inbox/_requests.html" %}</section>
 <section id="downloads" aria-label="Downloading" hx-get="/inbox/downloads" hx-trigger="refresh, every 30s [!document.hidden]" hx-swap="innerHTML" data-refresh="downloads" data-keep-open>{% include "inbox/_downloads.html" %}</section>
 {% endif %}
 <div class="toolbar">

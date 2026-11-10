@@ -12,7 +12,7 @@ from fastapi.responses import FileResponse, Response
 
 from ..importer import DUPLICATE_ACTIONS
 from ..inbox import AUDIO_EXT, STATUS_LABELS, is_within
-from ..sources import incoming
+from ..sources import incoming, requests_in_flight
 from ..web import flash, is_fragment, partial, redirect, render, toast, user
 
 router = APIRouter(prefix="/inbox")
@@ -89,7 +89,13 @@ def inbox_page(request: Request, status: str = ""):
         version=_version(rows),
         settings=request.app.state.settings,
         downloads=incoming(request.app),
+        requests=requests_in_flight(request.app),
     )
+
+
+@router.get("/requests")
+def inbox_requests(request: Request):
+    return partial(request, "inbox/_requests.html", requests=requests_in_flight(request.app))
 
 
 @router.get("/table")
