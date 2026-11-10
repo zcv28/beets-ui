@@ -5,6 +5,6 @@
 {% set tab = 'transfers' %}{% include "soulseek/_tabs.html" %}
 <div class="tab-content">
 {% if rows %}<div class="bar right"><form class="inline" method="post" action="/soulseek/transfers/clear"><button class="btn" data-variant="outline" data-size="sm">Clear finished</button></form></div>{% endif %}
-<div hx-get="/soulseek/transfers/table" hx-trigger="every 3s [!document.hidden]" hx-swap="innerHTML" data-keep-open>{% include "soulseek/_transfers.html" %}</div>
+<div hx-get="/soulseek/transfers/table" hx-trigger="refresh, every 30s [!document.hidden]" hx-swap="innerHTML" data-keep-open data-refresh="downloads">{% include "soulseek/_transfers.html" %}</div>
 </div>
 {% endblock %}

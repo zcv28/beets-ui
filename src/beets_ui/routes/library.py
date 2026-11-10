@@ -8,7 +8,7 @@ from fastapi.responses import FileResponse, Response
 from .. import artists as artists_svc
 from .. import beets_ctx, romanize
 from .. import library as libsvc
-from ..web import HERE, flash, partial, redirect, render, user
+from ..web import HERE, flash, is_fragment, partial, redirect, render, user
 
 router = APIRouter(prefix="/library")
 NOCOVER = HERE / "static" / "nocover.svg"
@@ -36,7 +36,7 @@ def albums(request: Request, q: str = "", sort: str = "artist", page: int = 1, v
         rows, more = libsvc.albums(q, sort, page)
     except libsvc.QueryError as e:
         rows, more, error = [], False, str(e)
-    if request.headers.get("hx-request") and page > 1:
+    if is_fragment(request) and page > 1:
         name = "library/_album_rows.html" if view == "table" else "library/_album_cards.html"
         return partial(request, name, albums=rows, more=more, q=q, sort=sort, page=page, view=view)
     return render(
@@ -63,7 +63,7 @@ def tracks(request: Request, q: str = "", page: int = 1, singletons: int = 0):
         rows, more = libsvc.items(q, page, singletons=bool(singletons))
     except libsvc.QueryError as e:
         rows, more, error = [], False, str(e)
-    if request.headers.get("hx-request") and page > 1:
+    if is_fragment(request) and page > 1:
         return partial(
             request,
             "library/_track_rows.html",

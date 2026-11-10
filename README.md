@@ -158,7 +158,7 @@ Search from **Soulseek → Search**. Results are grouped into one row per user a
 
 When a download finishes it appears in the inbox. **Search Soulseek** on an inbox folder fills in the search from its tags, and Insights links to searches for missing and upgradeable albums.
 
-beets-ui checks slskd every 10 seconds in the background. Uploads, shares, rooms and chat stay in slskd's own web UI.
+beets-ui checks slskd every 5 seconds in the background. Uploads, shares, rooms and chat stay in slskd's own web UI.
 
 ### LDAP examples
 
@@ -187,6 +187,8 @@ Tags: `latest` (main branch), `X.Y.Z` / `X.Y` (releases), `sha-<commit>`.
 ---
 
 ## Using it
+
+beets-ui behaves like an app. Moving between pages doesn't reload them, so a preview keeps playing while you look around. Lists such as the inbox and jobs update by themselves the moment something changes. Quick actions like deleting an inbox folder or dismissing a missing album happen in place, with a pop-up to **Undo** where that is possible. You can install it from the browser (the install icon in the address bar, or *Add to Home Screen* on a phone) to give it its own window and icon.
 
 1. **Inbox.** New folders show up as *Not looked up*, get looked up, and become *Ready* (with the best match %) or *Needs attention*. Expand a row to see its files. Folders that are already in your library (same MusicBrainz album ID, or same album artist and album name) are marked with a link to the album; delete them one by one or all at once with **Delete imported**. Press **Review N folders** to start on the first folder waiting for you, or open any folder:
    - Every candidate shows match %, source, year, label, catalog number and what differs. The chosen one shows a track-by-track diff, with changed titles and length mismatches marked.

@@ -6,7 +6,7 @@
 {{ back('/library', 'Library') }}
 <div class="album-head">
   <div class="art">
-    <a href="/library/album/{{ album.id }}/cover"><img class="art-img" src="/library/album/{{ album.id }}/cover?size=600" alt="Cover of {{ album.album }}"></a>
+    <a href="/library/album/{{ album.id }}/cover" hx-boost="false"><img class="art-img" src="/library/album/{{ album.id }}/cover?size=600" alt="Cover of {{ album.album }}"></a>
     <p class="hint">{% if cover.has %}<span class="mono">{{ cover.size[0] if cover.size else '?' }}×{{ cover.size[1] if cover.size else '?' }}</span>{% elif cover.embedded %}Embedded in files{% if cover.size %} <span class="mono">({{ cover.size[0] }}×{{ cover.size[1] }})</span>{% endif %}{% else %}<span class="status" data-status="warning">No cover</span>{% endif %}{% if cover.low and (cover.has or cover.embedded) %} <span class="status" data-status="warning">Low resolution</span>{% endif %} · <a href="/artwork/album/{{ album.id }}">Change cover</a></p>
   </div>
   <div class="meta">
