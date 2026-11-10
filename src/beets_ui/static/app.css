@@ -528,3 +528,11 @@
     ::view-transition-old(root), ::view-transition-new(root) { animation: none; }
   }
 }
+
+/* ======================================================== inbox: downloads */
+@layer app {
+  /* A section heading with its action on the right (the downloads list). */
+  .section-head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 0.5rem 1rem; margin: 1.5rem 0 0.75rem; }
+  .section-head > h2 { margin: 0; }
+  .stack-sm .col-main > .hint { margin: 0.125rem 0 0; }
+}

@@ -13,7 +13,7 @@ from fastapi.staticfiles import StaticFiles
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.middleware.sessions import SessionMiddleware
 
-from . import __version__, beets_ctx, discography, history, listening, lyrics, romanize
+from . import __version__, beets_ctx, discography, history, listening, lyrics, romanize, sources
 from . import artists as artists_svc
 from .artwork.service import Artwork
 from .auth import RateLimiter
@@ -22,7 +22,6 @@ from .inbox import Inbox
 from .jobs import JobQueue
 from .library import register_jobs
 from .settings import Settings
-from .slskd import Slskd, Watcher
 from .state import State
 from .web import HERE
 
@@ -68,20 +67,20 @@ def create_app(settings: Settings | None = None, background: bool = True) -> Fas
     listening.register_jobs(jobs, settings)
     lyrics.register_jobs(jobs, settings)
 
-    slskd = Slskd(settings.slskd_url, settings.slskd_api_key) if settings.slskd_enabled else None
-    slskd_watch = Watcher(slskd) if slskd else None
+    source = sources.build(settings)
+    source_watch = sources.Watcher(source) if source else None
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):
         if background:
             jobs.start()
             inbox.start_watcher()
-            if slskd_watch:
-                slskd_watch.start()
+            if source_watch:
+                source_watch.start()
         yield
         if background:
-            if slskd_watch:
-                slskd_watch.stop()
+            if source_watch:
+                source_watch.stop()
             inbox.stop_watcher()
             jobs.stop()
 
@@ -99,8 +98,8 @@ def create_app(settings: Settings | None = None, background: bool = True) -> Fas
     app.state.inbox = inbox
     app.state.console = console
     app.state.artwork = artwork
-    app.state.slskd = slskd
-    app.state.slskd_watch = slskd_watch
+    app.state.source = source
+    app.state.source_watch = source_watch
     app.state.limiter = RateLimiter()
 
     # Order matters: the session middleware must wrap the auth middleware.
@@ -119,11 +118,11 @@ def create_app(settings: Settings | None = None, background: bool = True) -> Fas
     from .routes import auth as r_auth
     from .routes import console as r_console
     from .routes import events as r_events
+    from .routes import find as r_find
     from .routes import inbox as r_inbox
     from .routes import insights as r_insights
     from .routes import jobs as r_jobs
     from .routes import library as r_library
-    from .routes import soulseek as r_soulseek
 
     for r in (
         r_auth,
@@ -131,12 +130,13 @@ def create_app(settings: Settings | None = None, background: bool = True) -> Fas
         r_library,
         r_console,
         r_jobs,
-        r_soulseek,
+        r_find,
         r_artwork,
         r_insights,
         r_events,
     ):
         app.include_router(r.router)
+    app.include_router(r_find.legacy)
 
     @app.get("/healthz", include_in_schema=False)
     def healthz():
