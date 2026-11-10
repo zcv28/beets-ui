@@ -69,8 +69,8 @@
     <div class="bar">
       {% if folder.tasks|selectattr('candidates')|list %}<label class="checkbox-item"><input class="checkbox" type="checkbox" name="merge" value="1" checked>Keep current candidates</label>{% endif %}
       <span class="spacer"></span>
-      {% if slskd_enabled and folder.tasks %}
-      <a class="btn" data-variant="outline" data-size="sm" href="/soulseek?q={{ (folder.tasks[0].cur_artist ~ ' ' ~ folder.tasks[0].cur_album)|q }}">Search Soulseek</a>
+      {% if sources_enabled and folder.tasks %}
+      <a class="btn" data-variant="outline" data-size="sm" href="/inbox/find?q={{ (folder.tasks[0].cur_artist ~ ' ' ~ folder.tasks[0].cur_album)|q }}">Find music</a>
       {% endif %}
       <button class="btn" data-size="sm" {% if busy %}disabled{% endif %}>Look up</button>
     </div>

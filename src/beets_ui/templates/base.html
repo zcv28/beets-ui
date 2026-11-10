@@ -23,7 +23,7 @@
   <aside class="app-sidebar">
     <div class="sidebar-header"><a class="sidebar-logo" href="/inbox"><span class="brand-mark" aria-hidden="true">b</span><span class="sidebar-logo-text">beets-ui</span></a></div>
     <div class="sidebar-content">
-      {{ nav_links(nav, slskd_enabled, slskd_status) }}
+      {{ nav_links(nav, source_status) }}
       {% include "partials/jobs_pill.html" %}
     </div>
     <div class="sidebar-footer">
@@ -39,7 +39,7 @@
     <button class="sidebar-mobile-close" type="button" aria-label="Close menu">{{ icon('x') }}</button>
     <div class="sidebar-header"><a class="sidebar-logo" href="/inbox"><span class="brand-mark" aria-hidden="true">b</span>beets-ui</a></div>
     {# The links sit at the bottom of the sheet, where a thumb reaches. #}
-    <div class="sidebar-content">{{ nav_links(nav, slskd_enabled, slskd_status) }}</div>
+    <div class="sidebar-content">{{ nav_links(nav, source_status) }}</div>
     <div class="sidebar-footer">
       <form method="post" action="/logout" class="sidebar-user" hx-boost="false">
         <span class="sidebar-user-name">{{ user }}</span>

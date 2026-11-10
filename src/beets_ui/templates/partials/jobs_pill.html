@@ -26,8 +26,8 @@
     {{ icon('success' if e.ok else 'destructive', 'toast-icon') }}
     <div class="toast-text">
       <p class="toast-title">{{ 'Downloaded ' if e.ok else 'Download failed: ' }}<span{{ e.folder_name|lang }}>{{ e.folder_name }}</span></p>
-      <p class="toast-description">{% if e.ok %}From {{ e.username }}. It shows up in the inbox once the files settle.{% else %}{{ e.label }}. You can retry from Soulseek downloads.{% endif %}</p>
-      <div class="toast-actions"><a class="btn" data-variant="outline" data-size="xs" href="{{ '/inbox' if e.ok else '/soulseek/transfers' }}">{{ 'Open inbox' if e.ok else 'View downloads' }}</a></div>
+      <p class="toast-description">{% if e.ok %}From {{ e.origin }}. It's in the inbox, and is looked up once the files settle.{% else %}{{ e.label }}. You can retry it in the inbox.{% endif %}</p>
+      <div class="toast-actions"><a class="btn" data-variant="outline" data-size="xs" href="/inbox">Open inbox</a></div>
     </div>
     <button class="toast-close" type="button" aria-label="Dismiss">{{ icon('x') }}</button>
   </div>

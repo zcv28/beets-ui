@@ -1,4 +1,5 @@
-"""Soulseek: full folder listings, file choice, retry, search options, status and pop-ups."""
+"""Find music and downloads: full folder listings, file choice, retry, search options,
+connection status and pop-ups, through the Soulseek source."""
 
 from __future__ import annotations
 
@@ -12,7 +13,9 @@ import respx
 from fastapi.testclient import TestClient
 
 from beets_ui.settings import Settings
-from beets_ui.slskd import Slskd, SlskdError, Watcher, _file, flatten_downloads
+from beets_ui.slskd import Slskd, SlskdError, _file, flatten_downloads
+from beets_ui.sources import Watcher
+from beets_ui.sources.soulseek import SoulseekSource
 
 BASE = "http://slskd:5030/api/v0"
 FOLDER = "Music\\Artist\\Album (2020)"
@@ -192,7 +195,7 @@ class FakeSlskd:
 
 def test_watcher_reports_finished_downloads_once():
     fake = FakeSlskd()
-    w = Watcher(fake)
+    w = Watcher(SoulseekSource(fake))
     fake.transfers = downloads(transfer("1", "01.flac", "InProgress"))
     w.poll()
     assert w.status["connected"] and not w.down and not w.events
@@ -205,7 +208,7 @@ def test_watcher_reports_finished_downloads_once():
 
 def test_watcher_marks_slskd_down():
     fake = FakeSlskd()
-    w = Watcher(fake)
+    w = Watcher(SoulseekSource(fake))
     fake.connected = False
     w.poll()
     assert w.down and w.status["reachable"]
@@ -225,8 +228,8 @@ def slsk(env, fake_source, monkeypatch):
     monkeypatch.setenv("SLSKD_API_KEY", "key")
     app = create_app(Settings.from_env(), background=False)
     fake = FakeSlskd()
-    app.state.slskd = fake
-    app.state.slskd_watch = Watcher(fake)
+    app.state.source = SoulseekSource(fake)
+    app.state.source_watch = Watcher(app.state.source)
     c = TestClient(app)
     assert c.post("/login", data={"password": "secret"}, follow_redirects=False).status_code == 303
     return c, fake, app
@@ -235,12 +238,12 @@ def slsk(env, fake_source, monkeypatch):
 def test_folder_page_lists_the_full_folder(slsk):
     c, fake, _ = slsk
     fake.listing = [_file(f, f"{FOLDER}\\{f['filename']}") for f in LISTING["files"]]
-    r = c.get("/soulseek/s/s1/results")
-    assert "/soulseek/s/s1/folder?u=alice&amp;f=Music%2FArtist%2FAlbum%20%282020%29" in r.text
-    page = c.get("/soulseek/s/s1/folder", params={"u": "alice", "f": "Music/Artist/Album (2020)"})
+    r = c.get("/inbox/find/s/s1/results")
+    assert "/inbox/find/s/s1/folder?u=alice&amp;f=Music%2FArtist%2FAlbum%20%282020%29" in r.text
+    page = c.get("/inbox/find/s/s1/folder", params={"u": "alice", "f": "Music/Artist/Album (2020)"})
     assert page.status_code == 200 and "Asking alice for the full folder" in page.text
     files = c.get(
-        "/soulseek/s/s1/folder/files", params={"u": "alice", "f": "Music/Artist/Album (2020)"}
+        "/inbox/find/s/s1/folder/files", params={"u": "alice", "f": "Music/Artist/Album (2020)"}
     )
     assert "03 c.flac" in files.text and "cover.jpg" in files.text
     assert "2 more files than the search showed" in files.text
@@ -251,7 +254,7 @@ def test_folder_page_falls_back_to_matched_files(slsk):
     c, fake, _ = slsk
     fake.listing = SlskdError("timed out")
     r = c.get(
-        "/soulseek/s/s1/folder/files", params={"u": "alice", "f": "Music/Artist/Album (2020)"}
+        "/inbox/find/s/s1/folder/files", params={"u": "alice", "f": "Music/Artist/Album (2020)"}
     )
     assert "didn" in r.text and "full folder" in r.text and "2 of 2 files" in r.text
 
@@ -260,10 +263,10 @@ def test_download_whole_folder_uses_the_listing(slsk):
     c, fake, _ = slsk
     fake.listing = [_file(f, f"{FOLDER}\\{f['filename']}") for f in LISTING["files"]]
     r = c.post(
-        "/soulseek/download",
+        "/inbox/find/download",
         data={"search_id": "s1", "username": "alice", "folder": "Music/Artist/Album (2020)"},
     )
-    assert r.status_code == 200 and "Queued 4 files from alice" in r.text
+    assert r.status_code == 200 and "Downloading 4 files from alice" in r.text
     assert len(fake.enqueued[0][1]) == 4
 
 
@@ -271,16 +274,16 @@ def test_download_falls_back_and_says_so(slsk):
     c, fake, _ = slsk
     fake.listing = SlskdError("offline")
     r = c.post(
-        "/soulseek/download",
+        "/inbox/find/download",
         data={"search_id": "s1", "username": "alice", "folder": "Music/Artist/Album (2020)"},
     )
-    assert "Queued 2 files" in r.text and "only the files that matched" in r.text
+    assert "Downloading 2 files" in r.text and "only the files that matched" in r.text
 
 
 def test_download_chosen_files(slsk):
     c, fake, _ = slsk
     r = c.post(
-        "/soulseek/download",
+        "/inbox/find/download",
         data={
             "search_id": "s1",
             "username": "alice",
@@ -288,7 +291,7 @@ def test_download_chosen_files(slsk):
             "file": [f"3000:{FOLDER}\\03 c.flac", "50:" + FOLDER + "\\cover.jpg"],
         },
     )
-    assert "Queued 2 files" in r.text
+    assert "Downloading 2 files" in r.text
     assert fake.enqueued == [("alice", [f"{FOLDER}\\03 c.flac", f"{FOLDER}\\cover.jpg"])]
 
 
@@ -298,13 +301,23 @@ def test_retry_requeues_and_drops_old_entries(slsk):
         transfer("1", "01.flac", "Completed, Succeeded", done=100),
         transfer("2", "02.flac", "Completed, Errored"),
     )
-    page = c.get("/soulseek/transfers")
+    app = c.app
+    app.state.source_watch.poll()
+    # The inbox lists the download that is still not done, with Retry.
+    page = c.get("/inbox")
+    assert 'id="downloads"' in page.text
     assert "1 of 2 failed" in page.text and "Retry" in page.text
     r = c.post(
-        "/soulseek/transfers/retry",
-        data={"username": "alice", "file": [f"100:{FOLDER}\\02.flac"], "id": ["2"]},
+        "/inbox/downloads/retry",
+        data={
+            "username": "alice",
+            "name": "Album (2020)",
+            "file": [f"100:{FOLDER}\\02.flac"],
+            "id": ["2"],
+        },
+        headers={"HX-Request": "true"},
     )
-    assert "Queued 1 file from alice again" in r.text
+    assert json.loads(r.headers["HX-Trigger"])["toast"]["title"] == "Retrying Album (2020)"
     assert fake.enqueued == [("alice", [f"{FOLDER}\\02.flac"])]
     assert fake.cancelled == [("2", True)]
 
@@ -312,33 +325,33 @@ def test_retry_requeues_and_drops_old_entries(slsk):
 def test_search_options_are_remembered(slsk):
     c, fake, _ = slsk
     c.post(
-        "/soulseek/search",
+        "/inbox/find/search",
         data={"q": "artist album", "wait": "60", "max_queue": "10", "min_speed": "999"},
     )
     assert fake.searched[-1][1] == {"wait": 60, "max_queue": 10, "min_speed": 0}
     # "Search again" sends only the text: the saved options apply.
-    c.post("/soulseek/search", data={"q": "other album"})
+    c.post("/inbox/find/search", data={"q": "other album"})
     assert fake.searched[-1][1]["wait"] == 60
-    assert 'value="60" selected' in c.get("/soulseek").text
+    assert 'value="60" selected' in c.get("/inbox/find").text
 
 
 def test_stop_search_and_recent_list(slsk):
     c, fake, _ = slsk
-    page = c.get("/soulseek")
+    page = c.get("/inbox/find")
     assert "Searching" in page.text and "Delete search artist album" in page.text
-    c.post("/soulseek/s/s1/stop")
+    c.post("/inbox/find/s/s1/stop")
     assert fake.stopped == ["s1"]
 
 
 def test_disconnected_slskd_shows_everywhere(slsk):
     c, fake, app = slsk
     fake.connected = False
-    app.state.slskd_watch.poll()
+    app.state.source_watch.poll()
     assert 'class="nav-alert"' in c.get("/inbox").text
-    page = c.get("/soulseek")
-    assert "connected to Soulseek" in page.text and "Reconnect" in page.text
-    c.post("/soulseek/server/connect", data={"back": "/soulseek"})
-    assert fake.connected and not app.state.slskd_watch.down
+    page = c.get("/inbox/find")
+    assert "Downloads are paused" in page.text and "Reconnect" in page.text
+    c.post("/inbox/sources/connect", data={"back": "/inbox"})
+    assert fake.connected and not app.state.source_watch.down
     assert 'class="nav-alert"' not in c.get("/inbox").text
 
 
@@ -346,11 +359,43 @@ def test_finished_download_pops_up(slsk):
     c, fake, app = slsk
     since = time.time()
     fake.transfers = downloads(transfer("1", "01.flac", "InProgress"))
-    app.state.slskd_watch.poll()
+    app.state.source_watch.poll()
     fake.transfers = downloads(transfer("1", "01.flac", "Completed, Succeeded", done=100))
-    app.state.slskd_watch.poll()
+    app.state.source_watch.poll()
     r = c.get(f"/jobs/pill?since={since}")
     assert "Downloaded" in r.text and "Album (2020)" in r.text and "Open inbox" in r.text
     # The next poll carries the newer timestamp and shows nothing again.
     nxt = re.search(r"since=([0-9.]+)", r.text).group(1)
     assert "Downloaded" not in c.get(f"/jobs/pill?since={nxt}").text
+
+
+def test_finished_downloads_leave_the_list(slsk):
+    c, fake, app = slsk
+    fake.transfers = downloads(transfer("1", "01.flac", "Completed, Succeeded", done=100))
+    app.state.source_watch.poll()
+    assert 'id="downloads"' in c.get("/inbox").text
+    assert "Album (2020)" not in c.get("/inbox/downloads").text
+
+
+def test_pages_do_not_name_the_source(slsk):
+    c, fake, app = slsk
+    fake.transfers = downloads(transfer("1", "01.flac", "InProgress"))
+    app.state.source_watch.poll()
+    for url in ("/inbox", "/inbox/find", "/inbox/find/s/s1", "/inbox/downloads"):
+        assert "Soulseek" not in c.get(url).text, url
+    sidebar = c.get("/library").text
+    assert 'href="/soulseek"' not in sidebar
+    # The folder page says where it comes from, once.
+    folder = c.get(
+        "/inbox/find/s/s1/folder", params={"u": "alice", "f": "Music/Artist/Album (2020)"}
+    )
+    assert folder.text.count("Soulseek") == 1
+
+
+def test_old_addresses_redirect(slsk):
+    c, _, _ = slsk
+    r = c.get("/soulseek?q=yorushika%20elma", follow_redirects=False)
+    assert r.status_code == 307 and r.headers["location"] == "/inbox/find?q=yorushika%20elma"
+    r = c.get("/soulseek/s/s1", follow_redirects=False)
+    assert r.headers["location"] == "/inbox/find/s/s1"
+    assert c.get("/soulseek/transfers", follow_redirects=False).headers["location"] == "/inbox"

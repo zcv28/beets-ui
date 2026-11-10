@@ -1,12 +1,12 @@
 {% from "partials/macros.html" import alert, icon %}
-<div id="results" {% if not done %}hx-get="/soulseek/s/{{ search_id }}/results?fmt={{ fmt }}&free={{ free }}" hx-trigger="every 2s [!document.hidden]" hx-swap="outerHTML"{% endif %}>
+<div id="results" {% if search.running %}hx-get="/inbox/find/s/{{ search_id }}/results?fmt={{ fmt }}&free={{ free }}" hx-trigger="every 2s [!document.hidden]" hx-swap="outerHTML"{% endif %}>
 <div class="bar tight">
-  <p class="hint">{% if not done %}<span class="loading">Searching</span>{% else %}{{ label }}{% endif %} · {{ search.responseCount or 0 }} user{{ 's' if search.responseCount != 1 }} answered · {{ groups|length }} folder{{ 's' if groups|length != 1 }}</p>
-  {% if not done %}<form class="inline" method="post" action="/soulseek/s/{{ search_id }}/stop"><button class="btn" data-variant="outline" data-size="xs">Stop</button></form>{% endif %}
+  <p class="hint">{% if search.running %}<span class="loading">Searching</span>{% else %}{{ search.label }}{% endif %} · {{ search.answers }} answer{{ 's' if search.answers != 1 }} · {{ groups|length }} folder{{ 's' if groups|length != 1 }}</p>
+  {% if search.running %}<form class="inline" method="post" action="/inbox/find/s/{{ search_id }}/stop"><button class="btn" data-variant="outline" data-size="xs">Stop</button></form>{% endif %}
 </div>
 {% if groups %}
 <div class="table-container" data-density="compact"><table class="table stack-sm">
-  <thead><tr><th class="table-head">Folder</th><th class="table-head">Format</th><th class="table-head num">kbps</th><th class="table-head num">Tracks</th><th class="table-head num">Size</th><th class="table-head hide-sm">User</th><th class="table-head num hide-sm">Speed</th><th class="table-head num hide-sm">Queue</th><th class="table-head num"><span class="sr-only">Actions</span></th></tr></thead>
+  <thead><tr><th class="table-head">Folder</th><th class="table-head">Format</th><th class="table-head num">kbps</th><th class="table-head num">Tracks</th><th class="table-head num">Size</th><th class="table-head hide-sm">From</th><th class="table-head num hide-sm">Speed</th><th class="table-head num hide-sm">Queue</th><th class="table-head num"><span class="sr-only">Actions</span></th></tr></thead>
   <tbody>
   {% for g in groups %}
   <tr class="table-row">
@@ -18,16 +18,16 @@
     <td class="table-cell num">{% if g.bitrate %}{{ g.bitrate }}<span class="show-sm"> kbps</span>{% endif %}</td>
     <td class="table-cell num">{{ g.tracks }}<span class="show-sm"> tracks</span></td>
     <td class="table-cell num">{{ g.size|size }}</td>
-    <td class="table-cell hide-sm hint">{{ g.username }}{% if g.locked %} <span class="inline-icon" title="Some files are locked">{{ icon('lock') }}<span class="sr-only">Some files are locked</span></span>{% endif %}</td>
+    <td class="table-cell hide-sm hint">{{ g.origin }}{% if g.locked %} <span class="inline-icon" title="Some files are locked">{{ icon('lock') }}<span class="sr-only">Some files are locked</span></span>{% endif %}</td>
     <td class="table-cell num hide-sm">{{ (g.speed or 0)|size }}/s</td>
     <td class="table-cell num hide-sm">{% if g.free_slot %}<span class="status" data-status="success">Free</span>{% else %}{{ g.queue }}{% endif %}</td>
     <td class="table-cell num col-actions">
-      <form class="inline" method="post" action="/soulseek/download">
+      <form class="inline" method="post" action="/inbox/find/download">
         {% if g.in_inbox %}<span class="hint">In inbox</span>{% endif %}
         <input type="hidden" name="search_id" value="{{ search_id }}">
-        <input type="hidden" name="username" value="{{ g.username }}">
+        <input type="hidden" name="username" value="{{ g.origin }}">
         <input type="hidden" name="folder" value="{{ g.folder }}">
-        <button class="btn" data-variant="outline" data-size="sm" aria-label="Download {{ g.folder_name }} from {{ g.username }}">Download</button>
+        <button class="btn" data-variant="outline" data-size="sm" aria-label="Download {{ g.folder_name }} from {{ g.origin }}">Download</button>
       </form>
     </td>
   </tr>
@@ -35,7 +35,7 @@
   </tbody>
 </table></div>
 <p class="hint">Download takes the whole folder. Open a folder to see every file in it and choose which to download.</p>
-{% elif done %}
+{% elif not search.running %}
 {% call alert('wip') %}No audio folders found. Try fewer words, or a longer wait in the search options.{% endcall %}
 {% endif %}
 </div>

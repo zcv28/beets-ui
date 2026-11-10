@@ -12,6 +12,7 @@ from fastapi.responses import FileResponse, Response
 
 from ..importer import DUPLICATE_ACTIONS
 from ..inbox import AUDIO_EXT, STATUS_LABELS, is_within
+from ..sources import incoming
 from ..web import flash, is_fragment, partial, redirect, render, toast, user
 
 router = APIRouter(prefix="/inbox")
@@ -87,6 +88,7 @@ def inbox_page(request: Request, status: str = ""):
         status=status,
         version=_version(rows),
         settings=request.app.state.settings,
+        downloads=incoming(request.app),
     )
 
 

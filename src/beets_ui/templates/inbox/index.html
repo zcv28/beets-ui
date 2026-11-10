@@ -3,11 +3,16 @@
 {% block title %}Inbox{% endblock %}
 {% block status %}{{ folders|length }} folder{{ 's' if folders|length != 1 }}{% if status %} shown{% endif %}{% if to_review.total %} · {{ to_review.total }} to review{% endif %}{% endblock %}
 {% block content %}
+{% set tab = 'inbox' %}{% include "inbox/_tabs.html" %}
+<div class="tab-content">
 <p class="lead">Review folder: <code>{{ settings.inbox }}</code>. Each sub-folder is looked up{% if settings.auto_preview %} automatically once it has been unchanged for {{ settings.debounce }}s{% endif %} and waits for you to review it.{% if settings.auto_import %} Folders where every album matches {{ settings.auto_import }}% or better, with no missing tracks and nothing already in the library, are imported without review.{% endif %}</p>
 {% if to_review.next %}
 <div class="bar"><a class="btn" href="/inbox/folder?f={{ to_review.next|q }}">Review {{ to_review.total }} folder{{ 's' if to_review.total != 1 }}{{ icon('arrow-right') }}</a></div>
 {% elif folders %}
 <p class="bar caught-up">{{ icon('check') }}Nothing is waiting for review.</p>
+{% endif %}
+{% if sources_enabled %}
+<section id="downloads" aria-label="Downloading" hx-get="/inbox/downloads" hx-trigger="refresh, every 30s [!document.hidden]" hx-swap="innerHTML" data-refresh="downloads" data-keep-open>{% include "inbox/_downloads.html" %}</section>
 {% endif %}
 <div class="toolbar">
   <nav class="toggles" aria-label="Inbox filters">
@@ -27,4 +32,5 @@
   </div>
 </div>
 {% include "inbox/_table.html" %}
+</div>
 {% endblock %}

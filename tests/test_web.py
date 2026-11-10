@@ -122,7 +122,7 @@ def test_pages_render(client):
         r = client.get(url)
         assert r.status_code == 200, url
     # soulseek disabled without config
-    assert client.get("/soulseek").status_code == 404
+    assert client.get("/inbox/find").status_code == 404
 
 
 def test_console_job(app, client):

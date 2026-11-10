@@ -3,16 +3,16 @@
 {% block title %}{{ g.folder_name }}{% endblock %}
 {% block header %}
 <header class="page-header">
-  {{ back('/soulseek/s/' ~ search_id, 'Results for ' ~ (search.searchText or 'this search')) }}
+  {{ back('/inbox/find/s/' ~ search_id, 'Results for ' ~ (search.text or 'this search')) }}
   <h1{{ g.folder_name|lang }}>{{ g.folder_name }}</h1>
-  <p class="page-description">From {{ g.username }} · {% if g.free_slot %}free upload slot{% else %}{{ g.queue }} in their queue{% endif %} · {{ (g.speed or 0)|size }}/s</p>
+  <p class="page-description">From {{ g.origin }} · {% if g.free_slot %}free upload slot{% else %}{{ g.queue }} in their queue{% endif %} · {{ (g.speed or 0)|size }}/s</p>
 </header>
 {% endblock %}
 {% block content %}
-{% include "soulseek/_server.html" %}
-<p class="hint mono">{{ g.folder }}</p>
+{% include "inbox/_source.html" %}
+<p class="hint mono">via {{ source_label }} · {{ g.folder }}</p>
 {% if g.in_inbox %}{% call alert('info', 'Already in the inbox') %}A folder named <span{{ g.folder_name|lang }}>{{ g.folder_name }}</span> is waiting in the inbox. <a href="/inbox/folder?f={{ g.folder_name|q }}">Open it</a>{% endcall %}{% endif %}
 <div hx-get="{{ files_url }}" hx-trigger="load" hx-swap="outerHTML">
-  <p class="hint"><span class="loading">Asking {{ g.username }} for the full folder</span></p>
+  <p class="hint"><span class="loading">Asking {{ g.origin }} for the full folder</span></p>
 </div>
 {% endblock %}
