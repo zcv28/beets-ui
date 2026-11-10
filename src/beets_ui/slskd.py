@@ -6,6 +6,7 @@ its API and receives the finished downloads in the inbox, which is slskd's downl
 
 from __future__ import annotations
 
+import hashlib
 import logging
 import posixpath
 import threading
@@ -350,10 +351,12 @@ class Watcher:
     The sidebar reads ``status``; the jobs panel turns ``events`` into pop-ups.
     """
 
-    def __init__(self, client: Slskd, interval: float = 10):
+    def __init__(self, client: Slskd, interval: float = 5):
         self.client = client
         self.interval = interval
         self.status: dict[str, Any] | None = None
+        # Changes whenever the connection or any download changes (live updates).
+        self.version = ""
         self.events: deque[dict[str, Any]] = deque(maxlen=50)
         self._states: dict[tuple[str, str], str] | None = None
         self._lock = threading.Lock()
@@ -373,6 +376,7 @@ class Watcher:
             server = self.client.server()
         except SlskdError as e:
             self.status = {"reachable": False, "connected": False, "error": str(e)}
+            self.version = "down"
             return
         self.status = {
             "reachable": True,
@@ -391,6 +395,10 @@ class Watcher:
                 if before in ("downloading", "queued") and r["state"] in ("done", "failed"):
                     self.events.append({**r, "at": now, "ok": r["state"] == "done"})
         self._states = {(r["username"], r["folder"]): r["state"] for r in rows}
+        seen = [self.status["connected"]] + [
+            (r["username"], r["folder"], r["state"], r["percent"], r["place"]) for r in rows
+        ]
+        self.version = hashlib.md5(repr(seen).encode()).hexdigest()[:12]
 
     def events_since(self, ts: float) -> list[dict[str, Any]]:
         return [e for e in list(self.events) if e["at"] > ts]

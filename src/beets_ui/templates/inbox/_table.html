@@ -1,6 +1,6 @@
 {% from "partials/macros.html" import empty, icon, match, status as state %}
-{# Polls every 5s; the server answers 204 when nothing changed, and nothing polls while focus is inside. #}
-<div id="inbox-table" hx-get="/inbox/table?status={{ status }}&v={{ version }}" hx-trigger="every 5s [!document.hidden && !this.matches(':focus-within')]" hx-swap="outerHTML">
+{# Reloads when the inbox changes (live updates, or every 60s); the server answers 204 when nothing changed, and nothing reloads while focus is inside. #}
+<div id="inbox-table" hx-get="/inbox/table?status={{ status }}&v={{ version }}" hx-trigger="refresh[!this.matches(':focus-within')], every 60s [!document.hidden && !this.matches(':focus-within')]" hx-swap="outerHTML" data-refresh="inbox">
 {% if folders %}
 <div class="table-container">
 <table class="table inbox-table">
@@ -25,7 +25,7 @@
     <td class="table-cell hide-sm nowrap mono hint">{{ f.updated_at|ts }}</td>
     <td class="table-cell nowrap col-actions">
       {% if f.status not in ('queued', 'previewing', 'importing') %}
-      <form class="inline" method="post" action="/inbox/folder/delete" data-confirm="{% if f.status == 'imported' or f.library %}Delete {{ f.path }} from the inbox? Its files are removed; the library copy stays.{% else %}{{ f.path }} has not been imported. Delete it and all its files from the inbox? This cannot be undone.{% endif %}" data-confirm-button="Delete folder">
+      <form class="inline" method="post" action="/inbox/folder/delete" hx-post="/inbox/folder/delete" hx-target="closest tr" hx-swap="delete" data-confirm="{% if f.status == 'imported' or f.library %}Delete {{ f.path }} from the inbox? Its files are removed; the library copy stays.{% else %}{{ f.path }} has not been imported. Delete it and all its files from the inbox? This cannot be undone.{% endif %}" data-confirm-button="Delete folder">
         <input type="hidden" name="f" value="{{ f.path }}">
         <input type="hidden" name="back" value="/inbox{% if status %}?status={{ status }}{% endif %}">
         <button class="btn" data-variant="ghost" data-tone="destructive" data-size="icon-sm" aria-label="Delete {{ f.path }}" title="Delete from the inbox">{{ icon('trash') }}</button>

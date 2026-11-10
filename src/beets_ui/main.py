@@ -8,7 +8,7 @@ from contextlib import asynccontextmanager
 from urllib.parse import urlsplit
 
 from fastapi import FastAPI, Request
-from fastapi.responses import PlainTextResponse, RedirectResponse
+from fastapi.responses import FileResponse, PlainTextResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.middleware.sessions import SessionMiddleware
@@ -118,18 +118,38 @@ def create_app(settings: Settings | None = None, background: bool = True) -> Fas
     from .routes import artwork as r_artwork
     from .routes import auth as r_auth
     from .routes import console as r_console
+    from .routes import events as r_events
     from .routes import inbox as r_inbox
     from .routes import insights as r_insights
     from .routes import jobs as r_jobs
     from .routes import library as r_library
     from .routes import soulseek as r_soulseek
 
-    for r in (r_auth, r_inbox, r_library, r_console, r_jobs, r_soulseek, r_artwork, r_insights):
+    for r in (
+        r_auth,
+        r_inbox,
+        r_library,
+        r_console,
+        r_jobs,
+        r_soulseek,
+        r_artwork,
+        r_insights,
+        r_events,
+    ):
         app.include_router(r.router)
 
     @app.get("/healthz", include_in_schema=False)
     def healthz():
         return {"ok": True, "version": __version__}
+
+    @app.get("/sw.js", include_in_schema=False)
+    def service_worker():
+        # Served from the root so it may control every page; it only passes requests through.
+        return FileResponse(
+            HERE / "static" / "sw.js",
+            media_type="text/javascript",
+            headers={"Cache-Control": "no-cache"},
+        )
 
     @app.get("/", include_in_schema=False)
     def index():
@@ -154,6 +174,8 @@ def run() -> None:
         proxy_headers=True,
         forwarded_allow_ips="*",
         log_level="info",
+        # Open live-update streams would otherwise hold a restart up.
+        timeout_graceful_shutdown=3,
     )
 
 

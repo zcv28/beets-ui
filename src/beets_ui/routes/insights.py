@@ -6,15 +6,16 @@ from fastapi import APIRouter, Form, Query, Request
 from fastapi.responses import HTMLResponse, Response
 
 from .. import beets_ctx, discography, listening, lyrics, upgrades
-from ..web import flash, redirect, render, user
+from ..web import flash, is_fragment, redirect, render, toast, user
 
 router = APIRouter(prefix="/insights")
 
 
-def _done(request: Request, back: str, fallback: str):
-    """Empty answer for htmx (the row removes itself), else back to the page."""
-    if request.headers.get("hx-request"):
-        return HTMLResponse("")
+def _done(request: Request, back: str, fallback: str, done=None):
+    """For an in-place action the row removes itself (``done`` is its pop-up);
+    otherwise back to the page."""
+    if is_fragment(request):
+        return done or HTMLResponse("")
     ok = back.startswith("/insights") and not back.startswith("//")
     return redirect(back if ok else fallback)
 
@@ -102,7 +103,9 @@ def gaps_dismiss(
     back: str = Form(""),
 ):
     request.app.state.state.dismiss("release", discography.dismiss_key(source, release_id), label)
-    return _done(request, back, "/insights/gaps")
+    undo = {"url": "/insights/gaps/restore", "vals": {"source": source, "release_id": release_id}}
+    done = toast(f"Dismissed {label}" if label else "Dismissed", undo=undo)
+    return _done(request, back, "/insights/gaps", done)
 
 
 @router.post("/gaps/restore")
@@ -138,12 +141,18 @@ def upgrades_dismiss(
     back: str = Form(""),
 ):
     request.app.state.state.dismiss("upgrade", upgrades.dismiss_key(album_id, reason), label)
-    return _done(request, back, "/insights/upgrades")
+    undo = {"url": "/insights/upgrades/restore", "vals": {"album_id": album_id, "reason": reason}}
+    done = toast(f"Dismissed {label}" if label else "Dismissed", undo=undo)
+    return _done(request, back, "/insights/upgrades", done)
 
 
 @router.post("/upgrades/restore")
-def upgrades_restore(request: Request):
+def upgrades_restore(request: Request, album_id: int = Form(0), reason: str = Form("")):
+    """List one dismissed album again (the pop-up's Undo), or all of them."""
     state = request.app.state.state
+    if album_id and reason:
+        state.undismiss("upgrade", upgrades.dismiss_key(album_id, reason))
+        return _done(request, "", "/insights/upgrades")
     for key in state.dismissed("upgrade"):
         state.undismiss("upgrade", key)
     flash(request, "Dismissed albums are listed again.")

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import datetime as dt
 import hashlib
+import json
 import os
 import re
 import shlex
@@ -13,7 +14,7 @@ from typing import Any
 from urllib.parse import quote
 
 from fastapi import Request
-from fastapi.responses import RedirectResponse
+from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from markupsafe import Markup
 
@@ -131,6 +132,34 @@ def partial(request: Request, name: str, **ctx: Any):
 
 def redirect(url: str) -> RedirectResponse:
     return RedirectResponse(url, status_code=303)
+
+
+def is_fragment(request: Request) -> bool:
+    """An htmx request for part of a page.
+
+    Boosted navigation sends HX-Request too, but wants the whole page.
+    """
+    h = request.headers
+    return bool(h.get("hx-request")) and not h.get("hx-boosted")
+
+
+def toast(
+    title: str,
+    text: str = "",
+    kind: str = "success",
+    undo: dict[str, Any] | None = None,
+    body: str = "",
+) -> HTMLResponse:
+    """An answer to an in-place action: the row swaps itself, a pop-up says what happened.
+
+    ``undo`` is ``{"url": ..., "vals": {...}}``; the pop-up's Undo button posts it.
+    """
+    detail: dict[str, Any] = {"title": title, "text": text, "kind": kind}
+    if undo:
+        detail["undo"] = undo
+    resp = HTMLResponse(body)
+    resp.headers["HX-Trigger"] = json.dumps({"toast": detail})
+    return resp
 
 
 def user(request: Request) -> str | None:

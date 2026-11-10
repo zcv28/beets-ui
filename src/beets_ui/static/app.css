@@ -513,3 +513,18 @@
   /* A non-audio file in a folder listing reads quieter, but its label still takes clicks. */
   #pick-form label { cursor: pointer; }
 }
+
+/* ============================================================ page changes */
+/* Links swap the page in place; the change is a short fade of the content.
+   The sidebar keeps still (it is the same on both pages). */
+@layer app {
+  .app-sidebar { view-transition-name: sidebar; }
+  ::view-transition-old(root) { animation: 90ms cubic-bezier(0.4, 0, 1, 1) both page-out; }
+  ::view-transition-new(root) { animation: 180ms cubic-bezier(0.16, 1, 0.3, 1) both page-in; }
+  ::view-transition-group(sidebar) { animation: none; }
+  @keyframes page-out { to { opacity: 0; } }
+  @keyframes page-in { from { opacity: 0; transform: translateY(4px); } }
+  @media (prefers-reduced-motion: reduce) {
+    ::view-transition-old(root), ::view-transition-new(root) { animation: none; }
+  }
+}

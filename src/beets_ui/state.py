@@ -206,6 +206,14 @@ class State:
             )
         return [dict(r) for r in rows.fetchall()]
 
+    def jobs_version(self) -> str:
+        """Changes whenever a job is added, starts or finishes."""
+        row = self._exec(
+            "SELECT MAX(id), SUM(status IN ('queued', 'running')), MAX(started_at), "
+            "MAX(finished_at) FROM jobs"
+        ).fetchone()
+        return ":".join(str(v) for v in tuple(row))
+
     def jobs_finished_since(self, ts: float) -> list[dict[str, Any]]:
         rows = self._exec(
             "SELECT id, kind, title, status, error, finished_at FROM jobs "

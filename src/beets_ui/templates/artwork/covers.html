@@ -5,8 +5,8 @@
 {% block content %}
 {% set tab = 'covers' %}{% include "artwork/_tabs.html" %}
 <div class="tab-content">
-<form class="bar" method="get" action="/artwork">
-  <select class="input auto" name="filter" onchange="this.form.submit()" aria-label="Show">
+<form class="bar" method="get" action="/artwork" data-autosubmit>
+  <select class="input auto" name="filter" aria-label="Show">
     <option value="missing" {% if filter == 'missing' %}selected{% endif %}>No cover at all</option>
     <option value="nofile" {% if filter == 'nofile' %}selected{% endif %}>No cover file (incl. embedded only)</option>
     <option value="low" {% if filter == 'low' %}selected{% endif %}>Missing or smaller than {{ min_px }}px</option>

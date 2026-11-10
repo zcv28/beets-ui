@@ -12,7 +12,7 @@ from fastapi.responses import FileResponse, Response
 
 from ..importer import DUPLICATE_ACTIONS
 from ..inbox import AUDIO_EXT, STATUS_LABELS, is_within
-from ..web import flash, partial, redirect, render, user
+from ..web import flash, is_fragment, partial, redirect, render, toast, user
 
 router = APIRouter(prefix="/inbox")
 
@@ -256,13 +256,28 @@ async def folder_import(request: Request):
 def folder_delete(request: Request, f: str = Form(...), back: str = Form("")):
     row = _folder_or_404(request, f)
     to_list = back.startswith("/inbox") and not back.startswith("//")
+    # From the list, htmx removes the row on success; a failure keeps it (the
+    # status code stops the swap) and says why in a pop-up.
+    in_place = is_fragment(request)
     if row["status"] in BUSY:
+        if in_place:
+            return _refused(toast("Can't delete it yet", f"{f} is being processed.", "destructive"))
         flash(request, "Cannot delete a folder that is being processed.", "warn")
         return redirect(back if to_list else _furl(f))
     try:
         request.app.state.inbox.delete_source(f)
     except (OSError, ValueError) as e:
+        if in_place:
+            return _refused(toast(f"Couldn't delete {f}", str(e), "destructive"))
         flash(request, f"Could not delete {f}: {e}", "warn")
         return redirect(back if to_list else _furl(f))
+    if in_place:
+        return toast(f"Deleted {f}", "Its files are gone from the inbox.")
     flash(request, f"Deleted {f} from the inbox.")
     return redirect(back if to_list else "/inbox")
+
+
+def _refused(resp: Response) -> Response:
+    """A pop-up for an in-place action that did not happen; the row stays."""
+    resp.status_code = 409
+    return resp

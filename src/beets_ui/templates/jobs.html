@@ -2,5 +2,5 @@
 {% block title %}Jobs{% endblock %}
 {% block status %}Every change to the library runs here, one at a time.{% endblock %}
 {% block content %}
-<div hx-get="/jobs/table" hx-trigger="every 3s" hx-swap="innerHTML">{% include "partials/jobs_table.html" %}</div>
+<div hx-get="/jobs/table" hx-trigger="refresh, every 60s [!document.hidden]" hx-swap="innerHTML" data-refresh="jobs">{% include "partials/jobs_table.html" %}</div>
 {% endblock %}

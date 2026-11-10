@@ -4,14 +4,19 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{% block title %}beets-ui{% endblock %} · beets-ui</title>
-  <link rel="icon" href="/static/nocover.svg">
+  <link rel="icon" href="/static/icons/icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="/static/icons/apple-touch-icon.png">
+  <link rel="manifest" href="/static/manifest.webmanifest" crossorigin="use-credentials">
+  {% if theme in ('light', 'dark') %}<meta name="theme-color" content="{{ '#0a0a0a' if theme == 'dark' else '#ffffff' }}">{% else %}<meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#0a0a0a" media="(prefers-color-scheme: dark)">{% endif %}
   <link rel="stylesheet" href="/static/ds/tokens.css?v={{ version }}">
   <link rel="stylesheet" href="/static/ds/bundle.css?v={{ version }}">
   <link rel="stylesheet" href="/static/app.css?v={{ version }}">
   <script src="/static/htmx.min.js" defer></script>
   <script src="/static/app.js?v={{ version }}" defer></script>
 </head>
-<body>
+{# Signed in, links and forms swap the page in place (no reload); the player and pop-ups stay. #}
+<body{% if user %} hx-boost="true"{% endif %}>
 {% if user %}
 <a class="skip-link" href="#main">Skip to content</a>
 <div class="sidebar-layout">
@@ -22,7 +27,7 @@
       {% include "partials/jobs_pill.html" %}
     </div>
     <div class="sidebar-footer">
-      <form method="post" action="/logout" class="sidebar-user">
+      <form method="post" action="/logout" class="sidebar-user" hx-boost="false">
         <span class="sidebar-user-name">{{ user }}</span>
         <button class="btn" data-variant="ghost" data-size="icon-sm" type="submit" aria-label="Log out" title="Log out">{{ icon('log-out') }}</button>
       </form>
@@ -36,7 +41,7 @@
     {# The links sit at the bottom of the sheet, where a thumb reaches. #}
     <div class="sidebar-content">{{ nav_links(nav, slskd_enabled, slskd_status) }}</div>
     <div class="sidebar-footer">
-      <form method="post" action="/logout" class="sidebar-user">
+      <form method="post" action="/logout" class="sidebar-user" hx-boost="false">
         <span class="sidebar-user-name">{{ user }}</span>
         <button class="btn" data-variant="ghost" data-size="sm" type="submit">{{ icon('log-out') }}Log out</button>
       </form>
@@ -64,7 +69,15 @@
     </main>
   </div>
 </div>
-<div class="toast-container" data-position="bottom-right" id="toasts" aria-live="polite"></div>
+<div class="toast-container" data-position="bottom-right" id="toasts" aria-live="polite" hx-preserve></div>
+<section class="card player" id="player-bar" aria-label="Preview" hidden hx-preserve>
+  <div class="player-head">
+    <span class="label">Preview</span>
+    <button class="btn" data-variant="ghost" data-size="icon-xs" type="button" id="player-close" aria-label="Close preview">{{ icon('x') }}</button>
+  </div>
+  <div class="player-name mono" id="player-name"></div>
+  <audio id="player" controls preload="none"></audio>
+</section>
 <dialog class="dialog" id="confirm-dialog" aria-labelledby="confirm-title" aria-describedby="confirm-text">
   <form method="dialog" class="dialog-content">
     <div class="dialog-header">

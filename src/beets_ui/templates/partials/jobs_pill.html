@@ -1,4 +1,4 @@
-{% from "partials/macros.html" import icon %}<div id="jobs-pill" hx-get="/jobs/pill?since={{ since }}" hx-trigger="every 4s [!document.hidden]" hx-swap="outerHTML">{% if running or pending %}
+{% from "partials/macros.html" import icon %}<div id="jobs-pill" hx-get="/jobs/pill?since={{ since }}" hx-trigger="refresh, every 60s [!document.hidden]" hx-swap="outerHTML" data-refresh="jobs downloads">{% if running or pending %}
 <a class="jobs-panel" href="/jobs">
   <span class="status" data-status="info">{% if running %}{{ running }} job{{ 's' if running != 1 }} running{% else %}{{ pending }} job{{ 's' if pending != 1 }} queued{% endif %}</span>
   {% if running and pending %}<span class="hint">{{ pending }} queued</span>{% endif %}
