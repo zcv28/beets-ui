@@ -126,6 +126,7 @@ def create_app(settings: Settings | None = None, background: bool = True) -> Fas
     from .routes import console as r_console
     from .routes import events as r_events
     from .routes import find as r_find
+    from .routes import home as r_home
     from .routes import inbox as r_inbox
     from .routes import insights as r_insights
     from .routes import jobs as r_jobs
@@ -143,6 +144,7 @@ def create_app(settings: Settings | None = None, background: bool = True) -> Fas
         r_insights,
         r_events,
         r_wanted,
+        r_home,
     ):
         app.include_router(r.router)
     app.include_router(r_find.legacy)
@@ -159,10 +161,6 @@ def create_app(settings: Settings | None = None, background: bool = True) -> Fas
             media_type="text/javascript",
             headers={"Cache-Control": "no-cache"},
         )
-
-    @app.get("/", include_in_schema=False)
-    def index():
-        return RedirectResponse("/inbox", status_code=303)
 
     return app
 

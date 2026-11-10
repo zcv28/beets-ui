@@ -1,0 +1,49 @@
+{% from "partials/macros.html" import icon %}
+{# Left column of Home: reloads itself when jobs, the inbox, downloads or requests change. #}
+<section aria-labelledby="h-needs">
+  <h2 id="h-needs">Needs you</h2>
+  {% if needs %}
+  <ul class="rows">
+    {% for n in needs %}
+    <li class="row">
+      <span class="status row-dot" data-status="{{ n.tone }}" aria-hidden="true"></span>
+      <div class="row-main">
+        <a class="strong" href="{{ n.href }}"{% if n.name %}{{ n.name|lang }}{% endif %}>{{ n.title }}</a>
+        {% if n.detail %}<p class="hint">{{ n.detail }}</p>{% endif %}
+      </div>
+      <a class="btn" data-variant="outline" data-size="sm" href="{{ n.href }}" aria-label="{{ n.action }}: {{ n.title }}">{{ n.action }}</a>
+    </li>
+    {% endfor %}
+  </ul>
+  {% else %}
+  <p class="caught-up">{{ icon('check') }}Nothing needs you right now.</p>
+  {% endif %}
+</section>
+
+<section aria-labelledby="h-coming">
+  <h2 id="h-coming">Coming in</h2>
+  {% if coming or downloads %}
+  <ul class="rows">
+    {% for w in coming %}
+    <li class="row">
+      <div class="row-main">
+        <a class="strong" href="/wanted/{{ w.id }}"{{ w.album|lang }}>{{ w.album }}</a>
+        <p class="hint"><span{{ w.artist|lang }}>{{ w.artist }}</span>{% if w.status_text %} · {{ w.status_text }}{% endif %}</p>
+      </div>
+      {% if w.progress is not none %}<span class="match"><span class="mono">{{ '%.0f'|format(w.progress) }}%</span><progress class="progress" value="{{ w.progress }}" max="100" aria-label="{{ w.album }} progress"></progress></span>{% else %}{% include "wanted/_chip.html" %}{% endif %}
+    </li>
+    {% endfor %}
+    {% for d in downloads %}
+    <li class="row">
+      <div class="row-main">
+        <a class="strong" href="/inbox"{{ d.folder_name|lang }}>{{ d.folder_name }}</a>
+        <p class="hint">Downloading from {{ d.origin }}{% if d.place %} · place {{ d.place }} in the queue{% endif %}</p>
+      </div>
+      <span class="match"><span class="mono">{{ '%.0f'|format(d.percent) }}%</span><progress class="progress" value="{{ d.percent }}" max="100" aria-label="{{ d.folder_name }} progress"></progress></span>
+    </li>
+    {% endfor %}
+  </ul>
+  {% else %}
+  <p class="hint">Nothing is downloading.{% if sources_enabled %} Get a missing album, or <a href="/inbox/find">find music</a>.{% endif %}</p>
+  {% endif %}
+</section>

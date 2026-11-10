@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+{% from "partials/macros.html" import empty, icon %}
+{% block title %}Home{% endblock %}
+{% block status %}{{ '{:,}'.format(stats.albums) }} albums · {{ '{:,}'.format(stats.artists) }} artists{% if source_status %} · {{ source_label }} {{ 'connected' if source_status.connected else 'not connected' }}{% endif %}{% if running or pending %} · {{ running }} job{{ 's' if running != 1 }} running{% if pending %}, {{ pending }} queued{% endif %}{% endif %}{% endblock %}
+{% block content %}
+{% include "inbox/_source.html" %}
+<div class="home-columns">
+  <div class="home-col" id="home-now" hx-get="/home/now" hx-trigger="refresh, every 60s [!document.hidden]" hx-swap="innerHTML" data-refresh="jobs inbox downloads wanted">{% include "home/_now.html" %}</div>
+
+  <div class="home-col">
+    <section aria-labelledby="h-missing">
+      <h2 id="h-missing">Missing from your library</h2>
+      {% if missing.releases %}
+      <p class="hint">{{ missing.releases }} release{{ 's' if missing.releases != 1 }} by {{ missing.artists }} artist{{ 's' if missing.artists != 1 }}, from their discographies.</p>
+      <ul class="rows">
+        {% for r in missing.top %}
+        <li class="row">
+          <div class="row-main">
+            <a class="strong" href="/library/artist?name={{ r.artist|q }}"{{ r.artist|lang }}>{{ r.artist }}</a>
+            <p class="hint">{{ r.missing|length }} missing · {{ r.owned|length }} owned</p>
+          </div>
+          {% if get_enabled and r.gettable %}
+          <form class="inline" method="post" action="/wanted/artist">
+            <input type="hidden" name="source" value="{{ r.source }}"><input type="hidden" name="artist_id" value="{{ r.artist_id }}"><input type="hidden" name="back" value="/">
+            <button class="btn" data-variant="outline" data-size="sm" title="Search, download and import them for you, two at a time">Get {{ r.gettable }}</button>
+          </form>
+          {% endif %}
+        </li>
+        {% endfor %}
+      </ul>
+      <p class="more-link"><a href="/insights/gaps">All discography gaps{{ icon('arrow-right') }}</a></p>
+      {% elif missing.looked %}
+      <p class="caught-up">{{ icon('check') }}Nothing missing from the {{ missing.looked }} discograph{{ 'ies' if missing.looked != 1 else 'y' }} looked up.</p>
+      {% elif missing.groups %}
+      {% call empty() %}Look up your artists' discographies to see which of their albums you don't have. <a href="/insights/gaps">Discography gaps</a>{% endcall %}
+      {% else %}
+      <p class="hint">Albums tagged from VocaDB, TouhouDB, UtaiteDB or MusicBrainz get a discography to compare against.</p>
+      {% endif %}
+    </section>
+
+    <section aria-labelledby="h-care">
+      <h2 id="h-care">Library care</h2>
+      {% if care %}
+      <ul class="rows">
+        {% for c in care %}
+        <li class="row"><a class="row-main row-link" href="{{ c.href }}"><span>{{ c.label }}</span><span><span class="mono">{{ c.count }}</span> <span class="hint">{{ c.unit }}</span></span></a></li>
+        {% endfor %}
+      </ul>
+      {% else %}
+      <p class="caught-up">{{ icon('check') }}Covers, formats and lyrics are all in order.</p>
+      {% endif %}
+    </section>
+  </div>
+</div>
+
+{% if recent %}
+<section aria-labelledby="h-recent">
+  <h2 id="h-recent">Recently added</h2>
+  <div class="grid recent">{% set albums = recent %}{% include "library/_album_cards.html" %}</div>
+</section>
+{% else %}
+{% call empty() %}Your library is empty. Folders you import from the inbox show up here.{% endcall %}
+{% endif %}
+{% endblock %}

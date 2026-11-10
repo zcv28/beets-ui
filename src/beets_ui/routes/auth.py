@@ -10,12 +10,12 @@ router = APIRouter()
 
 def _safe_next(url: str | None) -> str:
     if not url or not url.startswith("/") or url.startswith("//") or "\\" in url:
-        return "/inbox"
+        return "/"
     return url
 
 
 @router.get("/login")
-def login_form(request: Request, next: str = "/inbox"):
+def login_form(request: Request, next: str = "/"):
     if request.session.get("user"):
         return redirect(_safe_next(next))
     s = request.app.state.settings
@@ -27,7 +27,7 @@ def login(
     request: Request,
     username: str = Form(""),
     password: str = Form(""),
-    next: str = Form("/inbox"),
+    next: str = Form("/"),
 ):
     s = request.app.state.settings
     limiter = request.app.state.limiter
