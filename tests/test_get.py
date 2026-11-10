@@ -476,3 +476,57 @@ def test_request_outcomes_pop_up(client, app):
     state.update_wanted(wid, status="done", status_text="In your library")
     r = client.get(f"/jobs/pill?since={since}")
     assert "Got " in r.text and "Test Album" in r.text
+
+
+# ---------------------------------------------------------------- settling
+
+
+def test_requests_close_once_the_album_is_in_the_library(app, engine):
+    from beets_ui.acquire import settle
+
+    state = app.state.state
+    lib = beets_ctx.lib()
+    # Waiting for review: its own download was incomplete.
+    by_name = want(state, status="review", status_text="In the inbox: 6 tracks missing")
+    # Choosing a copy, asked for by ID; the album comes in under another name.
+    by_id = want(state, album="Something Else", release_id="rg-1", lookup_id="", status="choosing")
+    # Downloading, and a better copy: left to finish on their own.
+    busy = want(state, status="downloading")
+    upgrade = want(state, kind="upgrade", status="review")
+    assert settle(state, lib) == 0  # nothing in the library yet
+
+    # The album arrives another way (another folder, here imported directly).
+    make = make_album(app.state.settings.inbox / "another copy")
+    key = importer.preview_folder(str(make))[0]["key"]
+    importer.apply_folder(str(make), {key: {"action": "apply", "id": "fake-1", "source": "Fake"}})
+    a = lib.albums()[0]
+    a["mb_releasegroupid"] = "rg-1"
+    a.store()
+
+    assert settle(state, lib) == 2
+    assert state.wanted(by_name)["status"] == "done"
+    assert state.wanted(by_name)["status_text"] == "In your library"
+    assert state.wanted(by_id)["status"] == "done"
+    assert state.wanted(busy)["status"] == "downloading"
+    assert state.wanted(upgrade)["status"] == "review"
+
+
+def test_importing_any_folder_settles_requests(app, engine):
+    state = app.state.state
+    wid = want(state, status="review")
+    folder = make_album(app.state.settings.inbox / "Test Artist - Test Album")
+    app.state.inbox.scan()
+    rel = folder.name
+    tasks = importer.preview_folder(str(folder))
+    state.upsert_folder(
+        rel,
+        status="ready",
+        tasks=tasks,
+        decisions={tasks[0]["key"]: {"action": "apply", "id": "fake-1", "source": "Fake"}},
+    )
+    from beets_ui.jobs import JobContext
+
+    job = state.create_job("import", f"Import {rel}", {"folder": rel})
+    app.state.inbox._job_import(JobContext(state, job, {"folder": rel}))
+    assert state.folder(rel)["status"] == "imported"
+    assert state.wanted(wid)["status"] == "done"

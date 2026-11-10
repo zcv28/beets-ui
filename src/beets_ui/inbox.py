@@ -453,6 +453,10 @@ class Inbox:
             return
         if wanted:
             acquire.inbox_imported(self.state, wanted, True)
+        # Any import can be the album another request was waiting for.
+        from . import beets_ctx
+
+        acquire.settle(self.state, beets_ctx.lib())
         if path.exists() and self.settings.delete_after_import:
             ctx.log(f"Deleting source folder {path}")
             shutil.rmtree(path, ignore_errors=True)
