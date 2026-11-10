@@ -1,0 +1,128 @@
+{% extends "base.html" %}
+{% from "partials/macros.html" import alert, empty, icon, row_menu %}
+{% block title %}Discover{% endblock %}
+{% block header %}
+<header class="page-header">
+  <h1>Get</h1>
+  {% if enabled and data.synced %}<p class="page-description">From ListenBrainz for {{ data.user }} · read {{ data.synced|ts }}</p>{% endif %}
+</header>
+{% endblock %}
+{% block content %}
+{% set tab = 'discover' %}{% include "get/_tabs.html" %}
+{% set here = request.url.path ~ ('?' ~ request.url.query if request.url.query else '') %}
+
+{# One album's actions: Get (or where its request stands), and a menu. #}
+{% macro actions(a, date='', key='s') -%}
+<span class="get-slot">{% if a.wanted %}{% set w = a.wanted %}{% include "wanted/_chip.html" %}{% elif get_enabled %}<form class="inline" method="post" action="/wanted/discover" hx-post="/wanted/discover" hx-target="closest .get-slot" hx-swap="innerHTML">
+  <input type="hidden" name="id" value="{{ a.id }}"><input type="hidden" name="title" value="{{ a.title }}"><input type="hidden" name="artist" value="{{ a.artist }}"><input type="hidden" name="date" value="{{ date or a.year }}"><input type="hidden" name="back" value="{{ here }}">
+  <button class="btn" data-variant="outline" data-size="xs" title="Search, download and import {{ a.title }}">Get</button>
+</form>{% endif %}</span>
+{% call row_menu(key ~ '-' ~ a.id, 'More for ' ~ a.title) %}
+  {% if sources_enabled %}{% set q = a.artist ~ ' ' ~ a.title %}<a class="menu-item" href="/get/find?q={{ q|q }}">Find by hand<span class="hint"{{ q|lang }}>{{ q }}</span></a>{% endif %}
+  <a class="menu-item" href="https://musicbrainz.org/release-group/{{ a.id }}" target="_blank" rel="noopener noreferrer">Open in MusicBrainz<span class="hint">Tracklist, releases and links</span></a>
+  <form method="post" action="/get/discover/dismiss" hx-post="/get/discover/dismiss" hx-target="closest tr" hx-swap="delete">
+    <input type="hidden" name="id" value="{{ a.id }}"><input type="hidden" name="label" value="{{ a.artist }} – {{ a.title }}"><input type="hidden" name="back" value="{{ here }}">
+    <button class="menu-item">Dismiss<span class="hint">Not interested: stop suggesting it</span></button>
+  </form>
+{% endcall %}
+{%- endmacro %}
+
+{% macro release_table(list) -%}
+<div class="table-container" data-density="compact"><table class="table stack-sm release-table">
+  <thead><tr><th class="table-head">Date</th><th class="table-head">Release</th><th class="table-head hide-sm">Type</th><th class="table-head"><span class="sr-only">Actions</span></th></tr></thead>
+  <tbody>
+  {% for r in list %}
+  <tr class="table-row">
+    <td class="table-cell nowrap mono">{{ r.date or '?' }}</td>
+    <td class="table-cell col-main"><span class="strong"{{ r.title|lang }}>{{ r.title }}</span><p class="hint"{{ r.artist|lang }}>{{ r.artist }}</p></td>
+    <td class="table-cell hide-sm hint">{{ r.type }}{% if r.secondary %} · {{ r.secondary }}{% endif %}</td>
+    <td class="table-cell nowrap col-actions">{{ actions(r, r.date, 'f') }}</td>
+  </tr>
+  {% endfor %}
+  </tbody>
+</table></div>
+{%- endmacro %}
+
+<div class="tab-content">
+{% if not enabled %}
+{% call empty() %}Set <code>LISTENBRAINZ_USER</code> to your ListenBrainz name (the one Jellyfin scrobbles to), and Discover shows albums from your Weekly Exploration and new releases by artists you listen to.{% endcall %}
+{% else %}
+<p class="lead">Albums ListenBrainz suggests from your listening, and new releases by artists you listen to. Albums you have, dismissed or asked for are left out.</p>
+
+{% if busy %}
+<div class="alert" data-status="info" role="status" hx-get="/get/discover/busy" hx-trigger="refresh, every 10s [!document.hidden]" hx-swap="none" data-refresh="jobs">
+  <svg class="alert-icon spinner" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>
+  <div class="alert-content"><p class="alert-title">Reading ListenBrainz</p><p class="alert-description">The lists update by themselves when it's done.</p></div>
+</div>
+{% elif last_job and last_job.status == 'failed' %}
+{% call alert('warn', "Couldn't read ListenBrainz") %}{{ (last_job.error or '')|replace('ListenBrainzError: ', '') }}. Check <code>LISTENBRAINZ_USER</code>, then press Read again. <a href="/jobs/{{ last_job.id }}">Open the job</a>{% endcall %}
+{% endif %}
+
+<form class="bar" method="post" action="/get/discover/sync">
+  <button class="btn" data-variant="outline" data-size="sm" {% if busy %}disabled{% endif %}>{{ 'Read again' if data.synced else 'Read ListenBrainz' }}</button>
+  <span class="hint">Opening this page reads again when the last read is over 6 hours old.</span>
+</form>
+
+{% if data.synced %}
+<section aria-labelledby="h-fresh">
+  <div class="section-head">
+    <h2 id="h-fresh">New releases{% if data.released %} <span class="count">{{ data.released|length }}</span>{% endif %}</h2>
+    <span class="hint">By artists you listen to, from the last 90 days</span>
+  </div>
+  <form class="toolbar" method="get" action="/get/discover" data-autosubmit>
+    <span class="choice-row" role="group" aria-label="Release types">
+      {% for k in kinds %}<label class="checkbox-item"><input class="checkbox" type="checkbox" name="kinds" value="{{ k }}" {% if k in picked %}checked{% endif %}>{{ {'ep': 'EPs', 'other': 'Other'}.get(k, k|capitalize ~ 's') }}</label>{% endfor %}
+    </span>
+    <noscript><button class="btn" data-variant="outline" data-size="sm">Apply</button></noscript>
+  </form>
+  {% if data.released %}{{ release_table(data.released) }}
+  {% else %}{% call empty() %}No new releases of these types by artists you listen to in the last 90 days.{% endcall %}{% endif %}
+  {% if data.upcoming %}
+  <h3>Upcoming</h3>
+  {{ release_table(data.upcoming) }}
+  {% endif %}
+</section>
+
+<section aria-labelledby="h-suggested">
+  <div class="section-head">
+    <h2 id="h-suggested">Suggested for you{% if data.albums %} <span class="count">{{ data.albums|length }}</span>{% endif %}</h2>
+    {% if data.playlists %}<span class="hint">From your {{ data.playlists|map(attribute='label')|join(', ') }}</span>{% endif %}
+  </div>
+  {% if data.albums %}
+  <div class="table-container" data-density="compact"><table class="table stack-sm">
+    <thead><tr><th class="table-head">Album</th><th class="table-head hide-sm">Because of</th><th class="table-head"><span class="sr-only">Actions</span></th></tr></thead>
+    <tbody>
+    {% for a in data.albums %}
+    <tr class="table-row">
+      <td class="table-cell col-main">
+        <span class="strong"{{ a.title|lang }}>{{ a.title }}</span>
+        <p class="hint"><span{{ a.artist|lang }}>{{ a.artist }}</span>{% if a.year %} · <span class="mono">{{ a.year }}</span>{% endif %}</p>
+      </td>
+      <td class="table-cell hide-sm">
+        <p class="hint">{% for t in a.tracks[:2] %}<span{{ t.title|lang }}>{{ t.title }}</span>{% if t.artist and t.artist != a.artist %} <span{{ t.artist|lang }}>({{ t.artist }})</span>{% endif %}{% if not loop.last %}, {% endif %}{% endfor %}{% if a.tracks|length > 2 %} and {{ a.tracks|length - 2 }} more{% endif %}</p>
+        <p class="hint">{{ a.lists|join(' · ') }}</p>
+      </td>
+      <td class="table-cell nowrap col-actions">{{ actions(a) }}</td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table></div>
+  {% elif data.playlists %}
+  {% call empty() %}Nothing new to suggest: you have every album from your latest playlists.{% endcall %}
+  {% else %}
+  {% call empty() %}ListenBrainz hasn't made playlists for you yet. They appear after a week or two of listens.{% endcall %}
+  {% endif %}
+</section>
+
+{% if data.dismissed %}
+<form class="bar right" method="post" action="/get/discover/restore-all">
+  <span class="hint">{{ data.dismissed|plural('album') }} dismissed</span>
+  <button class="btn" data-variant="outline" data-size="sm">Suggest them again</button>
+</form>
+{% endif %}
+{% elif not busy %}
+{% call empty() %}Nothing read from ListenBrainz yet. Press Read ListenBrainz.{% endcall %}
+{% endif %}
+{% endif %}
+</div>
+{% endblock %}

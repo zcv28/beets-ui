@@ -93,6 +93,8 @@ class Settings:
     jellyfin_url: str = ""
     jellyfin_api_key: str = ""
     jellyfin_user: str = ""
+    # ListenBrainz user whose recommendations and fresh releases Discover shows.
+    listenbrainz_user: str = ""
     lyrics_romaji: str = "below"
 
     @property
@@ -145,6 +147,7 @@ class Settings:
             jellyfin_url=_str("JELLYFIN_URL").rstrip("/"),
             jellyfin_api_key=_str("JELLYFIN_API_KEY"),
             jellyfin_user=_str("JELLYFIN_USER"),
+            listenbrainz_user=_str("LISTENBRAINZ_USER"),
             lyrics_romaji=_str("BEETSUI_LYRICS_ROMAJI", "below").lower() or "below",
         )
         s.validate()

@@ -13,7 +13,17 @@ from fastapi.staticfiles import StaticFiles
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.middleware.sessions import SessionMiddleware
 
-from . import __version__, beets_ctx, discography, history, listening, lyrics, romanize, sources
+from . import (
+    __version__,
+    beets_ctx,
+    discography,
+    discover,
+    history,
+    listening,
+    lyrics,
+    romanize,
+    sources,
+)
 from . import artists as artists_svc
 from .acquire import Acquirer
 from .artwork.service import Artwork
@@ -66,6 +76,7 @@ def create_app(settings: Settings | None = None, background: bool = True) -> Fas
     romanize.register_jobs(jobs, settings)
     discography.register_jobs(jobs)
     listening.register_jobs(jobs, settings)
+    discover.register_jobs(jobs, settings)
     lyrics.register_jobs(jobs, settings)
 
     source = sources.build(settings)

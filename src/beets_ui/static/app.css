@@ -633,3 +633,12 @@
   .page-header .asked { display: flex; flex-wrap: wrap; align-items: center; gap: 0.25rem 1rem; margin: 0.25rem 0 0.5rem; }
   .page-header .asked .release-path { margin: 0; }
 }
+@layer app {
+  /* New releases and Upcoming line up with each other. */
+  @media (min-width: 768px) {
+    .release-table { table-layout: fixed; }
+    .release-table th:first-child { width: 8.5rem; }
+    .release-table th:nth-child(3) { width: 9rem; }
+    .release-table th:last-child { width: 7.5rem; }
+  }
+}
