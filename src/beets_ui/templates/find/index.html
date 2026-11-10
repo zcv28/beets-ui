@@ -1,17 +1,17 @@
 {% extends "base.html" %}
 {% from "partials/macros.html" import alert, empty, icon, status %}
-{% block title %}Soulseek{% endblock %}
-{% block status %}{% if slskd_status and slskd_status.connected %}Connected to Soulseek{% if slskd_status.username %} as {{ slskd_status.username }}{% endif %}{% endif %}{% endblock %}
+{% block title %}Find music{% endblock %}
+{% block header %}<header class="page-header"><h1>Inbox</h1></header>{% endblock %}
 {% block content %}
-{% set tab = 'search' %}{% include "soulseek/_tabs.html" %}
+{% set tab = 'find' %}{% include "inbox/_tabs.html" %}
 <div class="tab-content">
 {% if error %}{% call alert('warn') %}{{ error }}{% endcall %}{% endif %}
 {% set WAIT = {15: '15 seconds', 30: '30 seconds', 60: '1 minute', 120: '2 minutes'} %}
 {% set QUEUE = {0: 'Any queue', 10: 'At most 10 queued', 50: 'At most 50 queued', 200: 'At most 200 queued'} %}
 {% set SPEED = {0: 'Any speed', 100000: '100 KB/s', 500000: '500 KB/s', 1000000: '1 MB/s', 5000000: '5 MB/s'} %}
-<form method="post" action="/soulseek/search">
+<form method="post" action="/inbox/find/search">
   <div class="bar">
-    <div class="input-group grow">{{ icon('search') }}<input class="input" type="search" name="q" value="{{ q }}" placeholder="Artist album" data-autofocus required minlength="3" aria-label="Search Soulseek"></div>
+    <div class="input-group grow">{{ icon('search') }}<input class="input" type="search" name="q" value="{{ q }}" placeholder="Artist album" data-autofocus required minlength="3" aria-label="Find music"></div>
     <button class="btn">Search</button>
   </div>
   <details class="search-options">
@@ -27,28 +27,28 @@
         <select class="input" name="min_speed">{% for v in speed_choices %}<option value="{{ v }}" {% if v == opts.min_speed %}selected{% endif %}>{{ 'At least ' ~ SPEED[v] if v else SPEED[v] }}</option>{% endfor %}</select>
       </label>
     </div>
-    <p class="hint">Longer waits find more, slower users. The options stay set for your next searches.</p>
+    <p class="hint">Longer waits find more, slower uploaders. The options stay set for your next searches.</p>
   </details>
 </form>
-<p class="hint">Downloads go to slskd's downloads folder, which is the inbox, so finished albums show up there for review.</p>
+<p class="hint">A download shows in the inbox while it comes in, then waits there for review like any other folder.</p>
 <h2>Recent searches</h2>
 {% if searches %}
 <div class="table-container"><table class="table">
-  <thead><tr><th class="table-head">Search</th><th class="table-head">State</th><th class="table-head num">Users</th><th class="table-head num hide-sm">Files</th><th class="table-head num"><span class="sr-only">Actions</span></th></tr></thead>
+  <thead><tr><th class="table-head">Search</th><th class="table-head">State</th><th class="table-head num">Answers</th><th class="table-head num hide-sm">Files</th><th class="table-head num"><span class="sr-only">Actions</span></th></tr></thead>
   <tbody>
   {% for s in searches %}
   <tr class="table-row">
-    <td class="table-cell"><a class="strong" href="/soulseek/s/{{ s.id }}"{{ s.searchText|lang }}>{{ s.searchText }}</a></td>
-    <td class="table-cell nowrap">{% if s.ui_state %}{{ status(s.ui_state, s.ui_label) }}{% else %}<span class="hint">{{ s.ui_label }}</span>{% endif %}</td>
-    <td class="table-cell num">{{ s.responseCount or 0 }}</td>
-    <td class="table-cell num hide-sm">{{ s.fileCount or 0 }}</td>
-    <td class="table-cell num"><form class="inline" method="post" action="/soulseek/s/{{ s.id }}/delete"><button class="btn" data-variant="ghost" data-tone="destructive" data-size="icon-sm" aria-label="Delete search {{ s.searchText }}" title="Delete search">{{ icon('trash') }}</button></form></td>
+    <td class="table-cell"><a class="strong" href="/inbox/find/s/{{ s.id }}"{{ s.text|lang }}>{{ s.text }}</a></td>
+    <td class="table-cell nowrap">{% if s.running %}{{ status('running', s.label) }}{% else %}<span class="hint">{{ s.label }}</span>{% endif %}</td>
+    <td class="table-cell num">{{ s.answers }}</td>
+    <td class="table-cell num hide-sm">{{ s.files }}</td>
+    <td class="table-cell num"><form class="inline" method="post" action="/inbox/find/s/{{ s.id }}/delete" hx-post="/inbox/find/s/{{ s.id }}/delete" hx-target="closest tr" hx-swap="delete"><button class="btn" data-variant="ghost" data-tone="destructive" data-size="icon-sm" aria-label="Delete search {{ s.text }}" title="Delete search">{{ icon('trash') }}</button></form></td>
   </tr>
   {% endfor %}
   </tbody>
 </table></div>
 {% elif not error %}
-{% call empty() %}No searches yet. Search for an artist and album above, or use the Soulseek buttons on an inbox folder or in Insights.{% endcall %}
+{% call empty() %}No searches yet. Search for an artist and album above, or use Find on an inbox folder or in Insights.{% endcall %}
 {% endif %}
 </div>
 {% endblock %}

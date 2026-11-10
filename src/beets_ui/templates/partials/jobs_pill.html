@@ -1,4 +1,4 @@
-{% from "partials/macros.html" import icon %}<div id="jobs-pill" hx-get="/jobs/pill?since={{ since }}" hx-trigger="refresh, every 60s [!document.hidden]" hx-swap="outerHTML" data-refresh="jobs downloads">{% if running or pending %}
+{% from "partials/macros.html" import icon %}<div id="jobs-pill" hx-get="/jobs/pill?since={{ since }}" hx-trigger="refresh, every 60s [!document.hidden]" hx-swap="outerHTML" data-refresh="jobs downloads wanted">{% if running or pending %}
 <a class="jobs-panel" href="/jobs">
   <span class="status" data-status="info">{% if running %}{{ running }} job{{ 's' if running != 1 }} running{% else %}{{ pending }} job{{ 's' if pending != 1 }} queued{% endif %}</span>
   {% if running and pending %}<span class="hint">{{ pending }} queued</span>{% endif %}
@@ -6,7 +6,7 @@
 </a>
 {% endif %}</div>
 {% if oob %}{% include "partials/jobs_mobile.html" %}{% endif %}
-{% if toasts or slsk_toasts %}<div hx-swap-oob="beforeend:#toasts">{% for j in toasts %}
+{% if toasts or slsk_toasts or wanted_toasts %}<div hx-swap-oob="beforeend:#toasts">{% for j in toasts %}
 {% set ok = j.status == 'done' %}
 <div class="toast" data-variant="{{ 'success' if ok else 'destructive' }}" role="status"{% if not ok or j.kind in undoable %} data-sticky{% endif %}>
   <div class="toast-content">
@@ -26,8 +26,22 @@
     {{ icon('success' if e.ok else 'destructive', 'toast-icon') }}
     <div class="toast-text">
       <p class="toast-title">{{ 'Downloaded ' if e.ok else 'Download failed: ' }}<span{{ e.folder_name|lang }}>{{ e.folder_name }}</span></p>
-      <p class="toast-description">{% if e.ok %}From {{ e.username }}. It shows up in the inbox once the files settle.{% else %}{{ e.label }}. You can retry from Soulseek downloads.{% endif %}</p>
-      <div class="toast-actions"><a class="btn" data-variant="outline" data-size="xs" href="{{ '/inbox' if e.ok else '/soulseek/transfers' }}">{{ 'Open inbox' if e.ok else 'View downloads' }}</a></div>
+      <p class="toast-description">{% if e.ok %}From {{ e.origin }}. It's in the inbox, and is looked up once the files settle.{% else %}{{ e.label }}. You can retry it in the inbox.{% endif %}</p>
+      <div class="toast-actions"><a class="btn" data-variant="outline" data-size="xs" href="/inbox">Open inbox</a></div>
+    </div>
+    <button class="toast-close" type="button" aria-label="Dismiss">{{ icon('x') }}</button>
+  </div>
+</div>
+{% endfor %}
+{% for w in wanted_toasts or [] %}
+{% set bad = w.status == 'failed' %}
+<div class="toast"{% if w.status == 'done' %} data-variant="success"{% elif bad %} data-variant="destructive"{% endif %} role="status"{% if w.status != 'done' %} data-sticky{% endif %}>
+  <div class="toast-content">
+    {{ icon('success' if w.status == 'done' else 'destructive' if bad else 'info', 'toast-icon') }}
+    <div class="toast-text">
+      <p class="toast-title">{% if w.status == 'done' %}Got {% elif bad %}Couldn't get {% elif w.status == 'choosing' %}Choose a copy of {% endif %}<span{{ w.album|lang }}>{{ w.album }}</span>{% if w.status == 'review' %} is in the inbox{% endif %}</p>
+      <p class="toast-description">{% if w.status == 'done' %}{{ 'It replaced the old copy in your library.' if w.kind == 'upgrade' else "It's in your library." }}{% else %}{{ w.status_text }}{% endif %}</p>
+      {% if w.status != 'done' %}<div class="toast-actions"><a class="btn" data-variant="outline" data-size="xs" href="{{ '/inbox/folder?f=' ~ (w.folder|q) if w.status == 'review' and w.folder else '/wanted/' ~ w.id }}">{{ 'Review' if w.status == 'review' else 'Choose a copy' if w.status == 'choosing' else 'Open' }}</a></div>{% endif %}
     </div>
     <button class="toast-close" type="button" aria-label="Dismiss">{{ icon('x') }}</button>
   </div>

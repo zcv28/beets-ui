@@ -18,7 +18,7 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from markupsafe import Markup
 
-from . import __version__
+from . import __version__, acquire
 from .history import UNDOABLE
 from .lyrics import grouped, is_synced
 
@@ -100,6 +100,13 @@ templates.env.globals["version"] = __version__
 templates.env.globals["undoable"] = UNDOABLE
 templates.env.globals["synced"] = is_synced
 templates.env.globals["lyric_lines"] = grouped
+templates.env.globals["wanted_label"] = acquire.label
+# Release ids from one source with a request still under way (gaps page).
+templates.env.globals["open_ids"] = lambda wanted, source: [
+    w["release_id"]
+    for w in wanted.values()
+    if w["source"] == source and w["status"] not in ("cancelled", "failed")
+]
 
 
 def flash(request: Request, message: str, kind: str = "msg") -> None:
@@ -115,8 +122,9 @@ def render(request: Request, name: str, status_code: int = 200, **ctx: Any):
         "request": request,
         "user": request.session.get("user") if "session" in request.scope else None,
         "flashes": flashes,
-        "slskd_enabled": app.state.settings.slskd_enabled,
-        "slskd_status": getattr(app.state, "slskd_watch", None) and app.state.slskd_watch.status,
+        "sources_enabled": getattr(app.state, "source", None) is not None,
+        "source_status": getattr(app.state, "source_watch", None) and app.state.source_watch.status,
+        "source_label": getattr(getattr(app.state, "source", None), "label", ""),
         "nav": ctx.pop("nav", ""),
         "running": len(app.state.jobs.running()),
         "pending": app.state.jobs.pending(),

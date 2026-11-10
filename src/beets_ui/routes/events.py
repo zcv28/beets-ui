@@ -27,11 +27,12 @@ LIFETIME = 300
 
 def versions(app) -> dict[str, str]:
     state = app.state.state
-    watch = getattr(app.state, "slskd_watch", None)
+    watch = getattr(app.state, "source_watch", None)
     return {
         "jobs": state.jobs_version(),
         "inbox": inbox_version(state.folders()),
         "downloads": watch.version if watch else "",
+        "wanted": state.wanted_version(),
     }
 
 

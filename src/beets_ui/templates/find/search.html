@@ -1,11 +1,12 @@
 {% extends "base.html" %}
 {% from "partials/macros.html" import icon %}
-{% block title %}{{ search.searchText }}{% endblock %}
+{% block title %}{{ search.text }}{% endblock %}
+{% block header %}<header class="page-header"><h1>Inbox</h1></header>{% endblock %}
 {% block content %}
-{% set tab = 'search' %}{% include "soulseek/_tabs.html" %}
+{% set tab = 'find' %}{% include "inbox/_tabs.html" %}
 <div class="tab-content">
-<form method="post" action="/soulseek/search" class="bar">
-  <div class="input-group grow">{{ icon('search') }}<input class="input" type="search" name="q" value="{{ search.searchText }}" required minlength="3" aria-label="Search Soulseek"></div>
+<form method="post" action="/inbox/find/search" class="bar">
+  <div class="input-group grow">{{ icon('search') }}<input class="input" type="search" name="q" value="{{ search.text }}" required minlength="3" aria-label="Find music"></div>
   <button class="btn" data-variant="outline">Search again</button>
 </form>
 <form method="get" class="bar" data-autosubmit>
@@ -16,6 +17,6 @@
   <label class="checkbox-item"><input class="checkbox" type="checkbox" name="free" value="1" {% if free %}checked{% endif %}>Free upload slot only</label>
   <noscript><button class="btn" data-variant="outline" data-size="sm">Apply</button></noscript>
 </form>
-{% include "soulseek/_results.html" %}
+{% include "find/_results.html" %}
 </div>
 {% endblock %}

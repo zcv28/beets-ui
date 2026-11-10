@@ -1,0 +1,399 @@
+"""Find music and the downloads in the inbox, whatever the source.
+
+Pages never name the source: it shows only in a folder's details line and when
+it is down. Old /soulseek URLs redirect here.
+"""
+
+from __future__ import annotations
+
+import contextlib
+import posixpath
+from urllib.parse import quote
+
+from fastapi import APIRouter, Form, HTTPException, Request
+from fastapi.responses import RedirectResponse
+
+from ..slskd import QUEUE_CHOICES, SEARCH_DEFAULTS, SPEED_CHOICES, WAIT_CHOICES
+from ..sources import Source, SourceError, incoming
+from ..web import flash, is_fragment, partial, redirect, render, toast
+
+router = APIRouter(prefix="/inbox")
+legacy = APIRouter()
+
+
+def _source(request: Request) -> Source:
+    source = request.app.state.source
+    if source is None:
+        raise HTTPException(
+            404, "No download source is set up (for Soulseek: SLSKD_URL and SLSKD_API_KEY)"
+        )
+    return source
+
+
+def _refresh_status(request: Request) -> None:
+    watch = getattr(request.app.state, "source_watch", None)
+    if watch is not None:
+        # The page still renders without a fresh status.
+        with contextlib.suppress(Exception):
+            watch.poll()
+
+
+def _options(request: Request) -> dict[str, int]:
+    """Search options: the last ones used, kept in the session."""
+    saved = request.session.get("slsk_opts") or {}
+    return {k: int(saved.get(k, v)) for k, v in SEARCH_DEFAULTS.items()}
+
+
+def _pick(value: str | None, choices: tuple[int, ...], default: int) -> int:
+    try:
+        v = int(value or "")
+    except ValueError:
+        return default
+    return v if v in choices else default
+
+
+def _folder_url(search_id: str, origin: str, folder: str) -> str:
+    return f"/inbox/find/s/{search_id}/folder?u={quote(origin, safe='')}&f={quote(folder, safe='')}"
+
+
+def _results(request: Request, search_id: str, fmt: str = "", free: str = ""):
+    source = _source(request)
+    info = source.search_info(search_id)
+    offers = source.offers(search_id)
+    if fmt == "lossless":
+        offers = [g for g in offers if g["lossless"]]
+    elif fmt:
+        offers = [g for g in offers if fmt.upper() in g["format"].split("/")]
+    if free:
+        offers = [g for g in offers if g["free_slot"]]
+    inbox = request.app.state.settings.inbox
+    for g in offers:
+        g["in_inbox"] = bool(g["folder_name"]) and (inbox / g["folder_name"]).exists()
+        g["url"] = _folder_url(search_id, g["origin"], g["folder"])
+    return info, offers[:200]
+
+
+def _offer(source: Source, search_id: str, origin: str, folder: str) -> dict | None:
+    offers = source.offers(search_id, audio_only=False)
+    return next((g for g in offers if g["origin"] == origin and g["folder"] == folder), None)
+
+
+def _parse_files(values: list[str]) -> list[dict]:
+    """Checkbox values are "size:filename"."""
+    out = []
+    for v in values:
+        size, _, name = str(v).partition(":")
+        if name and size.isdigit():
+            out.append({"filename": name, "size": int(size)})
+    return out
+
+
+# -------------------------------------------------------------------- find
+
+
+@router.get("/find")
+def find_page(request: Request, q: str = ""):
+    source = _source(request)
+    error = None
+    try:
+        searches = source.searches()[:15]
+    except SourceError as e:
+        searches, error = [], str(e)
+    return render(
+        request,
+        "find/index.html",
+        nav="inbox",
+        q=q,
+        searches=searches,
+        error=error,
+        opts=_options(request),
+        wait_choices=WAIT_CHOICES,
+        queue_choices=QUEUE_CHOICES,
+        speed_choices=SPEED_CHOICES,
+    )
+
+
+@router.post("/find/search")
+def search(
+    request: Request,
+    q: str = Form(""),
+    wait: str | None = Form(None),
+    max_queue: str | None = Form(None),
+    min_speed: str | None = Form(None),
+):
+    q = q.strip()
+    opts = _options(request)
+    if wait is not None:
+        opts = {
+            "wait": _pick(wait, WAIT_CHOICES, SEARCH_DEFAULTS["wait"]),
+            "max_queue": _pick(max_queue, QUEUE_CHOICES, 0),
+            "min_speed": _pick(min_speed, SPEED_CHOICES, 0),
+        }
+        request.session["slsk_opts"] = opts
+    if len(q) < 3:
+        flash(request, "Search text must be at least 3 characters.", "wip")
+        return redirect("/inbox/find")
+    try:
+        sid = _source(request).search(q, **opts)
+    except SourceError as e:
+        flash(request, str(e), "warn")
+        return redirect("/inbox/find")
+    return redirect(f"/inbox/find/s/{sid}")
+
+
+@router.get("/find/s/{search_id}")
+def search_page(request: Request, search_id: str, fmt: str = "", free: str = ""):
+    try:
+        info, offers = _results(request, search_id, fmt, free)
+    except SourceError as e:
+        flash(request, str(e), "warn")
+        return redirect("/inbox/find")
+    return render(
+        request,
+        "find/search.html",
+        nav="inbox",
+        search=info,
+        groups=offers,
+        search_id=search_id,
+        fmt=fmt,
+        free=free,
+    )
+
+
+@router.get("/find/s/{search_id}/results")
+def search_results(request: Request, search_id: str, fmt: str = "", free: str = ""):
+    info, offers = _results(request, search_id, fmt, free)
+    return partial(
+        request,
+        "find/_results.html",
+        search=info,
+        groups=offers,
+        search_id=search_id,
+        fmt=fmt,
+        free=free,
+    )
+
+
+@router.post("/find/s/{search_id}/stop")
+def search_stop(request: Request, search_id: str):
+    try:
+        _source(request).stop_search(search_id)
+    except SourceError as e:
+        flash(request, str(e), "warn")
+    return redirect(f"/inbox/find/s/{search_id}")
+
+
+@router.post("/find/s/{search_id}/delete")
+def search_delete(request: Request, search_id: str):
+    try:
+        _source(request).delete_search(search_id)
+    except SourceError as e:
+        if is_fragment(request):
+            resp = toast("Couldn't delete the search", str(e), "destructive")
+            resp.status_code = 409
+            return resp
+        flash(request, str(e), "warn")
+    if is_fragment(request):
+        return toast("Search deleted")
+    return redirect("/inbox/find")
+
+
+@router.get("/find/s/{search_id}/folder")
+def folder_page(request: Request, search_id: str, u: str = "", f: str = ""):
+    source = _source(request)
+    try:
+        offer = _offer(source, search_id, u, f)
+        info = source.search_info(search_id)
+    except SourceError as e:
+        flash(request, str(e), "warn")
+        return redirect(f"/inbox/find/s/{search_id}")
+    if offer is None:
+        flash(request, "That folder is no longer in the search results.", "warn")
+        return redirect(f"/inbox/find/s/{search_id}")
+    inbox = request.app.state.settings.inbox
+    offer["in_inbox"] = bool(offer["folder_name"]) and (inbox / offer["folder_name"]).exists()
+    return render(
+        request,
+        "find/folder.html",
+        nav="inbox",
+        g=offer,
+        search=info,
+        search_id=search_id,
+        source_label=source.label,
+        files_url=_folder_url(search_id, u, f).replace("/folder?", "/folder/files?", 1),
+    )
+
+
+@router.get("/find/s/{search_id}/folder/files")
+def folder_files(request: Request, search_id: str, u: str = "", f: str = ""):
+    """The folder's full listing, asked of its origin; the matched files if it doesn't answer."""
+    source = _source(request)
+    offer = _offer(source, search_id, u, f)
+    if offer is None:
+        return partial(request, "find/_folder_files.html", files=[], gone=True)
+    files, problem = [], ""
+    try:
+        files = source.listing(u, offer["path"])
+    except SourceError as e:
+        problem = str(e)
+    if not files:
+        files = offer["files"]
+        problem = problem or f"{u} sent an empty listing."
+    return partial(
+        request,
+        "find/_folder_files.html",
+        g=offer,
+        files=files,
+        problem=problem,
+        search_id=search_id,
+        extra=len(files) - len(offer["files"]) if not problem else 0,
+    )
+
+
+@router.post("/find/download")
+def download(
+    request: Request,
+    search_id: str = Form(...),
+    username: str = Form(...),
+    folder: str = Form(...),
+    file: list[str] = Form([]),
+):
+    """Download a folder: the files ticked on its page, or the whole folder from the results."""
+    source = _source(request)
+    back = f"/inbox/find/s/{search_id}"
+    note = ""
+    try:
+        if file:
+            files = _parse_files(file)
+            name = posixpath.basename(folder) or folder
+            if not files:
+                flash(request, "Choose at least one file.", "wip")
+                return redirect(_folder_url(search_id, username, folder))
+        else:
+            offer = _offer(source, search_id, username, folder)
+            if offer is None:
+                flash(request, "That folder is no longer in the search results.", "warn")
+                return redirect(back)
+            name = offer["folder_name"]
+            try:
+                files = source.listing(username, offer["path"])
+            except SourceError:
+                files = []
+            if not files:
+                files = offer["files"]
+                note = (
+                    f" {username} didn't send the full folder, so only the files that matched"
+                    " the search were queued."
+                )
+        source.fetch(username, files)
+    except SourceError as e:
+        flash(request, str(e), "warn")
+        return redirect(back)
+    n = len(files)
+    flash(
+        request,
+        f"Downloading {n} file{'s' if n != 1 else ''} from {username}: {name}. "
+        f"It shows in the inbox while it downloads.{note}",
+        "wip" if note else "ok",
+    )
+    return redirect(back)
+
+
+# --------------------------------------------------------------- downloads
+
+
+def _downloads_done(request: Request, message, ok: bool = True):
+    """In place: the downloads list again, fresh, with a pop-up. Otherwise back to the inbox."""
+    if not is_fragment(request):
+        if message:
+            flash(request, message[0], "ok" if ok else "warn")
+        return redirect("/inbox")
+    _refresh_status(request)
+    resp = partial(request, "inbox/_downloads.html", downloads=incoming(request.app))
+    if message:
+        title, text = message
+        resp.headers["HX-Trigger"] = toast(title, text, "success" if ok else "destructive").headers[
+            "HX-Trigger"
+        ]
+    return resp
+
+
+@router.get("/downloads")
+def downloads(request: Request):
+    return partial(request, "inbox/_downloads.html", downloads=incoming(request.app))
+
+
+@router.post("/downloads/cancel")
+def downloads_cancel(
+    request: Request,
+    username: str = Form(...),
+    id: list[str] = Form([]),
+    remove: str = Form(""),
+    name: str = Form(""),
+):
+    try:
+        _source(request).cancel(username, id, remove=bool(remove))
+    except SourceError as e:
+        return _downloads_done(request, (str(e), ""), ok=False)
+    what = "Removed" if remove else "Cancelled"
+    return _downloads_done(request, (f"{what} {name}" if name else what, ""))
+
+
+@router.post("/downloads/retry")
+def downloads_retry(
+    request: Request,
+    username: str = Form(...),
+    file: list[str] = Form([]),
+    id: list[str] = Form([]),
+    name: str = Form(""),
+):
+    """Download failed files again, then drop their failed entries from the list."""
+    source = _source(request)
+    files = _parse_files(file)
+    if not files:
+        return _downloads_done(request, None)
+    try:
+        source.fetch(username, files)
+    except SourceError as e:
+        return _downloads_done(request, (str(e), ""), ok=False)
+    # If removing fails the old entry stays listed; the retry is queued all the same.
+    with contextlib.suppress(SourceError):
+        source.cancel(username, id, remove=True)
+    n = len(files)
+    title = f"Retrying {name}" if name else "Retrying"
+    return _downloads_done(request, (title, f"{n} file{'s' if n != 1 else ''} from {username}."))
+
+
+@router.post("/downloads/clear")
+def downloads_clear(request: Request):
+    try:
+        _source(request).clear_finished()
+    except SourceError as e:
+        return _downloads_done(request, (str(e), ""), ok=False)
+    return _downloads_done(request, ("Cleared finished downloads", ""))
+
+
+@router.post("/sources/connect")
+def source_connect(request: Request, back: str = Form("/inbox")):
+    try:
+        _source(request).connect()
+        flash(request, "Reconnecting the download source.", "ok")
+    except SourceError as e:
+        flash(request, str(e), "warn")
+    _refresh_status(request)
+    return redirect(back if back.startswith("/inbox") and not back.startswith("//") else "/inbox")
+
+
+# ------------------------------------------------------------- old addresses
+
+
+@legacy.get("/soulseek{rest:path}", include_in_schema=False)
+def old_soulseek(request: Request, rest: str = ""):
+    """Links from before Soulseek moved into the inbox keep working."""
+    if rest.startswith("/transfers"):
+        target = "/inbox"
+    else:
+        target = "/inbox/find" + rest
+        if request.url.query:
+            target += "?" + request.url.query
+    return RedirectResponse(target, status_code=307)

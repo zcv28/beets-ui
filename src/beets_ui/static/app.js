@@ -496,7 +496,7 @@ if (window.htmx) {
 (() => {
   if (!window.EventSource || !window.htmx || !document.getElementById("main")) return;
   const stream = new EventSource("/events");
-  for (const topic of ["jobs", "inbox", "downloads"]) {
+  for (const topic of ["jobs", "inbox", "downloads", "wanted"]) {
     stream.addEventListener(topic, () => {
       if (document.hidden) { pending.add(topic); return; }
       refresh(topic);

@@ -6,19 +6,15 @@ its API and receives the finished downloads in the inbox, which is slskd's downl
 
 from __future__ import annotations
 
-import hashlib
-import logging
 import posixpath
-import threading
-import time
 import uuid
-from collections import defaultdict, deque
+from collections import defaultdict
 from typing import Any
 from urllib.parse import quote
 
 import httpx
 
-log = logging.getLogger(__name__)
+from .sources.base import SourceError
 
 AUDIO_EXT = {
     "mp3",
@@ -47,7 +43,7 @@ SPEED_CHOICES = (0, 100_000, 500_000, 1_000_000, 5_000_000)  # bytes per second;
 SEARCH_DEFAULTS = {"wait": 15, "max_queue": 0, "min_speed": 0}
 
 
-class SlskdError(Exception):
+class SlskdError(SourceError):
     pass
 
 
@@ -224,6 +220,7 @@ def group_responses(responses: list[dict[str, Any]], audio_only: bool = True) ->
                 (user, folder),
                 {
                     "username": user,
+                    "origin": user,
                     "folder": folder,
                     "path": _raw_dir(filename),
                     "folder_name": posixpath.basename(folder) or folder,
@@ -285,6 +282,7 @@ def flatten_downloads(data: list[dict[str, Any]]) -> list[dict[str, Any]]:
                 (username, folder),
                 {
                     "username": username,
+                    "origin": username,
                     "folder": folder,
                     "folder_name": posixpath.basename(folder.replace("\\", "/")),
                     "files": [],
@@ -343,77 +341,3 @@ def flatten_downloads(data: list[dict[str, Any]]) -> list[dict[str, Any]]:
     order = {"downloading": 0, "queued": 1, "failed": 2, "cancelled": 3, "done": 4}
     out.sort(key=lambda r: (order[r["state"]], r["folder_name"].lower()))
     return out
-
-
-class Watcher:
-    """Checks slskd in the background: is it connected, and which downloads just ended.
-
-    The sidebar reads ``status``; the jobs panel turns ``events`` into pop-ups.
-    """
-
-    def __init__(self, client: Slskd, interval: float = 5):
-        self.client = client
-        self.interval = interval
-        self.status: dict[str, Any] | None = None
-        # Changes whenever the connection or any download changes (live updates).
-        self.version = ""
-        self.events: deque[dict[str, Any]] = deque(maxlen=50)
-        self._states: dict[tuple[str, str], str] | None = None
-        self._lock = threading.Lock()
-        self._stop = threading.Event()
-        self._thread: threading.Thread | None = None
-
-    @property
-    def down(self) -> bool:
-        return bool(self.status) and not self.status["connected"]
-
-    def poll(self) -> None:
-        with self._lock:
-            self._poll()
-
-    def _poll(self) -> None:
-        try:
-            server = self.client.server()
-        except SlskdError as e:
-            self.status = {"reachable": False, "connected": False, "error": str(e)}
-            self.version = "down"
-            return
-        self.status = {
-            "reachable": True,
-            "connected": bool(server.get("isLoggedIn", server.get("isConnected"))),
-            "username": server.get("username") or "",
-            "error": "",
-        }
-        try:
-            rows = flatten_downloads(self.client.downloads())
-        except SlskdError:
-            return
-        now = time.time()
-        if self._states is not None:
-            for r in rows:
-                before = self._states.get((r["username"], r["folder"]))
-                if before in ("downloading", "queued") and r["state"] in ("done", "failed"):
-                    self.events.append({**r, "at": now, "ok": r["state"] == "done"})
-        self._states = {(r["username"], r["folder"]): r["state"] for r in rows}
-        seen = [self.status["connected"]] + [
-            (r["username"], r["folder"], r["state"], r["percent"], r["place"]) for r in rows
-        ]
-        self.version = hashlib.md5(repr(seen).encode()).hexdigest()[:12]
-
-    def events_since(self, ts: float) -> list[dict[str, Any]]:
-        return [e for e in list(self.events) if e["at"] > ts]
-
-    def _run(self) -> None:
-        while not self._stop.is_set():
-            try:
-                self.poll()
-            except Exception:  # never let the thread die
-                log.exception("slskd watcher")
-            self._stop.wait(self.interval)
-
-    def start(self) -> None:
-        self._thread = threading.Thread(target=self._run, name="beets-ui-slskd", daemon=True)
-        self._thread.start()
-
-    def stop(self) -> None:
-        self._stop.set()

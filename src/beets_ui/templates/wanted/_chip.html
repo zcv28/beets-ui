@@ -1,0 +1,3 @@
+{# A request's state, linking to its page. #}
+{% set tok, text = wanted_label(w) %}
+<a class="status wanted-state" data-status="{{ {'running': 'info', 'warning': 'warning', 'done': 'success', 'failed': 'destructive'}.get(tok, '') }}" href="/wanted/{{ w.id }}" title="{{ w.status_text or text }}">{{ text }}</a>

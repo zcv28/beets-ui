@@ -87,6 +87,7 @@ class Settings:
     theaudiodb_api_key: str = "2"
     discogs_token: str = ""
     auto_import: int = 0
+    get_auto_import: int = 90
     romanize: bool = False
     theme: str = "auto"
     jellyfin_url: str = ""
@@ -138,6 +139,7 @@ class Settings:
             theaudiodb_api_key=_str("THEAUDIODB_API_KEY", "2") or "2",
             discogs_token=_str("DISCOGS_TOKEN"),
             auto_import=min(100, max(0, _int("BEETSUI_AUTO_IMPORT", 0))),
+            get_auto_import=min(100, max(0, _int("BEETSUI_GET_AUTO_IMPORT", 90))),
             romanize=_bool("BEETSUI_ROMANIZE", False),
             theme=_theme(_str("BEETSUI_THEME", "auto").lower() or "auto"),
             jellyfin_url=_str("JELLYFIN_URL").rstrip("/"),
