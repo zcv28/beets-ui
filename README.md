@@ -172,7 +172,7 @@ Search from **Get → Find**. Results are grouped into one row per folder and wh
 3. If a download fails it moves on to the next good copy (up to three). If no copy is clearly right, the request asks you to **choose a copy** from the ones found.
 4. When the download is in, the folder is looked up by the exact release you asked for and imported on its own when it matches (`BEETSUI_GET_AUTO_IMPORT`, 90% by default). Otherwise it waits in the inbox for review like any other folder. An upgrade replaces the album it was asked for.
 
-Requests show at the top of the inbox under **Requested**, with their state and progress, and a pop-up says when one is in your library, needs you, or failed. Nothing watches for new releases: that is what [Lidarr](https://lidarr.audio) is for.
+Requests show under **Get → Coming in**, with their state and progress, and a pop-up says when one is in your library, needs you, or failed. New releases by artists you listen to are listed under **Get → Discover** (with `LISTENBRAINZ_USER`); nothing gets them on its own yet.
 
 beets-ui checks slskd every 5 seconds in the background. Uploads, shares, rooms and chat stay in slskd's own web UI.
 
