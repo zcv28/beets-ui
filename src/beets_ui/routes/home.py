@@ -31,6 +31,22 @@ def _now(app) -> dict:
     requests = requests_in_flight(app)
     downloads = incoming(app)
     needs = []
+    watch = getattr(app.state, "source_watch", None)
+    status = watch.status if watch else None
+    if status and not status.get("connected"):
+        label = getattr(app.state.source, "label", "The download source")
+        reachable = status.get("reachable")
+        needs.append(
+            {
+                "tone": "destructive" if not reachable else "warning",
+                "title": f"Can't reach {label}" if not reachable else "Downloads are paused",
+                "detail": "Get can't search or download until it's back."
+                if not reachable
+                else f"{label} isn't connected.",
+                "href": "/get/coming",
+                "action": "Open",
+            }
+        )
     if queue["total"]:
         needs.append(
             {
@@ -42,6 +58,17 @@ def _now(app) -> dict:
                 else "/inbox",
                 "action": "Review",
                 "path": queue["next"],
+            }
+        )
+    unlooked = sum(1 for f in folders if f["status"] == "new")
+    if unlooked and not app.state.settings.auto_preview:
+        needs.append(
+            {
+                "tone": "warning",
+                "title": f"{unlooked} folder{'s' if unlooked != 1 else ''} not looked up",
+                "detail": "Look them up to review them",
+                "href": "/inbox?status=new",
+                "action": "Open",
             }
         )
     for w in requests:
@@ -74,7 +101,7 @@ def _now(app) -> dict:
                     "tone": "destructive",
                     "title": f"Download failed: {d['folder_name']}",
                     "detail": d["label"],
-                    "href": "/inbox",
+                    "href": "/get/coming",
                     "action": "Retry",
                     "name": d["folder_name"],
                 }
@@ -99,6 +126,8 @@ def _now(app) -> dict:
         "running": len(app.state.jobs.running()),
         "pending": app.state.jobs.pending(),
         "review_states": REVIEW,
+        # The column also refreshes on its own, outside the full page's context.
+        "sources_enabled": getattr(app.state, "source", None) is not None,
     }
 
 

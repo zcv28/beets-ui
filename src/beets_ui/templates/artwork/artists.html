@@ -42,7 +42,7 @@
     {% elif a.auto and a.auto.status == 'ambiguous' and not a.image %}<span class="tile-sub"><span class="status" data-status="warning" title="{{ a.auto.note }}">Ambiguous</span></span>
     {% elif not a.image %}<span class="tile-sub"><span class="status" data-status="warning" title="{{ a.auto.note if a.auto else '' }}">{{ 'Not found' if a.auto and a.auto.status == 'notfound' else 'Missing' }}</span></span>{% endif %}
   </a>
-  {% else %}<div class="grid-all">{% call empty() %}Nothing to do here{% if filter != 'all' %}: every {{ 'album' if tab == 'covers' else 'artist' }} passes this filter{% endif %}.{% endcall %}</div>{% endfor %}
+  {% else %}<div class="grid-all">{% set what = 'album' if tab == 'covers' else 'artist' %}{% call empty() %}{% if q %}No {{ what }}s match this query.{% elif filter == 'all' %}No {{ what }}s in the library yet.{% else %}Nothing to fix: no {{ what }} is caught by this filter.{% endif %}{% endcall %}</div>{% endfor %}
 </div>
 </div>
 {% endblock %}

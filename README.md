@@ -19,12 +19,14 @@ A small, self-hosted web frontend for [beets](https://beets.io). It runs in one 
   - Sources: Cover Art Archive, fanart.tv, Wikimedia Commons (through the artist's MusicBrainz ID), TheAudioDB, Deezer, iTunes, Discogs, **VocaDB**, **UtaiteDB** and **TouhouDB**.
   - **Fill automatically** works through every artist on its own. A picture found through the MusicBrainz ID is used straight away. A name search is used when exactly one artist has that spelling. Shared names (e.g. "since") are left for you under *needs review*.
   - Albums whose art is only embedded in the files show as *embedded only*, and the fill job can extract that art to a cover file.
+- **Get.**
+  - *Missing:* releases by your artists and circles that the library doesn't have, from VocaDB, TouhouDB, UtaiteDB or MusicBrainz. **Get** one, or all of an artist's, and beets-ui finds, downloads and imports them for you.
+  - *Coming in:* everything you asked for and every download on its way, until it waits in the inbox for review.
+  - *Find:* search for albums by hand and download them into the inbox. Results are ranked, best copy first. Download whole folders or choose the files, retry failed ones, and get a pop-up when one finishes. Downloads come from a *download source*; today that is Soulseek, through your existing [slskd](https://github.com/slskd/slskd), and pages don't depend on which source it is.
 - **Insights.**
-  - *Discography gaps:* releases by your artists and circles that the library doesn't have, from VocaDB, TouhouDB, UtaiteDB or MusicBrainz. **Get** one, or all of an artist's, and beets-ui finds, downloads and imports them for you.
   - *Upgrades:* lossy, low-bitrate, incomplete and mixed-format albums. **Get a better copy** replaces one.
   - *Listening:* never played, not played in a year and most played, from Jellyfin's play counts.
   - *Synced lyrics:* from LRCLIB, with romaji under Japanese lines.
-- **Find music.** Search for albums and download them into the inbox, which shows them while they come in and then for review. Download whole folders or choose the files, retry failed ones, and get a pop-up when one finishes. Downloads come from a *download source*; today that is Soulseek, through your existing [slskd](https://github.com/slskd/slskd), and pages don't depend on which source it is.
 - **Console.** Run any non-interactive `beet` command (`update`, `move`, `fetchart`, `replaygain`, `convert`, `mbsync`, plugin commands and so on) and follow its output live. Anything beets can do is reachable from here.
 - **Jobs.** Every change to the library goes through a single queue, so nothing fights over the database, and each job keeps its log. Lookups that only read the library (discographies, the Jellyfin sync) run in a second queue, so they never hold up an import.
 - **Login.** A single password, or LDAP (lldap, OpenLDAP, Authentik and others).
@@ -149,19 +151,19 @@ The `gui:` section of a beets-flask config is ignored.
 2. Set `SLSKD_URL` (as seen from the beets-ui container, e.g. `http://slskd:5030` on the same Docker network) and `SLSKD_API_KEY`.
 3. Mount slskd's **downloads** directory as `/inbox`. slskd keeps partial files in its separate *incomplete* folder, so only finished files show up. The debounce waits until a folder has stopped changing before looking it up.
 
-Search from **Inbox → Find music**. Results are grouped into one row per folder and where it comes from, with free upload slots and lossless folders first.
+Search from **Get → Find**. Results are grouped into one row per folder and where it comes from, ranked by how well the folder name matches the search, then quality (lossless first), then a free upload slot, a short queue and speed. The best copy is marked with what speaks for it; past the first ten, the rest are under **Show more**.
 
 - **Download** takes the whole folder. beets-ui asks for the folder's full listing first, because a search only returns the files that matched it: covers, cue sheets and logs come along too. If there's no answer, only the matched files are downloaded, and the message says so.
 - **Open a folder** to see every file in it, untick what you don't want, and download the rest.
 - **Options** under the search box set how long to wait for answers and skip uploaders with a long queue or a slow connection. They stay set for later searches. A running search can be stopped.
-- **Downloading**, at the top of the inbox, shows progress, speed and your place in the uploader's queue. Failed files can be retried, and failed rows removed. A finished download becomes an ordinary inbox folder.
-- When a download finishes or fails, a pop-up says so on whatever page you're on. The **Inbox** link in the sidebar gets a dot when the source can't be reached or isn't connected, and the inbox offers **Reconnect**.
+- **Downloading**, under **Get → Coming in**, shows progress, speed and your place in the uploader's queue. Failed files can be retried, and failed rows removed. A finished download becomes an ordinary inbox folder.
+- When a download finishes or fails, a pop-up says so on whatever page you're on. The **Get** link in the sidebar gets a dot when the source can't be reached or isn't connected, Home lists it under *Needs you*, and the Get pages offer **Reconnect**.
 
-**Find music** on an inbox folder fills in the search from its tags, and Insights links to searches for missing and upgradeable albums. Old `/soulseek` links redirect to the new places.
+**Find music** on an inbox folder fills in the search from its tags, and *Missing* and *Upgrades* link to searches for their albums. Old `/soulseek`, `/inbox/find` and `/insights/gaps` links redirect to the new places.
 
 #### Get
 
-**Get** (on a missing release in *Discography gaps*, **Get all missing** for an artist, or **Get a better copy** in *Upgrades*) does the searching for you:
+**Get** (on a missing release under *Get → Missing*, **Get all missing** for an artist, or **Get a better copy** in *Upgrades*) does the searching for you:
 
 1. It looks up the release's tracklist (VocaDB, TouhouDB, UtaiteDB or MusicBrainz; an upgrade uses the album's own tracks), then searches with the romanized names, then with the names as written. Two requests search at a time.
 2. It scores every folder found: the album's name in the path, the expected number of tracks and their total length, lossless first, then 320 kbps, free upload slots and short queues. A folder is only taken without asking when the name and the tracks fit (and, for an upgrade, when it beats the copy you have). It downloads the whole folder, after checking its full listing.
@@ -223,8 +225,8 @@ beets-ui behaves like an app. Moving between pages doesn't reload them, so a pre
    - Anything still unromanized can be renamed by hand: tick the artist on the *Artists* page and type the new name. The old name is remembered for future imports and kept as the original.
    - With `BEETSUI_ROMANIZE=true` this happens on import; **Romanize library** does it for albums you already have (it can be undone from its job page). Folder names follow your path format, so they change too; Jellyfin treats moved files as new (play counts don't follow).
    - `vdbsync`, `tdbsync` and `mbsync` write the source's own names back, so run *Romanize library* afterwards (the album page's **mbsync** button does that by itself).
-5. **Insights.**
-   - **Discography gaps.** Press **Look up all artists** once; it runs in the background next to imports (MusicBrainz allows one request a second, so a big library takes a while). Artists are looked up where their albums were tagged from: VocaDB/TouhouDB/UtaiteDB list the artist's own releases (`OnlyMainAlbums`), MusicBrainz its release groups. An album counts as owned by ID, or by title (romanized or original) among that artist's albums. Choose which kinds to show (albums and EPs by default; singles, compilations, other). **Find** searches the romanized names, **Find (original)** the names as written. **Dismiss** hides a release you don't want.
+5. **Get and Insights.**
+   - **Missing** (under Get). Press **Look up all artists** once; it runs in the background next to imports (MusicBrainz allows one request a second, so a big library takes a while). Artists are looked up where their albums were tagged from: VocaDB/TouhouDB/UtaiteDB list the artist's own releases (`OnlyMainAlbums`), MusicBrainz its release groups. An album counts as owned by ID, or by title (romanized or original) among that artist's albums. Choose which kinds to show (albums and EPs by default; singles, compilations, other). A release's **⋯** menu has **Find by hand** (the romanized names), **Find by the original name** (the names as written) and **Dismiss**, which hides a release you don't want.
    - **Upgrades.** Lossy (MP3, AAC, Vorbis, Opus, WMA), low bitrate (under 192 kbps, 96 for Opus), incomplete (fewer tracks than the track/disc totals) and mixed formats. Dismiss an album for a reason when it's the best copy there is. Low-resolution covers are under *Artwork*.
    - **Listening.** Play counts, last-played dates and favourites of one Jellyfin user, read every 6 hours when you open the page (or **Sync now**). Tracks are matched by their path inside the music folder, so Jellyfin and beets can mount it in different places. Jellyfin keeps all-time totals only, and a moved file starts again at zero. **Random unplayed album** opens something you haven't listened to yet.
    - **Lyrics.** Synced lyrics from [LRCLIB](https://lrclib.net), looked up by the original names first (LRCLIB lists Japanese songs under their Japanese titles). Japanese songs get romaji: VocaDB's own romanized lyrics line by line where they match, otherwise generated with [cutlet](https://github.com/polm/cutlet). The lyrics are written into the files with beets' `lyrics_backend`/`lyrics_url` fields; Jellyfin reads them on its next scan (for tracks it already had lyrics for, use *Refresh metadata → Replace all metadata* once). Use the **Synced lyrics** button on an album, **Fetch** on a track, or *Insights → Lyrics* for the whole library (300 tracks per run). Lyrics runs can be undone from their job page.

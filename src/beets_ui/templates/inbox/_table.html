@@ -1,6 +1,6 @@
 {% from "partials/macros.html" import empty, icon, match, status as state %}
 {# Reloads when the inbox changes (live updates, or every 60s); the server answers 204 when nothing changed, and nothing reloads while focus is inside. #}
-<div id="inbox-table" hx-get="/inbox/table?status={{ status }}&v={{ version }}" hx-trigger="refresh[!this.matches(':focus-within')], every 60s [!document.hidden && !this.matches(':focus-within')]" hx-swap="outerHTML" data-refresh="inbox">
+<div id="inbox-table" hx-get="/inbox/table?status={{ status }}&v={{ table_version }}" hx-trigger="refresh[!this.matches(':focus-within')], every 60s [!document.hidden && !this.matches(':focus-within')]" hx-swap="outerHTML" data-refresh="inbox">
 {% if folders %}
 <div class="table-container">
 <table class="table inbox-table">
@@ -10,18 +10,18 @@
   {% set audio = f.files|selectattr('audio')|list %}
   <tr class="table-row">
     <td class="table-cell col-folder">
-      <a class="strong folder-link" href="/inbox/folder?f={{ f.path|q }}">{{ f.path }}</a>
+      <a class="strong folder-link" href="/inbox/folder?f={{ f.path|q }}"{{ f.path|lang }}>{{ f.path }}</a>
       {% if f.error %}<p class="hint">{{ f.error }}</p>{% endif %}
       {% if f.files %}
       <details class="files" id="files-{{ f.path|uid }}" hx-preserve>
         <summary class="hint">{{ audio|length }} audio file{{ 's' if audio|length != 1 }} · {{ f.files|length }} total · {{ f.files|sum(attribute='size')|size }}</summary>
-        <ul class="file-list">{% for file in f.files %}<li class="mono{% if not file.audio %} hint{% endif %}">{{ file.path }} <span class="hint">{{ file.size|size }}</span></li>{% endfor %}</ul>
+        <ul class="file-list">{% for file in f.files %}<li class="mono{% if not file.audio %} hint{% endif %}"{{ file.path|lang }}>{{ file.path }} <span class="hint">{{ file.size|size }}</span></li>{% endfor %}</ul>
       </details>
       {% endif %}
     </td>
     <td class="table-cell nowrap col-status">{{ state(f.status, labels.get(f.status, f.status)) }}</td>
     <td class="table-cell col-match">{% if f.best is not none %}{{ match(f.best) }}{% endif %}</td>
-    <td class="table-cell col-library">{% for a in f.library %}<a href="/library/album/{{ a.id }}" title="{{ a.how }}">{{ a.albumartist }} – {{ a.album }}</a>{% if not loop.last %}<br>{% endif %}{% endfor %}</td>
+    <td class="table-cell col-library">{% for a in f.library %}<a href="/library/album/{{ a.id }}" title="{{ a.how }}"{{ (a.albumartist ~ a.album)|lang }}>{{ a.albumartist }} – {{ a.album }}</a>{% if not loop.last %}<br>{% endif %}{% endfor %}</td>
     <td class="table-cell hide-sm nowrap mono hint">{{ f.updated_at|ts }}</td>
     <td class="table-cell nowrap col-actions">
       {% if f.status not in ('queued', 'previewing', 'importing') %}
@@ -38,6 +38,6 @@
 </table>
 </div>
 {% else %}
-{% call empty() %}{% if status %}No folders with this status. <a href="/inbox">Show all folders</a>{% else %}Nothing here. Drop album folders into the inbox, or find music to download, and they show up here.{% endif %}{% endcall %}
+{% call empty() %}{% if status %}No folders with this status. <a href="/inbox">Show all folders</a>{% else %}The inbox is empty. Album folders you drop into it, and music you get, show up here to review.{% endif %}{% endcall %}
 {% endif %}
 </div>

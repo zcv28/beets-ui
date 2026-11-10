@@ -30,6 +30,9 @@ class JobContext:
         self.state = state
         self.job_id = job_id
         self.params = params
+        # Set by a handler that finished but left something for you to look at;
+        # the job still ends "done", with this as its note.
+        self.note: str | None = None
         self._buf: list[str] = []
         self._last_flush = time.monotonic()
         self._lock = threading.Lock()
@@ -173,6 +176,8 @@ class JobQueue:
             beets_logger.removeHandler(log_handler)
             ctx.flush()
             self._running.pop(lane, None)
+            if status == "done" and ctx.note:
+                error = ctx.note
             self.state.set_job(job_id, status=status, error=error, finished_at=time.time())
             done = self.state.job(job_id)
             for cb in self.on_finish:

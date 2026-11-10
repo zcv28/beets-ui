@@ -38,10 +38,12 @@
 {# Flash kinds and message kinds map onto the status tokens. #}
 {% set KIND_STATUS = {'msg': 'info', 'info': 'info', 'ok': 'success', 'success': 'success', 'wip': 'warning', 'warning': 'warning', 'warn': 'destructive', 'destructive': 'destructive'} %}
 
-{# An inline message: {% call alert('warning', 'Title') %}What happened and what to do.{% endcall %} #}
-{% macro alert(kind='info', title=None) -%}
+{# An inline message: {% call alert('warning', 'Title') %}What happened and what to do.{% endcall %}
+   A failure interrupts a screen reader (role alert); pass standing=True for a condition that
+   stays on screen across pages, so it is not announced again on every page. #}
+{% macro alert(kind='info', title=None, standing=False) -%}
 {% set st = KIND_STATUS.get(kind, 'info') -%}
-<div class="alert" data-status="{{ st }}" role="{{ 'alert' if st == 'destructive' else 'status' }}">
+<div class="alert" data-status="{{ st }}" role="{{ 'alert' if st == 'destructive' and not standing else 'status' }}">
   {{ icon(st, 'alert-icon') }}
   <div class="alert-content">
     {% if title %}<p class="alert-title">{{ title }}</p>{% endif %}
@@ -85,6 +87,7 @@
 <nav class="sidebar-nav" aria-label="Sections">
   {% for key, href, label, ic in [
     ('home', '/', 'Home', 'home'),
+    ('get', '/get', 'Get', 'download'),
     ('inbox', '/inbox', 'Inbox', 'inbox'),
     ('library', '/library', 'Library', 'library'),
     ('artwork', '/artwork', 'Artwork', 'image'),
@@ -92,7 +95,26 @@
     ('console', '/console', 'Console', 'terminal'),
     ('jobs', '/jobs', 'Jobs', 'activity'),
   ] %}
-  <a class="sidebar-link" href="{{ href }}" {% if nav == key %}aria-current="page"{% endif %}>{{ icon(ic) }}<span>{{ label }}</span>{% if key == 'inbox' and source_status and not source_status.connected %}<span class="nav-alert" title="Downloads are paused: the download source isn't connected"><span class="sr-only">(downloads paused)</span></span>{% endif %}</a>
+  <a class="sidebar-link" href="{{ href }}" {% if nav == key %}aria-current="page"{% endif %}>{{ icon(ic) }}<span>{{ label }}</span>{% if key == 'get' and source_status and not source_status.connected %}<span class="nav-alert" title="Downloads are paused: the download source isn't connected"><span class="sr-only">(downloads paused)</span></span>{% endif %}</a>
   {% endfor %}
 </nav>
+{%- endmacro %}
+
+
+{# Where a release is on its one path: missing, getting, review, in your library.
+   stage is 0-3; stopped marks the current step as halted (failed or cancelled). #}
+{% set PATH_STEPS = ['Missing', 'Getting', 'Review', 'In your library'] %}
+{% macro release_path(stage, stopped=False) -%}
+<ol class="release-path" aria-label="Where it is">
+  {% for step in PATH_STEPS %}
+  <li{% if loop.index0 == stage %} aria-current="step"{% if stopped %} data-stopped{% endif %}{% elif loop.index0 < stage %} data-done{% endif %}>{{ step }}{% if loop.index0 == stage and stopped %}<span class="sr-only"> (stopped here)</span>{% endif %}</li>
+  {% endfor %}
+</ol>
+{%- endmacro %}
+
+{# A row's further actions: a small button and a menu in the top layer, so a scrolling
+   table never clips it. {% call row_menu('m-' ~ id, 'More for ' ~ name) %}<a class="menu-item">…{% endcall %} #}
+{% macro row_menu(id, label) -%}
+<button class="btn" data-variant="ghost" data-size="icon-xs" type="button" popovertarget="{{ id }}" aria-label="{{ label }}" title="More">{{ icon('more') }}</button>
+<div class="menu-content" id="{{ id }}" popover>{{ caller() }}</div>
 {%- endmacro %}

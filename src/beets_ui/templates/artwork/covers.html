@@ -38,7 +38,7 @@
     {% set label = (('Embedded ' if st.embedded and not st.has else '') ~ px)|trim %}
     <span class="tile-sub">{% if not (st.has or st.embedded) %}{% if filter != 'missing' %}<span class="status" data-status="warning">No cover</span>{% endif %}{% elif st.low %}<span class="status" data-status="warning">{{ label }} · Low</span>{% else %}{{ label }}{% endif %}</span>
   </a>
-  {% else %}<div class="grid-all">{% call empty() %}Nothing to do here{% if filter != 'all' %}: every {{ 'album' if tab == 'covers' else 'artist' }} passes this filter{% endif %}.{% endcall %}</div>{% endfor %}
+  {% else %}<div class="grid-all">{% set what = 'album' if tab == 'covers' else 'artist' %}{% call empty() %}{% if q %}No {{ what }}s match this query.{% elif filter == 'all' %}No {{ what }}s in the library yet.{% else %}Nothing to fix: no {{ what }} is caught by this filter.{% endif %}{% endcall %}</div>{% endfor %}
 </div>
 <div class="bar">
   {% if page > 1 %}<a class="btn" data-variant="outline" data-size="sm" href="?filter={{ filter }}&q={{ q|q }}&page={{ page - 1 }}">Previous</a>{% endif %}

@@ -8,7 +8,7 @@
   <div class="art"><img class="art-img artist-img" src="/artwork/artist/image?name={{ artist|q }}" alt="Picture of {{ artist }}"></div>
   <div class="meta">
     <h1{{ artist|lang }}>{{ artist }}{% if original %}<span class="original"{{ original|lang }}>{{ original }}</span>{% endif %}</h1>
-    <p class="subtitle">{{ albums|length }} album{{ 's' if albums|length != 1 }} · {{ '{:,}'.format(tracks) }} track{{ 's' if tracks != 1 }} · {{ '%.1f'|format(hours) }} hours</p>
+    <p class="subtitle">{{ albums|length }} album{{ 's' if albums|length != 1 }} · {{ '{:,}'.format(tracks) }} track{{ 's' if tracks != 1 }} · {{ hours|hours }}</p>
     <div class="bar">
       {% for r in gaps if r.missing and get_enabled %}
       {% set gettable = r.missing|rejectattr('id', 'in', open_ids(wanted, r.source))|list %}
@@ -25,7 +25,7 @@
 </div>
 
 <h2>Albums</h2>
-<div class="grid">{% include "library/_album_cards.html" %}</div>
+<div class="grid">{% set hide_artist = true %}{% include "library/_album_cards.html" %}</div>
 
 {% if missing %}
 <h2>Missing <span class="hint">{{ missing|length }}</span></h2>
@@ -44,7 +44,7 @@
         <input type="hidden" name="source" value="{{ r.source }}"><input type="hidden" name="artist_id" value="{{ r.artist_id }}"><input type="hidden" name="release_id" value="{{ rel.id }}"><input type="hidden" name="back" value="{{ request.url.path }}?name={{ artist|q }}">
         <button class="btn" data-size="xs" title="Search, download and import {{ rel.title }}">Get</button>
       </form>{% endif %}</span>{% endif %}
-      <form class="inline" method="post" action="/insights/gaps/dismiss" hx-post="/insights/gaps/dismiss" hx-target="closest tr" hx-swap="delete">
+      <form class="inline" method="post" action="/get/missing/dismiss" hx-post="/get/missing/dismiss" hx-target="closest tr" hx-swap="delete">
         <input type="hidden" name="source" value="{{ r.source }}"><input type="hidden" name="release_id" value="{{ rel.id }}"><input type="hidden" name="label" value="{{ artist }} – {{ rel.title }}">
         <button class="btn" data-variant="ghost" data-size="xs" title="Not interested: hide this release" aria-label="Dismiss {{ rel.title }}">Dismiss</button>
       </form>
@@ -65,7 +65,7 @@
 {% else %}
 <div class="bar">
   <p class="hint">Their discography hasn't been looked up yet.</p>
-  {% for r in gaps %}<form class="inline" method="post" action="/insights/gaps/refresh"><input type="hidden" name="source" value="{{ r.source }}"><input type="hidden" name="artist_id" value="{{ r.artist_id }}"><button class="btn" data-variant="outline" data-size="sm">Look up on {{ r.source_name }}</button></form>{% endfor %}
+  {% for r in gaps %}<form class="inline" method="post" action="/get/missing/refresh"><input type="hidden" name="source" value="{{ r.source }}"><input type="hidden" name="artist_id" value="{{ r.artist_id }}"><button class="btn" data-variant="outline" data-size="sm">Look up on {{ r.source_name }}</button></form>{% endfor %}
 </div>
 {% endif %}
 {% endif %}

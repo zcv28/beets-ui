@@ -14,10 +14,10 @@
   <a class="toggle" data-variant="outline" href="/library/tracks?singletons=1{{ '&q=' ~ q|q if q }}" {% if singletons %}aria-current="page"{% endif %}>Singletons</a>
 </nav>
 {% if error %}{% call alert('warn') %}Query error: {{ error }}{% endcall %}{% endif %}
-<div class="table-container" data-density="compact"><table class="table">
+{% if items %}<div class="table-container" data-density="compact"><table class="table">
   <thead><tr><th class="table-head">Artist</th><th class="table-head">Title</th><th class="table-head">Album</th><th class="table-head num">Length</th><th class="table-head hide-sm">Format</th></tr></thead>
   <tbody>{% include "library/_track_rows.html" %}</tbody>
-</table></div>
+</table></div>{% endif %}
 {% if not items and not error %}{% call empty() %}{% if q %}No tracks match this query. <a href="/library/tracks{{ '?singletons=1' if singletons }}">Clear the search</a>{% else %}No {{ 'singletons' if singletons else 'tracks' }} yet.{% endif %}{% endcall %}{% endif %}
 {% if page > 1 %}<div class="bar"><a class="btn" data-variant="outline" data-size="sm" href="?q={{ q|q }}&singletons={{ singletons }}&page={{ page - 1 }}">Previous</a></div>{% endif %}
 </div>

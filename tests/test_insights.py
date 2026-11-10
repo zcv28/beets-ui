@@ -209,7 +209,7 @@ def test_discography_gaps_by_id_and_title(app, client, env):
             },
         )
     )
-    client.post("/insights/gaps/refresh")
+    client.post("/get/missing/refresh")
     app.state.jobs.run_pending_sync()
     assert route.calls[0].request.url.params["artistId[]"] == "77"
     job = app.state.state.jobs(1, kind="discography")[0]
@@ -222,18 +222,18 @@ def test_discography_gaps_by_id_and_title(app, client, env):
     with_singles = discography.gaps(beets_ctx.lib(), app.state.state, ("album", "single"))
     assert len(with_singles[0]["missing"]) == 2
 
-    page = client.get("/insights/gaps")
+    page = client.get("/get/missing")
     balanced(page.text)
-    balanced(client.get("/insights/gaps?show=all").text)
+    balanced(client.get("/get/missing?show=all").text)
     assert "Missing One" in page.text and "欠けた一枚" in page.text
     assert "2 of 3 owned" in page.text
 
-    client.post("/insights/gaps/dismiss", data={"source": "touhoudb", "release_id": "3"})
+    client.post("/get/missing/dismiss", data={"source": "touhoudb", "release_id": "3"})
     [row] = discography.gaps(beets_ctx.lib(), app.state.state)
     assert not row["missing"] and [r["id"] for r in row["dismissed"]] == ["3"]
-    assert "Missing One" not in client.get("/insights/gaps").text
-    client.post("/insights/gaps/restore", data={"source": "touhoudb", "release_id": "3"})
-    assert "Missing One" in client.get("/insights/gaps").text
+    assert "Missing One" not in client.get("/get/missing").text
+    client.post("/get/missing/restore", data={"source": "touhoudb", "release_id": "3"})
+    assert "Missing One" in client.get("/get/missing").text
 
 
 @respx.mock
@@ -352,10 +352,28 @@ def test_net_jobs_have_their_own_lane_and_log(app):
 
 
 def test_insights_pages_render(client):
-    for url in ("/insights/gaps", "/insights/upgrades", "/insights/listening", "/insights/lyrics"):
+    for url in ("/insights/upgrades", "/insights/listening", "/insights/lyrics"):
         r = client.get(url)
         assert r.status_code == 200, url
         assert 'href="/insights" aria-current="page"' in r.text
+    r = client.get("/get/missing")
+    assert r.status_code == 200
+    assert 'href="/get" aria-current="page"' in r.text
+
+
+def test_get_section_and_old_addresses(client):
+    assert client.get("/get", follow_redirects=False).headers["location"] == "/get/missing"
+    assert (
+        client.get("/insights", follow_redirects=False).headers["location"] == "/insights/upgrades"
+    )
+    r = client.get("/insights/gaps?show=all", follow_redirects=False)
+    assert r.status_code == 307 and r.headers["location"] == "/get/missing?show=all"
+    r = client.get("/inbox/find?q=a%20b", follow_redirects=False)
+    assert r.status_code == 307 and r.headers["location"] == "/get/find?q=a%20b"
+    # Get sits second in the sidebar; the inbox is for review.
+    nav = client.get("/inbox").text
+    assert nav.index('href="/get"') < nav.index('href="/inbox"')
+    assert 'id="requests"' not in nav
 
 
 def test_align_skips_lines_the_human_romaji_lacks():
@@ -370,10 +388,10 @@ def test_align_skips_lines_the_human_romaji_lacks():
 
 def test_gaps_busy_poll_and_sort_links(app, client):
     # Nothing running: the poll tells htmx to reload the page.
-    r = client.get("/insights/gaps/busy")
+    r = client.get("/get/missing/busy")
     assert r.headers.get("HX-Refresh") == "true"
     app.state.state.create_job("discography", "Look up discographies", {})
-    assert client.get("/insights/gaps/busy").status_code == 204
-    page = client.get("/insights/gaps?sort=name").text
+    assert client.get("/get/missing/busy").status_code == 204
+    page = client.get("/get/missing?sort=name").text
     balanced(page)
-    assert 'hx-get="/insights/gaps/busy"' in page
+    assert 'hx-get="/get/missing/busy"' in page

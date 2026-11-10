@@ -13,7 +13,7 @@
     {{ icon('success' if ok else 'destructive', 'toast-icon') }}
     <div class="toast-text">
       <p class="toast-title">{{ j.title }}</p>
-      <p class="toast-description">{% if ok %}Finished{% if j.kind in undoable %}. You can undo it from the job page.{% endif %}{% else %}{{ j.status|capitalize }}{% if j.error %}: {{ j.error[:120] }}{% endif %}{% endif %}</p>
+      <p class="toast-description">{% if ok %}Finished{% if j.error %}: {{ j.error[:120] }}{% endif %}{% if j.kind in undoable %}. You can undo it from the job page.{% endif %}{% else %}{{ j.status|capitalize }}{% if j.error %}: {{ j.error[:120] }}{% endif %}{% endif %}</p>
       <div class="toast-actions"><a class="btn" data-variant="outline" data-size="xs" href="/jobs/{{ j.id }}">{{ "Open job to undo" if ok and j.kind in undoable else "View job" }}</a></div>
     </div>
     <button class="toast-close" type="button" aria-label="Dismiss">{{ icon('x') }}</button>

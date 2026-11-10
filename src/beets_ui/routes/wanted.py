@@ -52,7 +52,7 @@ def get_release(
     source: str = Form(...),
     artist_id: str = Form(...),
     release_id: str = Form(...),
-    back: str = Form("/insights/gaps"),
+    back: str = Form("/get/missing"),
 ):
     """Get one missing release."""
     acq = _engine(request)
@@ -65,9 +65,9 @@ def get_release(
     w = request.app.state.state.wanted(wid)
     title = f"Getting {rel['title']}" if created else f"Already getting {rel['title']}"
     if is_fragment(request):
-        return _chip(request, w, title, "It shows in the inbox while it comes in.")
-    flash(request, f"{title}. It shows in the inbox while it comes in.", "ok")
-    return redirect(_back(back, "/insights/gaps"))
+        return _chip(request, w, title, "Follow it under Coming in.")
+    flash(request, f"{title}. Follow it under Coming in.", "ok")
+    return redirect(_back(back, "/get/missing"))
 
 
 @router.post("/artist")
@@ -76,7 +76,7 @@ def get_artist(
     source: str = Form(...),
     artist_id: str = Form(...),
     kinds: list[str] = Form([]),
-    back: str = Form("/insights/gaps"),
+    back: str = Form("/get/missing"),
 ):
     """Get every missing release of an artist (of the kinds shown)."""
     acq = _engine(request)
@@ -85,11 +85,11 @@ def get_artist(
     new = sum(acquire.from_gap(request.app.state.state, row, rel)[1] for rel in row["missing"])
     acq.wake()
     if new:
-        msg = f"Getting {new} album{'s' if new != 1 else ''} by {row['artist']}. They show in the inbox while they come in, two searches at a time."
+        msg = f"Getting {new} album{'s' if new != 1 else ''} by {row['artist']}. Follow them under Coming in; two searches run at a time."
     else:
         msg = f"Every missing album by {row['artist']} is already being got."
     flash(request, msg, "ok")
-    return redirect(_back(back, "/insights/gaps"))
+    return redirect(_back(back, "/get/missing"))
 
 
 @router.post("/album/{album_id}")
@@ -115,7 +115,7 @@ def get_better_copy(request: Request, album_id: int, back: str = Form("/insights
 def request_page(request: Request, wanted_id: int):
     w = _wanted_or_404(request, wanted_id)
     folder = request.app.state.state.folder(w["folder"]) if w["folder"] else None
-    return render(request, "wanted/request.html", nav="inbox", w=w, folder=folder)
+    return render(request, "wanted/request.html", nav="get", w=w, folder=folder)
 
 
 @router.post("/{wanted_id}/choose")
@@ -131,7 +131,7 @@ def choose(request: Request, wanted_id: int, origin: str = Form(...), folder: st
         flash(request, "That copy has no files to download any more. Choose another one.", "warn")
         return redirect(f"/wanted/{wanted_id}")
     flash(request, f"Downloading {w['album']} from {origin}.", "ok")
-    return redirect("/inbox")
+    return redirect("/get/coming")
 
 
 @router.post("/{wanted_id}/retry")
@@ -172,7 +172,7 @@ def cancel(request: Request, wanted_id: int):
     request.app.state.state.update_wanted(wanted_id, status="cancelled", status_text="Cancelled")
     if is_fragment(request):
         return toast(f"Cancelled {w['album']}")
-    return redirect("/inbox")
+    return redirect("/get/coming")
 
 
 @router.post("/{wanted_id}/remove")
@@ -181,4 +181,4 @@ def remove(request: Request, wanted_id: int):
     request.app.state.state.delete_wanted(wanted_id)
     if is_fragment(request):
         return toast(f"Removed {w['album']}")
-    return redirect("/inbox")
+    return redirect("/get/coming")

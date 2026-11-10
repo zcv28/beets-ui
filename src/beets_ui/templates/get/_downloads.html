@@ -1,10 +1,10 @@
 {% from "partials/macros.html" import icon, status %}
-{# Downloads on their way into the inbox. Finished ones are folders below by then. #}
+{# Downloads on their way into the inbox. Finished ones wait in the inbox for review. #}
 {% if downloads %}
 {% set failed = downloads|selectattr('state', 'in', ['failed', 'cancelled'])|list %}
 <div class="section-head">
   <h2>Downloading</h2>
-  {% if failed %}<form class="inline" method="post" action="/inbox/downloads/clear" hx-post="/inbox/downloads/clear" hx-target="#downloads" hx-swap="innerHTML"><button class="btn" data-variant="ghost" data-size="sm">Clear failed</button></form>{% endif %}
+  {% if failed %}<form class="inline" method="post" action="/get/downloads/clear" hx-post="/get/downloads/clear" hx-target="#downloads" hx-swap="innerHTML"><button class="btn" data-variant="ghost" data-size="sm">Clear failed</button></form>{% endif %}
 </div>
 <div class="table-container"><table class="table stack-sm">
   <thead><tr><th class="table-head">Folder</th><th class="table-head">State</th><th class="table-head">Progress</th><th class="table-head num hide-sm">Size</th><th class="table-head num"><span class="sr-only">Actions</span></th></tr></thead>
@@ -25,18 +25,18 @@
     <td class="table-cell num hide-sm">{{ r.size|size }}</td>
     <td class="table-cell num col-actions">
       {% if r.state in ('queued', 'downloading') %}
-      <form class="inline" method="post" action="/inbox/downloads/cancel" hx-post="/inbox/downloads/cancel" hx-target="#downloads" hx-swap="innerHTML" data-confirm="Stop downloading {{ r.folder_name }}? Files that already finished stay in the inbox." data-confirm-button="Cancel download">
+      <form class="inline" method="post" action="/get/downloads/cancel" hx-post="/get/downloads/cancel" hx-target="#downloads" hx-swap="innerHTML" data-confirm="Stop downloading {{ r.folder_name }}? Files that already finished stay in the inbox." data-confirm-button="Cancel download">
         <input type="hidden" name="username" value="{{ r.origin }}"><input type="hidden" name="name" value="{{ r.folder_name }}">
         {% for f in r.files %}{% if f.kind in ('queued', 'active') %}<input type="hidden" name="id" value="{{ f.id }}">{% endif %}{% endfor %}
         <button class="btn" data-variant="ghost" data-size="sm">Cancel</button>
       </form>
       {% else %}
-      <form class="inline" method="post" action="/inbox/downloads/retry" hx-post="/inbox/downloads/retry" hx-target="#downloads" hx-swap="innerHTML">
+      <form class="inline" method="post" action="/get/downloads/retry" hx-post="/get/downloads/retry" hx-target="#downloads" hx-swap="innerHTML">
         <input type="hidden" name="username" value="{{ r.origin }}"><input type="hidden" name="name" value="{{ r.folder_name }}">
         {% for f in r.failed_files %}<input type="hidden" name="file" value="{{ f.size }}:{{ f.filename }}"><input type="hidden" name="id" value="{{ f.id }}">{% endfor %}
         <button class="btn" data-variant="outline" data-size="sm" title="Download the {{ r.failed_files|length }} failed file{{ 's' if r.failed_files|length != 1 }} again">Retry</button>
       </form>
-      <form class="inline" method="post" action="/inbox/downloads/cancel" hx-post="/inbox/downloads/cancel" hx-target="#downloads" hx-swap="innerHTML">
+      <form class="inline" method="post" action="/get/downloads/cancel" hx-post="/get/downloads/cancel" hx-target="#downloads" hx-swap="innerHTML">
         <input type="hidden" name="username" value="{{ r.origin }}"><input type="hidden" name="name" value="{{ r.folder_name }}"><input type="hidden" name="remove" value="1">
         {% for f in r.files %}<input type="hidden" name="id" value="{{ f.id }}">{% endfor %}
         <button class="btn" data-variant="ghost" data-size="icon-sm" aria-label="Remove {{ r.folder_name }} from the list" title="Remove from the list">{{ icon('x') }}</button>

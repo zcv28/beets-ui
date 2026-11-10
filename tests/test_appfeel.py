@@ -83,14 +83,14 @@ def test_inbox_delete_from_a_boosted_form_goes_back_to_the_list(client, env, app
 
 def test_dismiss_offers_undo(client, app):
     r = client.post(
-        "/insights/gaps/dismiss",
+        "/get/missing/dismiss",
         data={"source": "vocadb", "release_id": "7", "label": "Some EP"},
         headers=FRAGMENT,
     )
     detail = json.loads(r.headers["HX-Trigger"])["toast"]
     assert detail["title"] == "Dismissed Some EP"
     assert detail["undo"] == {
-        "url": "/insights/gaps/restore",
+        "url": "/get/missing/restore",
         "vals": {"source": "vocadb", "release_id": "7"},
     }
     assert app.state.state.dismissed("release")

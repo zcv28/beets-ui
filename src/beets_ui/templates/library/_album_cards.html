@@ -2,8 +2,10 @@
 <a class="tile" href="/library/album/{{ a.id }}">
   <img loading="lazy" src="/library/album/{{ a.id }}/cover?size=300" alt="">
   <span class="tile-title"{{ a.album|lang }} title="{{ a.album }}{% if a.get('album_original') %} · {{ a.album_original }}{% endif %}">{{ a.album or '(untitled)' }}</span>
-  <span class="tile-sub" title="{{ a.albumartist }}{% if a.get('albumartist_original') %} · {{ a.albumartist_original }}{% endif %}">{{ a.albumartist }}{% if a.year %} · <span class="mono">{{ a.year }}</span>{% endif %}</span>
-  {% if a.get('album_original') or a.get('albumartist_original') %}{% set orig = [a.get('album_original'), a.get('albumartist_original')]|select|join(' · ') %}<span class="tile-sub original"{{ orig|lang }}>{{ orig }}</span>{% endif %}
+  {# On an artist's own page (hide_artist) the tiles leave out the name the page is about. #}
+  {% if hide_artist %}{% if a.year %}<span class="tile-sub mono">{{ a.year }}</span>{% endif %}
+  {% else %}<span class="tile-sub"{{ a.albumartist|lang }} title="{{ a.albumartist }}{% if a.get('albumartist_original') %} · {{ a.albumartist_original }}{% endif %}">{{ a.albumartist }}{% if a.year %} · <span class="mono">{{ a.year }}</span>{% endif %}</span>{% endif %}
+  {% if a.get('album_original') or (a.get('albumartist_original') and not hide_artist) %}{% set orig = [a.get('album_original'), None if hide_artist else a.get('albumartist_original')]|select|join(' · ') %}<span class="tile-sub original"{{ orig|lang }}>{{ orig }}</span>{% endif %}
 </a>
 {% endfor %}
 {% if more %}<a class="more btn" data-variant="outline" data-size="sm" href="/library?q={{ q|q }}&sort={{ sort }}&view={{ view }}&page={{ page + 1 }}" hx-get="/library?q={{ q|q }}&sort={{ sort }}&view={{ view }}&page={{ page + 1 }}" hx-trigger="revealed" hx-swap="outerHTML">Load more</a>{% endif %}

@@ -16,7 +16,7 @@
 {% if last_job and last_job.status == 'failed' %}{% call alert('warn') %}The last sync failed: {{ last_job.error }} <a href="/jobs/{{ last_job.id }}">Job #{{ last_job.id }}</a>{% endcall %}{% endif %}
 <div class="toolbar">
   <span class="stat"><span class="mono">{{ '{:,}'.format(data.albums_played) }}/{{ '{:,}'.format(data.albums) }}</span> albums played</span>
-  <span class="hint">{{ '{:,}'.format(data.plays) }} plays · {{ '{:,.0f}'.format(data.hours) }} hours · {{ '{:,}'.format(data.tracks_played) }} of {{ '{:,}'.format(data.tracks) }} tracks played{% if data.favorites %} · {{ data.favorites }} favourite tracks{% endif %}</span>
+  <span class="hint">{{ data.plays|plural('play') }} · {{ data.hours|hours }} · {{ '{:,}'.format(data.tracks_played) }} of {{ '{:,}'.format(data.tracks) }} tracks played{% if data.favorites %} · {{ data.favorites }} favourite tracks{% endif %}</span>
   <span class="spacer"></span>
   <a class="btn" data-size="sm" href="/insights/listening/random" title="Opens a random album you haven't played yet">Random unplayed album</a>
   <form class="inline" method="post" action="/insights/listening/sync"><button class="btn" data-variant="outline" data-size="sm">Sync now</button></form>

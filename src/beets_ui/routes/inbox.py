@@ -12,7 +12,6 @@ from fastapi.responses import FileResponse, Response
 
 from ..importer import DUPLICATE_ACTIONS
 from ..inbox import AUDIO_EXT, STATUS_LABELS, is_within
-from ..sources import incoming, requests_in_flight
 from ..web import flash, is_fragment, partial, redirect, render, toast, user
 
 router = APIRouter(prefix="/inbox")
@@ -86,16 +85,9 @@ def inbox_page(request: Request, status: str = ""):
         to_review=_queue(rows, ""),
         labels=STATUS_LABELS,
         status=status,
-        version=_version(rows),
+        table_version=_version(rows),
         settings=request.app.state.settings,
-        downloads=incoming(request.app),
-        requests=requests_in_flight(request.app),
     )
-
-
-@router.get("/requests")
-def inbox_requests(request: Request):
-    return partial(request, "inbox/_requests.html", requests=requests_in_flight(request.app))
 
 
 @router.get("/table")
@@ -111,7 +103,7 @@ def inbox_table(request: Request, status: str = "", v: str = ""):
         folders=_filter(rows, status),
         labels=STATUS_LABELS,
         status=status,
-        version=version,
+        table_version=version,
     )
 
 
@@ -155,6 +147,8 @@ def folder_page(request: Request, f: str):
         dup_actions=list(DUPLICATE_ACTIONS),
         inbox_root=str(s.inbox.resolve()),
         romanize=s.romanize,
+        # The request this folder came from (Get), so the page can show where it is on its path.
+        asked=next((w for w in request.app.state.state.wanted_list() if w["folder"] == f), None),
     )
 
 

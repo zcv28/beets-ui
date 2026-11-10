@@ -1,7 +1,0 @@
-{% include "inbox/_source.html" %}
-{% if sources_enabled %}
-<nav class="tab-list" data-variant="line" aria-label="Inbox views">
-  <a class="tab-trigger" href="/inbox" {% if tab == 'inbox' %}aria-current="page"{% endif %}>Incoming</a>
-  <a class="tab-trigger" href="/inbox/find" {% if tab == 'find' %}aria-current="page"{% endif %}>Find music</a>
-</nav>
-{% endif %}

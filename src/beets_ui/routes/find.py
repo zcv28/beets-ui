@@ -13,11 +13,12 @@ from urllib.parse import quote
 from fastapi import APIRouter, Form, HTTPException, Request
 from fastapi.responses import RedirectResponse
 
+from .. import rank
 from ..slskd import QUEUE_CHOICES, SEARCH_DEFAULTS, SPEED_CHOICES, WAIT_CHOICES
 from ..sources import Source, SourceError, incoming
 from ..web import flash, is_fragment, partial, redirect, render, toast
 
-router = APIRouter(prefix="/inbox")
+router = APIRouter(prefix="/get")
 legacy = APIRouter()
 
 
@@ -53,7 +54,7 @@ def _pick(value: str | None, choices: tuple[int, ...], default: int) -> int:
 
 
 def _folder_url(search_id: str, origin: str, folder: str) -> str:
-    return f"/inbox/find/s/{search_id}/folder?u={quote(origin, safe='')}&f={quote(folder, safe='')}"
+    return f"/get/find/s/{search_id}/folder?u={quote(origin, safe='')}&f={quote(folder, safe='')}"
 
 
 def _results(request: Request, search_id: str, fmt: str = "", free: str = ""):
@@ -66,11 +67,14 @@ def _results(request: Request, search_id: str, fmt: str = "", free: str = ""):
         offers = [g for g in offers if fmt.upper() in g["format"].split("/")]
     if free:
         offers = [g for g in offers if g["free_slot"]]
+    offers = rank.for_search(offers, info.get("text") or "")[:200]
     inbox = request.app.state.settings.inbox
     for g in offers:
         g["in_inbox"] = bool(g["folder_name"]) and (inbox / g["folder_name"]).exists()
         g["url"] = _folder_url(search_id, g["origin"], g["folder"])
-    return info, offers[:200]
+    if offers:
+        offers[0]["strengths"] = rank.strengths(offers[0])
+    return info, offers
 
 
 def _offer(source: Source, search_id: str, origin: str, folder: str) -> dict | None:
@@ -102,7 +106,7 @@ def find_page(request: Request, q: str = ""):
     return render(
         request,
         "find/index.html",
-        nav="inbox",
+        nav="get",
         q=q,
         searches=searches,
         error=error,
@@ -132,13 +136,13 @@ def search(
         request.session["slsk_opts"] = opts
     if len(q) < 3:
         flash(request, "Search text must be at least 3 characters.", "wip")
-        return redirect("/inbox/find")
+        return redirect("/get/find")
     try:
         sid = _source(request).search(q, **opts)
     except SourceError as e:
         flash(request, str(e), "warn")
-        return redirect("/inbox/find")
-    return redirect(f"/inbox/find/s/{sid}")
+        return redirect("/get/find")
+    return redirect(f"/get/find/s/{sid}")
 
 
 @router.get("/find/s/{search_id}")
@@ -147,11 +151,11 @@ def search_page(request: Request, search_id: str, fmt: str = "", free: str = "")
         info, offers = _results(request, search_id, fmt, free)
     except SourceError as e:
         flash(request, str(e), "warn")
-        return redirect("/inbox/find")
+        return redirect("/get/find")
     return render(
         request,
         "find/search.html",
-        nav="inbox",
+        nav="get",
         search=info,
         groups=offers,
         search_id=search_id,
@@ -180,7 +184,7 @@ def search_stop(request: Request, search_id: str):
         _source(request).stop_search(search_id)
     except SourceError as e:
         flash(request, str(e), "warn")
-    return redirect(f"/inbox/find/s/{search_id}")
+    return redirect(f"/get/find/s/{search_id}")
 
 
 @router.post("/find/s/{search_id}/delete")
@@ -195,7 +199,7 @@ def search_delete(request: Request, search_id: str):
         flash(request, str(e), "warn")
     if is_fragment(request):
         return toast("Search deleted")
-    return redirect("/inbox/find")
+    return redirect("/get/find")
 
 
 @router.get("/find/s/{search_id}/folder")
@@ -206,16 +210,16 @@ def folder_page(request: Request, search_id: str, u: str = "", f: str = ""):
         info = source.search_info(search_id)
     except SourceError as e:
         flash(request, str(e), "warn")
-        return redirect(f"/inbox/find/s/{search_id}")
+        return redirect(f"/get/find/s/{search_id}")
     if offer is None:
         flash(request, "That folder is no longer in the search results.", "warn")
-        return redirect(f"/inbox/find/s/{search_id}")
+        return redirect(f"/get/find/s/{search_id}")
     inbox = request.app.state.settings.inbox
     offer["in_inbox"] = bool(offer["folder_name"]) and (inbox / offer["folder_name"]).exists()
     return render(
         request,
         "find/folder.html",
-        nav="inbox",
+        nav="get",
         g=offer,
         search=info,
         search_id=search_id,
@@ -260,7 +264,7 @@ def download(
 ):
     """Download a folder: the files ticked on its page, or the whole folder from the results."""
     source = _source(request)
-    back = f"/inbox/find/s/{search_id}"
+    back = f"/get/find/s/{search_id}"
     note = ""
     try:
         if file:
@@ -293,7 +297,7 @@ def download(
     flash(
         request,
         f"Downloading {n} file{'s' if n != 1 else ''} from {username}: {name}. "
-        f"It shows in the inbox while it downloads.{note}",
+        f"Follow it under Coming in.{note}",
         "wip" if note else "ok",
     )
     return redirect(back)
@@ -303,13 +307,13 @@ def download(
 
 
 def _downloads_done(request: Request, message, ok: bool = True):
-    """In place: the downloads list again, fresh, with a pop-up. Otherwise back to the inbox."""
+    """In place: the downloads list again, fresh, with a pop-up. Otherwise back to Coming in."""
     if not is_fragment(request):
         if message:
             flash(request, message[0], "ok" if ok else "warn")
-        return redirect("/inbox")
+        return redirect("/get/coming")
     _refresh_status(request)
-    resp = partial(request, "inbox/_downloads.html", downloads=incoming(request.app))
+    resp = partial(request, "get/_downloads.html", downloads=incoming(request.app))
     if message:
         title, text = message
         resp.headers["HX-Trigger"] = toast(title, text, "success" if ok else "destructive").headers[
@@ -320,7 +324,7 @@ def _downloads_done(request: Request, message, ok: bool = True):
 
 @router.get("/downloads")
 def downloads(request: Request):
-    return partial(request, "inbox/_downloads.html", downloads=incoming(request.app))
+    return partial(request, "get/_downloads.html", downloads=incoming(request.app))
 
 
 @router.post("/downloads/cancel")
@@ -374,14 +378,14 @@ def downloads_clear(request: Request):
 
 
 @router.post("/sources/connect")
-def source_connect(request: Request, back: str = Form("/inbox")):
+def source_connect(request: Request, back: str = Form("/get/coming")):
     try:
         _source(request).connect()
         flash(request, "Reconnecting the download source.", "ok")
     except SourceError as e:
         flash(request, str(e), "warn")
     _refresh_status(request)
-    return redirect(back if back.startswith("/inbox") and not back.startswith("//") else "/inbox")
+    return redirect(back if back.startswith("/") and not back.startswith("//") else "/get/coming")
 
 
 # ------------------------------------------------------------- old addresses
@@ -391,9 +395,9 @@ def source_connect(request: Request, back: str = Form("/inbox")):
 def old_soulseek(request: Request, rest: str = ""):
     """Links from before Soulseek moved into the inbox keep working."""
     if rest.startswith("/transfers"):
-        target = "/inbox"
+        target = "/get/coming"
     else:
-        target = "/inbox/find" + rest
+        target = "/get/find" + rest
         if request.url.query:
             target += "?" + request.url.query
     return RedirectResponse(target, status_code=307)

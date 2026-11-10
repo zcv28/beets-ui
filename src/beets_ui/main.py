@@ -126,6 +126,7 @@ def create_app(settings: Settings | None = None, background: bool = True) -> Fas
     from .routes import console as r_console
     from .routes import events as r_events
     from .routes import find as r_find
+    from .routes import get as r_get
     from .routes import home as r_home
     from .routes import inbox as r_inbox
     from .routes import insights as r_insights
@@ -140,6 +141,7 @@ def create_app(settings: Settings | None = None, background: bool = True) -> Fas
         r_console,
         r_jobs,
         r_find,
+        r_get,
         r_artwork,
         r_insights,
         r_events,
@@ -148,6 +150,7 @@ def create_app(settings: Settings | None = None, background: bool = True) -> Fas
     ):
         app.include_router(r.router)
     app.include_router(r_find.legacy)
+    app.include_router(r_get.legacy)
 
     @app.get("/healthz", include_in_schema=False)
     def healthz():

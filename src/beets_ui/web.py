@@ -84,7 +84,26 @@ def fsdecode(v: Any) -> str:
     return os.fsdecode(v) if isinstance(v, bytes) else str(v or "")
 
 
+def fmt_hours(hours: Any) -> str:
+    """Listening time in words: "40 min", "1 hour", "3.5 hours", "1,234 hours"."""
+    h = float(hours or 0)
+    if h < 1:
+        return f"{round(h * 60)} min"
+    if h < 10:
+        n = f"{h:.1f}".removesuffix(".0")
+        return f"{n} hour{'' if n == '1' else 's'}"
+    return f"{h:,.0f} hours"
+
+
+def plural(n: Any, word: str, many: str = "") -> str:
+    """ "1 album", "1,234 albums"."""
+    n = int(n or 0)
+    return f"{n:,} {word if n == 1 else (many or word + 's')}"
+
+
 templates.env.filters.update(
+    hours=fmt_hours,
+    plural=plural,
     duration=fmt_duration,
     size=fmt_size,
     ts=fmt_time,
@@ -101,6 +120,7 @@ templates.env.globals["undoable"] = UNDOABLE
 templates.env.globals["synced"] = is_synced
 templates.env.globals["lyric_lines"] = grouped
 templates.env.globals["wanted_label"] = acquire.label
+templates.env.globals["wanted_stage"] = acquire.stage
 # Release ids from one source with a request still under way (gaps page).
 templates.env.globals["open_ids"] = lambda wanted, source: [
     w["release_id"]

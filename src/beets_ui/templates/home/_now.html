@@ -1,7 +1,7 @@
 {% from "partials/macros.html" import icon %}
 {# Left column of Home: reloads itself when jobs, the inbox, downloads or requests change. #}
 <section aria-labelledby="h-needs">
-  <h2 id="h-needs">Needs you</h2>
+  <h2 id="h-needs">Needs you{% if needs %} <span class="count">{{ needs|length }}</span>{% endif %}</h2>
   {% if needs %}
   <ul class="rows">
     {% for n in needs %}
@@ -28,7 +28,7 @@
     <li class="row">
       <div class="row-main">
         <a class="strong" href="/wanted/{{ w.id }}"{{ w.album|lang }}>{{ w.album }}</a>
-        <p class="hint"><span{{ w.artist|lang }}>{{ w.artist }}</span>{% if w.status_text %} · {{ w.status_text }}{% endif %}</p>
+        <p class="hint"><span{{ w.artist|lang }}>{{ w.artist }}</span>{% if w.status_text and (w.progress is not none or w.status_text != wanted_label(w)[1]) %} · {{ w.status_text }}{% endif %}</p>
       </div>
       {% if w.progress is not none %}<span class="match"><span class="mono">{{ '%.0f'|format(w.progress) }}%</span><progress class="progress" value="{{ w.progress }}" max="100" aria-label="{{ w.album }} progress"></progress></span>{% else %}{% include "wanted/_chip.html" %}{% endif %}
     </li>
@@ -43,7 +43,8 @@
     </li>
     {% endfor %}
   </ul>
+  <p class="more-link"><a href="/get/coming">Everything coming in{{ icon('arrow-right') }}</a></p>
   {% else %}
-  <p class="hint">Nothing is downloading.{% if sources_enabled %} Get a missing album, or <a href="/inbox/find">find music</a>.{% endif %}</p>
+  <p class="hint">Nothing is downloading.{% if sources_enabled %} Get an album from <a href="/get/missing">Missing</a>, or <a href="/get/find">find one by hand</a>.{% endif %}</p>
   {% endif %}
 </section>

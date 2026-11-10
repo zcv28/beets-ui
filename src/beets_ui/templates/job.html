@@ -10,7 +10,7 @@
 {% endblock %}
 {% block content %}
 <div class="bar">
-  {{ status(job.status, badge=True) }}
+  {% if job.status == 'done' and job.error %}{{ status('attention', 'Needs attention', badge=True) }}{% else %}{{ status(job.status, badge=True) }}{% endif %}
   {% if snap and undone %}<span class="hint">Undone by <a href="/jobs/{{ undone.id }}">job #{{ undone.id }}</a></span>{% endif %}
   <span class="spacer"></span>
   {% if job.kind == 'console' %}<a class="btn" data-variant="outline" data-size="sm" href="/console?cmd={{ job.params.argv|join(' ')|q }}">Run again</a>{% endif %}
@@ -18,7 +18,7 @@
   {% if snap and not undone and job.status in ('done', 'failed') %}<form class="inline" method="post" action="/jobs/{{ job.id }}/undo" data-confirm="Put back the values from before this job? Tags are rewritten{{ ' and files moved back' if snap.data.move }} the same way the job did it." data-confirm-button="Undo job" data-confirm-kind="default"><button class="btn" data-variant="outline" data-size="sm" title="{{ snap.data.entries|length }} album/track record(s) saved before this job ran">Undo</button></form>{% endif %}
   {% if job.status in ('queued', 'running') %}<form class="inline" method="post" action="/jobs/{{ job.id }}/cancel"><button class="btn" data-variant="outline" data-tone="destructive" data-size="sm">{{ 'Cancel job' if job.status == 'queued' else 'Interrupt job' }}</button></form>{% endif %}
 </div>
-{% if job.error %}{% call alert('warn') %}{{ job.error }}{% endcall %}{% endif %}
+{% if job.error %}{% call alert('wip' if job.status == 'done' else 'warn') %}{{ job.error }}{% endcall %}{% endif %}
 <p class="label">Log</p>
 {% if job.status in ('queued', 'running') %}
 <div hx-get="/jobs/{{ job.id }}/log" hx-trigger="every 1s" hx-swap="innerHTML">{% include "partials/job_log.html" %}</div>
