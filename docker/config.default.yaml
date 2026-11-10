@@ -1,34 +1,111 @@
-# Default beets configuration written by beets-ui on first start.
-# Full reference: https://beets.readthedocs.io/en/stable/reference/config.html
-directory: /music
-library: /config/beets/library.db
+# ------------------------------------------------------------------------------------ #
+#                                      BEETS CONFIG                                    #
+# ------------------------------------------------------------------------------------ #
+# Default beets configuration written by beets-ui on first start, when
+# /config/beets/config.yaml does not exist yet. Edit it freely: beets-ui reads it
+# the way the `beet` command does. Restart the container after changing it.
+# Reference: https://beets.readthedocs.io/en/stable/reference/config.html
 
-# In beets 2.x the MusicBrainz source is a plugin: keep it in this list.
-# Doujin sources bundled in the image: vocadb, utaitedb, touhoudb.
-plugins:
-  - musicbrainz
-  - fetchart
-  - embedart
+plugins: [
+        musicbrainz, # needs to be enabled explicitly since beets 2.4.0
+        vocadb,      # doujin sources, bundled in the beets-ui image
+        touhoudb,
+        utaitedb,
+        chroma,      # acoustic fingerprints: finds badly tagged rips by sound
+        fromfilename,
+        fetchart,
+        embedart,
+        ftintitle,
+        mbsync,
+        missing,
+        duplicates,
+        albumtypes,
+        scrub,
+        convert,
+        the,
+        inline,
+        info,
+    ]
+
+# Must match the container path of your music library mount.
+directory: /music
+# library: /config/beets/library.db # default location in the container
 
 import:
-  copy: yes        # leave the originals in the inbox (delete them from the UI)
-  write: yes
-  log: /config/beets/import.log
+    move: no
+    copy: yes     # leave the originals in the inbox (delete them from the UI)
+    write: yes
+    log: /config/beets/import.log
+    quiet_fallback: skip
+    detail: yes
+    duplicate_action: ask # ask|skip|merge|keep|remove
+    # No `languages:` here: beets keeps each artist's primary name and beets-ui
+    # romanizes it (BEETSUI_ROMANIZE), keeping the original alongside.
 
-paths:
-  default: $albumartist/$album%aunique{}/$track $title
-  singleton: $albumartist/Non-Album/$artist - $title
-  comp: Compilations/$album%aunique{}/$track $title
+ui:
+    color: yes
+
+# fix up output file paths
+replace:
+    '[\\]': ""
+    "[_]": "-"
+    "[/]": "-"
+    '^\.+': ""
+    '[\x00-\x1f]': ""
+    '[<>:"\?\*\|]': ""
+    '\.$': ""
+    '\s+$': ""
+    '^\s+': ""
+    "^-": ""
+    "’": ""
+    "′": ""
+    "″": ""
+    "‐": "-"
+
+per_disc_numbering: no
+asciify_paths: no
+
+# beets-ui runs one import at a time in its own worker.
+threaded: no
 
 art_filename: cover
 
 fetchart:
-  auto: yes
-  sources: [filesystem, coverart, itunes, amazon, albumart]
+    auto: yes
+    minwidth: 500
+    enforce_ratio: 10px # yes|no or tolerance around 1:1 ratio
+    sources: [filesystem, coverart, itunes, amazon, albumart, fanarttv]
 
 embedart:
-  auto: no
+    auto: no               # players read cover.jpg; embed per album from the UI
+    ifempty: yes           # never replace art already embedded in the files
+    remove_art_file: no    # keep cover.jpg for Jellyfin and the Artwork page
+
+ftintitle:
+    auto: yes
+    format: (feat. {0})
+
+chroma:
+    auto: yes
 
 # ffmpeg is bundled: use it for ReplayGain (add "replaygain" to plugins).
 replaygain:
-  backend: ffmpeg
+    backend: ffmpeg
+
+match:
+    # autotagger tolerance [0, 1], default 0.04
+    # for example, 0.1 means 90% similarity required.
+    strong_rec_thresh: 0.1
+
+    # customize how penalties affect the match score
+    distance_weights:
+        data_source: 0.0     # do not penalise VocaDB/TouhouDB/UtaiteDB candidates
+        missing_tracks: 0.2  # less picky about missing tracks (default 0.9)
+
+musicbrainz:
+    external_ids:
+        discogs: yes
+        bandcamp: yes
+        deezer: yes
+        beatport: yes
+        tidal: yes
