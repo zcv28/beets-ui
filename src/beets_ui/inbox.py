@@ -39,7 +39,7 @@ AUDIO_EXT = {
 }
 
 STATUS_LABELS = {
-    "new": "New",
+    "new": "Not looked up",
     "queued": "Queued",
     "previewing": "Looking up",
     "ready": "Ready",

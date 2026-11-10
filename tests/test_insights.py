@@ -123,8 +123,8 @@ def test_lyrics_job_prefers_original_names_writes_tags_and_undoes(app, client, e
     page = client.get(f"/library/item/{first.id}")
     balanced(page.text)
     assert "00:07.25" in page.text and "kimi wo matta" in page.text
-    assert "♪" in client.get(f"/library/album/{a.id}").text
-    assert "1/2 synced" in client.get("/insights/lyrics").text
+    assert "Has synced lyrics" in client.get(f"/library/album/{a.id}").text
+    assert "1/2</span> synced" in client.get("/insights/lyrics").text
 
     # A bulk run skips the track checked a moment ago and the one already synced.
     client.post("/insights/lyrics/run", data={"replace_plain": "1"})
@@ -316,7 +316,7 @@ def test_listening_sync_matches_paths_under_another_mount(app, client, env):
 
     page = client.get("/insights/listening")
     balanced(page.text)
-    assert "3/3 albums played" not in page.text and "2/3 albums played" in page.text
+    assert "3/3</span> albums played" not in page.text and "2/3</span> albums played" in page.text
     r = client.get("/insights/listening/random", follow_redirects=False)
     assert r.headers["location"] == f"/library/album/{never.id}"
     # Synced a moment ago: no new sync job.

@@ -1,39 +1,41 @@
 {% extends "base.html" %}
+{% from "partials/macros.html" import empty, icon %}
 {% block title %}Artists{% endblock %}
 {% block content %}
 {% set tab = 'artists' %}{% include "library/_tabs.html" %}
-<div class="nc-tabpanel">
-<p class="muted">Collaborations such as "A &amp; B" show up as their own artist: <a href="/library/artists/primary">keep only the primary artist…</a> The same artist under several names: <a href="/library/artists/aliases">merge aliases…</a> Japanese names in romaji: <a href="/library/romanize">romanize…</a></p>
+<div class="tab-content">
+<p class="lead">Collaborations such as "A &amp; B" show up as their own artist: <a href="/library/artists/primary">keep only the primary artist…</a> The same artist under several names: <a href="/library/artists/aliases">merge aliases…</a> Japanese names in romaji: <a href="/library/romanize">romanize…</a></p>
 {% if artists %}
-<form method="post" action="/library/artists/merge" id="merge-form">
+<form method="post" action="/library/artists/merge" id="merge-form" data-confirm="" data-confirm-kind="default">
 <div class="bar">
-  <input type="search" id="artist-filter" placeholder="Filter {{ artists|length }} artists" autocomplete="off">
+  <div class="input-group grow">{{ icon('search') }}<input class="input" type="search" id="artist-filter" placeholder="Filter {{ '{:,}'.format(artists|length) }} artists" autocomplete="off" aria-label="Filter artists"></div>
 </div>
 <div class="letters" id="artist-letters">
-  <a href="#" data-letter="" class="on">All</a>{% for l in letters %}<a href="#{{ l }}" data-letter="{{ l }}">{{ l }}</a>{% endfor %}
+  <a href="#" data-letter="" class="on" aria-current="true">All</a>{% for l in letters %}<a href="#{{ l }}" data-letter="{{ l }}">{{ l }}</a>{% endfor %}
 </div>
 <div class="grid" id="artist-grid">
   {% for a in artists %}
-  <div class="card" data-name="{{ a.name|lower }}{% if a.original %} {{ a.original|lower }}{% endif %}" data-letter="{{ a.letter }}">
-    <a href="/library?q={{ ('albumartist:=' ~ a.name)|term|q }}"><img loading="lazy" src="/artwork/artist/image?name={{ a.name|q }}" alt=""></a>
-    <div class="t" title="{{ a.name }}"><a href="/library?q={{ ('albumartist:=' ~ a.name)|term|q }}">{{ a.name }}</a></div>
-    {% if a.original %}<div class="s original" title="{{ a.original }}">{{ a.original }}</div>{% endif %}
-    <div class="s">{{ a.albums }} album{{ 's' if a.albums != 1 }} · <a href="/artwork/artist?name={{ a.name|q }}">picture</a> · <label title="Tick one artist to rename it, or several to merge them"><input type="checkbox" name="name" value="{{ a.name }}">edit</label></div>
+  <div class="tile" data-name="{{ a.name|lower }}{% if a.original %} {{ a.original|lower }}{% endif %}" data-letter="{{ a.letter }}">
+    <a href="/library?q={{ ('albumartist:=' ~ a.name)|term|q }}" tabindex="-1" aria-hidden="true"><img loading="lazy" src="/artwork/artist/image?name={{ a.name|q }}" alt=""></a>
+    <a class="tile-title"{{ a.name|lang }} title="{{ a.name }}" href="/library?q={{ ('albumartist:=' ~ a.name)|term|q }}">{{ a.name }}</a>
+    {% if a.original %}<span class="tile-sub original"{{ a.original|lang }} title="{{ a.original }}">{{ a.original }}</span>{% endif %}
+    <span class="tile-sub">{{ a.albums }} album{{ 's' if a.albums != 1 }} · <a href="/artwork/artist?name={{ a.name|q }}">Picture</a></span>
+    <label class="checkbox-item tile-sub" title="Tick one artist to rename it, or several to merge them"><input class="checkbox" type="checkbox" name="name" value="{{ a.name }}" aria-label="Select {{ a.name }}">Select</label>
   </div>
   {% endfor %}
 </div>
-<p class="msg" id="artist-none" hidden>No artist matches.</p>
-<div class="nc-panel sticky-bar" id="merge-bar" hidden>
+<div id="artist-none" hidden>{% call empty() %}No artist matches.{% endcall %}</div>
+<div class="bulk-bar sticky-bar" id="merge-bar" hidden>
   <strong id="merge-count"></strong>
-  <label><span id="merge-verb">keep the name</span> <input type="text" name="target" id="merge-target" list="merge-names" autocomplete="off" required></label>
+  <label class="inline-field"><span id="merge-verb">into</span> <input class="input" data-size="sm" type="text" name="target" id="merge-target" list="merge-names" autocomplete="off" required></label>
   <datalist id="merge-names"></datalist>
-  <label><input type="checkbox" name="write" value="1" checked> write tags</label>
-  <label><input type="checkbox" name="move" value="1" checked> move files</label>
-  <label title="Tracks whose whole artist credit is one of the merged names"><input type="checkbox" name="tracks" value="1" checked> rename track artists</label>
-  <span class="spacer"></span>
-  <button class="nc-btn nc-btn--sm nc-btn--accent" id="merge-button">Merge</button>
+  <label class="checkbox-item"><input class="checkbox" type="checkbox" name="write" value="1" checked>Write tags</label>
+  <label class="checkbox-item"><input class="checkbox" type="checkbox" name="move" value="1" checked>Move files</label>
+  <label class="checkbox-item" title="Tracks whose whole artist credit is one of the merged names"><input class="checkbox" type="checkbox" name="tracks" value="1" checked>Rename track artists</label>
+  <span class="bulk-bar-spacer"></span>
+  <button class="btn" data-size="sm" id="merge-button">Merge</button>
 </div>
 </form>
-{% else %}<div class="msg">The library is empty.</div>{% endif %}
+{% else %}{% call empty() %}The library is empty.{% endcall %}{% endif %}
 </div>
 {% endblock %}

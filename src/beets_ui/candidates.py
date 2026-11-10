@@ -74,6 +74,22 @@ def album_match_dict(m: AlbumMatch) -> dict[str, Any]:
         disambig = m.disambig_string
     except Exception:  # noqa: BLE001 - disambig formatting is cosmetic
         disambig = ""
+    # beets prints missing fields as "None" and repeats what the page already shows.
+    shown = {
+        str(v)
+        for v in (
+            info.data_source,
+            info.year,
+            info.label,
+            info.catalognum,
+            info.country,
+            info.media,
+        )
+        if v
+    }
+    disambig = ", ".join(
+        p for p in disambig.split(", ") if p and p not in ("None", "0") and p not in shown
+    )
     return {
         "kind": "album",
         "id": info.album_id,

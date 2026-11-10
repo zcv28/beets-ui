@@ -1,25 +1,26 @@
-{% if error %}<div class="warn">{{ error }}</div>{% endif %}
+{% from "partials/macros.html" import alert, empty, status %}
+{% if error %}{% call alert('warn') %}{{ error }}{% endcall %}{% endif %}
 {% if rows %}
-<div class="nc-tablewrap"><table class="nc-table">
-  <thead><tr><th>Folder</th><th>State</th><th>Progress</th><th class="num">Size</th><th class="hide-sm">User</th><th></th></tr></thead>
+<div class="table-container"><table class="table">
+  <thead><tr><th class="table-head">Folder</th><th class="table-head">State</th><th class="table-head">Progress</th><th class="table-head num">Size</th><th class="table-head hide-sm">User</th><th class="table-head"><span class="sr-only">Actions</span></th></tr></thead>
   <tbody>
   {% for r in rows %}
-  <tr>
-    <td><details><summary>{{ r.folder_name }}</summary><ol>{% for f in r.files %}<li><small>{{ f.name }} · {{ f.state }} · {{ f.percent }}%</small></li>{% endfor %}</ol></details></td>
-    <td><span class="nc-badge {{ {'done': 'done', 'failed': 'failed', 'downloading': 'running', 'queued': 'queued'}[r.state] }}">{{ r.state }}</span></td>
-    <td class="nowrap"><span class="progress"><span style="width: {{ r.percent }}%"></span></span> <small>{{ r.percent }}%</small></td>
-    <td class="num nowrap">{{ r.size|size }}</td>
-    <td class="hide-sm"><small>{{ r.username }}</small></td>
-    <td>{% if r.state in ('queued', 'downloading') %}
+  <tr class="table-row">
+    <td class="table-cell"><details><summary>{{ r.folder_name }}</summary><ol class="file-list">{% for f in r.files %}<li class="hint">{{ f.name }} · {{ f.state }} · {{ f.percent }}%</li>{% endfor %}</ol></details></td>
+    <td class="table-cell nowrap">{{ status(r.state) }}</td>
+    <td class="table-cell nowrap"><span class="match"><span class="mono">{{ r.percent }}%</span><progress class="progress" value="{{ r.percent }}" max="100" aria-label="{{ r.folder_name }} progress"{% if r.state == 'done' %} data-status="success"{% endif %}></progress></span></td>
+    <td class="table-cell num">{{ r.size|size }}</td>
+    <td class="table-cell hide-sm hint">{{ r.username }}</td>
+    <td class="table-cell nowrap">{% if r.state in ('queued', 'downloading') %}
       <form class="inline" method="post" action="/soulseek/transfers/cancel">
         <input type="hidden" name="username" value="{{ r.username }}">
         {% for f in r.files %}{% if 'Succeeded' not in f.state %}<input type="hidden" name="id" value="{{ f.id }}">{% endif %}{% endfor %}
-        <button class="link">Cancel</button>
+        <button class="btn" data-variant="ghost" data-size="xs">Cancel</button>
       </form>{% endif %}</td>
   </tr>
   {% endfor %}
   </tbody>
 </table></div>
 {% elif not error %}
-<div class="msg">No downloads.</div>
+{% call empty() %}No downloads. Start one from a search result.{% endcall %}
 {% endif %}

@@ -1,25 +1,26 @@
 {% extends "base.html" %}
+{% from "partials/macros.html" import alert, empty, icon %}
 {% block title %}Library{% endblock %}
+{% block status %}{% if stats %}{{ '{:,}'.format(stats.albums) }} albums · {{ '{:,}'.format(stats.artists) }} artists · {{ '{:,}'.format(stats['items']) }} tracks · {{ '{:,.0f}'.format(stats.hours) }} hours{% else %}{{ albums|length }}{{ '+' if more }} albums shown{% endif %}{% endblock %}
 {% block content %}
 {% set tab = 'albums' %}{% include "library/_tabs.html" %}
-<div class="nc-tabpanel">
+<div class="tab-content">
 <form class="bar" method="get" action="/library">
-  <input type="search" name="q" value="{{ q }}" placeholder="beets query, e.g. albumartist:Foo year:2000..2010 genres:rock">
-  <select name="sort">{% for s in sorts %}<option value="{{ s }}" {% if s == sort %}selected{% endif %}>sort: {{ s }}</option>{% endfor %}</select>
-  <select name="view"><option value="grid" {% if view == 'grid' %}selected{% endif %}>grid</option><option value="table" {% if view == 'table' %}selected{% endif %}>table</option></select>
-  <button class="nc-btn nc-btn--sm">Search</button>
+  <div class="input-group grow">{{ icon('search') }}<input class="input" data-mono type="search" name="q" value="{{ q }}" placeholder="albumartist:Foo year:2000..2010 genres:rock" aria-label="Beets query"></div>
+  <select class="input auto" name="sort" aria-label="Sort" onchange="this.form.requestSubmit()">{% for s in sorts %}<option value="{{ s }}" {% if s == sort %}selected{% endif %}>Sort: {{ s }}</option>{% endfor %}</select>
+  <select class="input auto" name="view" aria-label="View" onchange="this.form.requestSubmit()"><option value="grid" {% if view == 'grid' %}selected{% endif %}>Grid</option><option value="table" {% if view == 'table' %}selected{% endif %}>Table</option></select>
+  <button class="btn" data-variant="outline">Search</button>
 </form>
-{% if error %}<div class="warn">Query error: {{ error }}</div>{% endif %}
+{% if error %}{% call alert('warn') %}Query error: {{ error }}{% endcall %}{% endif %}
 {% if view == 'table' %}
-<div class="nc-tablewrap"><table class="nc-table">
-  <thead><tr><th>Album artist</th><th>Album</th><th class="num">Year</th><th class="hide-sm">Genres</th><th class="hide-sm">Label</th></tr></thead>
+<div class="table-container" data-density="compact"><table class="table">
+  <thead><tr><th class="table-head">Album</th><th class="table-head num">Year</th><th class="table-head hide-sm">Genres</th><th class="table-head hide-sm">Label</th></tr></thead>
   <tbody>{% include "library/_album_rows.html" %}</tbody>
 </table></div>
 {% else %}
 <div class="grid">{% include "library/_album_cards.html" %}</div>
 {% endif %}
-{% if not albums and not error %}<div class="msg">No albums{% if q %} match this query{% endif %}.</div>{% endif %}
-{% if page > 1 %}<div class="bar"><a class="nc-btn nc-btn--sm" href="?q={{ q|q }}&sort={{ sort }}&view={{ view }}&page={{ page - 1 }}">← Previous</a></div>{% endif %}
+{% if not albums and not error %}{% call empty() %}{% if q %}No albums match this query. <a href="/library">Clear the search</a>{% else %}No albums yet. Imports from the inbox show up here.{% endif %}{% endcall %}{% endif %}
+{% if page > 1 %}<div class="bar"><a class="btn" data-variant="outline" data-size="sm" href="?q={{ q|q }}&sort={{ sort }}&view={{ view }}&page={{ page - 1 }}">Previous</a></div>{% endif %}
 </div>
 {% endblock %}
-{% block status %}{% if stats %}{{ stats.albums }} albums · {{ stats.artists }} artists · {{ stats['items'] }} tracks · {{ '%.0f'|format(stats.hours) }} hours{% else %}{{ albums|length }}{{ '+' if more }} albums shown{% endif %}{% endblock %}

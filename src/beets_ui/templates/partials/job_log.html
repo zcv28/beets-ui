@@ -1,2 +1,3 @@
-{% if trimmed %}<p class="muted">Showing the last part of the log.</p>{% endif %}
-<pre class="log">{{ log or ('Waiting for the job to start…' if job.status == 'queued' else '(no output)') }}</pre>
+{% if trimmed %}<p class="hint">Showing the last part of the log.</p>{% endif %}
+<pre class="log" role="log" aria-label="Job log">{% if log %}{% for line in log.splitlines() %}{% set low = line.lstrip().lower() %}<span{% if low.startswith(('error', 'traceback')) %} class="is-error"{% elif low.startswith('warning') %} class="is-warn"{% endif %}>{{ line }}</span>
+{% endfor %}{% else %}<span class="is-dim">{{ 'Waiting for the job to start…' if job.status == 'queued' else 'No output.' }}</span>{% endif %}</pre>

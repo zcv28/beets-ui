@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import copy
+import re
 import time
 from urllib.parse import quote
 
@@ -276,10 +277,10 @@ def test_review_page_has_player_and_shortcuts(app, client, env):
     client.post("/inbox/folder/preview", data={"f": "f"})
     run_jobs(app)
     page = client.get("/inbox/folder?f=f").text
-    assert 'class="play nc-btn' in page and 'id="player"' in page
+    assert 'class="play btn' in page and 'id="player"' in page
     assert "sticky-bar" in page and 'id="decided"' in page
     # Candidates are rows of one table; only the chosen one's track changes show.
-    assert page.count('<tr class="cand"') == 2
+    assert page.count('<tr class="table-row cand"') == 2
     assert 'data-diff="diff-0-0" aria-selected="true"' in page
     assert 'id="diff-0-0" >' in page or 'id="diff-0-0">' in page
     assert 'id="diff-0-1" hidden' in page
@@ -292,7 +293,7 @@ def test_jobs_pill_reports_finished_jobs(app, client):
     client.post("/console", data={"cmd": "version"})
     run_jobs(app)
     r = client.get(f"/jobs/pill?since={since}")
-    assert 'class="toast nc-callout nc-status--ok"' in r.text and "beet version" in r.text
+    assert 'class="toast" data-variant="success"' in r.text and "beet version" in r.text
     assert 'hx-swap-oob="beforeend:#toasts"' in r.text
     # Lookups only pop up when they fail.
     quiet = app.state.state.create_job("preview", "Look up x", {})
@@ -323,6 +324,60 @@ def test_library_next_page_is_a_fragment(client, env, monkeypatch):
     more = client.get("/library?page=2", headers={"HX-Request": "true"}).text
     assert "Album 2" in more and "<html" not in more and "revealed" not in more
     rows = client.get("/library?page=2&view=table", headers={"HX-Request": "true"}).text
-    assert "<tr>" in rows and "Album 2" in rows
+    assert '<tr class="table-row">' in rows and "Album 2" in rows
     tracks = client.get("/library/tracks?page=2", headers={"HX-Request": "true"}).text
     assert "<html" not in tracks
+
+
+# ------------------------------------------------------------- review queue
+
+
+def test_review_queue_moves_to_the_next_folder(app, client, env):
+    for name in ("a", "b"):
+        make_album(env["inbox"] / name, album=f"Album {name}")
+    client.post("/inbox/scan")
+    for name in ("a", "b"):
+        client.post("/inbox/folder/preview", data={"f": name})
+    run_jobs(app)
+    page = client.get("/inbox").text
+    assert "Review 2 folders" in page
+    page = client.get("/inbox/folder?f=a").text
+    assert '1</span> of <span class="mono">2</span> to review' in page
+    assert 'id="queue-next" href="/inbox/folder?f=b"' in page and "Import and next" in page
+    # "Import and next" queues the import and opens the next folder.
+    r = client.post(
+        "/inbox/folder/import",
+        data={"f": "a", "choice-0": "c:0", "next": "1"},
+        follow_redirects=False,
+    )
+    assert r.headers["location"] == "/inbox/folder?f=b"
+    # Plain Import stays on the folder.
+    r = client.post(
+        "/inbox/folder/import", data={"f": "b", "choice-0": "c:0"}, follow_redirects=False
+    )
+    assert r.headers["location"] == "/inbox/folder?f=b"
+
+
+def test_inbox_table_answers_204_when_unchanged(app, client, env):
+    make_album(env["inbox"] / "f")
+    client.post("/inbox/scan")
+    page = client.get("/inbox").text
+    version = re.search(r"/inbox/table\?status=(?:&amp;|&)v=(\w+)", page).group(1)
+    assert client.get(f"/inbox/table?v={version}").status_code == 204
+    client.post("/inbox/folder/preview", data={"f": "f"})
+    run_jobs(app)
+    changed = client.get(f"/inbox/table?v={version}")
+    assert changed.status_code == 200 and 'id="inbox-table"' in changed.text
+
+
+def test_console_interrupt_only_while_running(client):
+    assert "Interrupt command" not in client.get("/console").text
+
+
+def test_lang_attribute_marks_japanese_names():
+    from beets_ui.web import lang_attr
+
+    assert lang_attr("ヨルシカ") == ' lang="ja"'
+    assert lang_attr("東方紅魔郷") == ' lang="ja"'
+    assert lang_attr("Yorushika") == ""
+    assert lang_attr(None) == ""

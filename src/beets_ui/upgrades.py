@@ -24,9 +24,9 @@ LOW_KBPS_DEFAULT = 192
 
 REASONS = {
     "lossy": "Lossy",
-    "bitrate": "Low Bitrate",
+    "bitrate": "Low bitrate",
     "incomplete": "Incomplete",
-    "mixed": "Mixed Formats",
+    "mixed": "Mixed formats",
 }
 
 

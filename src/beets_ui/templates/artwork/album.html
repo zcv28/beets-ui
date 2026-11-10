@@ -1,23 +1,25 @@
 {% extends "base.html" %}
+{% from "partials/macros.html" import back, status %}
 {% block title %}Cover: {{ album.album }}{% endblock %}
+{% block header %}{% endblock %}
 {% block content %}
-<p><a href="/artwork">← Album covers</a> · <a href="/library/album/{{ album.id }}">album page</a></p>
+<div class="bar tight">{{ back('/artwork', 'Album covers') }}<span class="spacer"></span><a class="btn" data-variant="outline" data-size="sm" href="/library/album/{{ album.id }}">Open album</a></div>
 <div class="album-head">
-  <div class="art"><img class="cover" src="/library/album/{{ album.id }}/cover?size=600" alt=""><p><small>{% if cover.has %}current: {{ cover.size[0] if cover.size else '?' }}×{{ cover.size[1] if cover.size else '?' }}{% elif cover.embedded %}embedded in files{% if cover.size %} ({{ cover.size[0] }}×{{ cover.size[1] }}){% endif %}{% if cover.low %} <span class="warnc">low-res</span>{% endif %}{% else %}no cover{% endif %}</small></p></div>
+  <div class="art"><img class="art-img" src="/library/album/{{ album.id }}/cover?size=600" alt="Current cover"><p class="hint">{% if cover.has %}Current: <span class="mono">{{ cover.size[0] if cover.size else '?' }}×{{ cover.size[1] if cover.size else '?' }}</span>{% elif cover.embedded %}Embedded in files{% if cover.size %} <span class="mono">({{ cover.size[0] }}×{{ cover.size[1] }})</span>{% endif %}{% if cover.low %} <span class="status" data-status="warning">Low resolution</span>{% endif %}{% else %}<span class="status" data-status="warning">No cover</span>{% endif %}</p></div>
   <div class="meta">
     <h1>{{ album.album }}</h1>
-    <h3>{{ album.albumartist }}{% if album.year %} · {{ album.year }}{% endif %}</h3>
-    <h3>Upload your own</h3>
+    <p class="subtitle">{{ album.albumartist }}{% if album.year %} · <span class="mono">{{ album.year }}</span>{% endif %}</p>
+    <h2>Upload your own</h2>
     <form method="post" action="/artwork/album/{{ album.id }}/set" enctype="multipart/form-data">
-      <input type="file" name="upload" accept="image/jpeg,image/png,image/webp" required>
-      <div class="bar"><label><input type="checkbox" name="embed" value="1"> embed into files</label><button class="nc-btn nc-btn--sm nc-btn--accent">Upload</button></div>
+      <input class="input" type="file" name="upload" accept="image/jpeg,image/png,image/webp" required aria-label="Image file">
+      <div class="bar"><label class="checkbox-item"><input class="checkbox" type="checkbox" name="embed" value="1">Embed into files</label><span class="spacer"></span><button class="btn" data-size="sm">Upload cover</button></div>
     </form>
   </div>
 </div>
 <h2>Find covers</h2>
 <form hx-get="/artwork/album/{{ album.id }}/candidates" hx-target="#cands" hx-trigger="load, submit" hx-indicator="#cands">
   {% include "artwork/_sources.html" %}
-  <div class="bar right"><button class="nc-btn nc-btn--sm">Search</button></div>
+  <div class="bar right"><button class="btn" data-variant="outline" data-size="sm">Search</button></div>
 </form>
-<div id="cands"><p class="loading muted">Searching</p></div>
+<div id="cands"><p class="loading hint">Searching</p></div>
 {% endblock %}

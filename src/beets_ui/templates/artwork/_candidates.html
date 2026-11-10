@@ -1,24 +1,25 @@
+{% from "partials/macros.html" import alert, empty %}
 {% set errors = cands|selectattr('error', 'defined')|list %}
 {% set images = cands|rejectattr('error', 'defined')|list %}
-{% for e in errors %}<div class="wip"><small>{{ e.error }}</small></div>{% endfor %}
+{% for e in errors %}{% call alert('wip') %}{{ e.error }}{% endcall %}{% endfor %}
 {% if images %}
 <form method="post" action="{{ action }}">
   {% for k, v in hidden.items() %}<input type="hidden" name="{{ k }}" value="{{ v }}">{% endfor %}
   <div class="grid">
     {% for c in images %}
-    <label class="card pick">
-      <input type="radio" name="url" value="{{ c.url }}" {% if loop.first %}checked{% endif %}>
+    <label class="tile choice">
+      <input class="radio" type="radio" name="url" value="{{ c.url }}" {% if loop.first %}checked{% endif %}>
       <img loading="lazy" src="{{ c.thumb }}" alt="" referrerpolicy="no-referrer">
-      <div class="t">{{ c.source }} {% if c.match == 'id' %}<span class="nc-badge done" title="found through the MusicBrainz ID">MBID</span>{% else %}<span class="nc-badge" title="found by name search">name</span>{% endif %}</div>
-      <div class="s">{% if c.width %}{{ c.width }}×{{ c.height }}{% else %}size unknown{% endif %}{% if c.note %} · {{ c.note }}{% endif %} · <a href="{{ c.url }}" target="_blank" rel="noopener noreferrer">full</a></div>
+      <span class="tile-title">{{ c.source }} {% if c.match == 'id' %}<span class="badge" data-status="success" title="Found through the MusicBrainz ID">MBID</span>{% else %}<span class="badge" data-variant="outline" title="Found by name search">Name</span>{% endif %}</span>
+      <span class="tile-sub">{% if c.width %}<span class="mono">{{ c.width }}×{{ c.height }}</span>{% else %}Size unknown{% endif %}{% if c.note %} · {{ c.note }}{% endif %} · <a href="{{ c.url }}" target="_blank" rel="noopener noreferrer">Full size</a></span>
     </label>
     {% endfor %}
   </div>
   <div class="bar right">
-    {% if embed %}<label><input type="checkbox" name="embed" value="1"> embed into files</label>{% endif %}
-    <button class="nc-btn nc-btn--sm nc-btn--accent">Use Selected Image</button>
+    {% if embed %}<label class="checkbox-item"><input class="checkbox" type="checkbox" name="embed" value="1">Embed into files</label>{% endif %}
+    <button class="btn" data-size="sm">Use selected image</button>
   </div>
 </form>
 {% else %}
-<div class="msg">No images found with the selected sources.</div>
+{% call empty() %}No images found with the selected sources. Tick more sources above and search again.{% endcall %}
 {% endif %}

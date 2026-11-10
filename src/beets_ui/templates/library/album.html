@@ -1,67 +1,78 @@
 {% extends "base.html" %}
+{% from "partials/macros.html" import back, icon, status %}
 {% block title %}{{ album.album }}{% endblock %}
+{% block header %}{% endblock %}
 {% block content %}
-<p><a href="/library">← Library</a></p>
+{{ back('/library', 'Library') }}
 <div class="album-head">
   <div class="art">
-    <a href="/library/album/{{ album.id }}/cover"><img class="cover" src="/library/album/{{ album.id }}/cover?size=600" alt=""></a>
-    <p><small>{% if cover.has %}{{ cover.size[0] if cover.size else '?' }}×{{ cover.size[1] if cover.size else '?' }}{% if cover.low %} <span class="warnc">low-res</span>{% endif %}{% elif cover.embedded %}embedded in files{% if cover.size %} ({{ cover.size[0] }}×{{ cover.size[1] }}){% endif %}{% if cover.low %} <span class="warnc">low-res</span>{% endif %}{% else %}no cover{% endif %} · <a href="/artwork/album/{{ album.id }}">change cover</a></small></p>
+    <a href="/library/album/{{ album.id }}/cover"><img class="art-img" src="/library/album/{{ album.id }}/cover?size=600" alt="Cover of {{ album.album }}"></a>
+    <p class="hint">{% if cover.has %}<span class="mono">{{ cover.size[0] if cover.size else '?' }}×{{ cover.size[1] if cover.size else '?' }}</span>{% elif cover.embedded %}Embedded in files{% if cover.size %} <span class="mono">({{ cover.size[0] }}×{{ cover.size[1] }})</span>{% endif %}{% else %}<span class="status" data-status="warning">No cover</span>{% endif %}{% if cover.low and (cover.has or cover.embedded) %} <span class="status" data-status="warning">Low resolution</span>{% endif %} · <a href="/artwork/album/{{ album.id }}">Change cover</a></p>
   </div>
   <div class="meta">
-    <h1>{{ album.album or '(untitled)' }}{% if album.get('album_original') %}<br><span class="original">{{ album.album_original }}</span>{% endif %}</h1>
-    <h3><a href="/library?q={{ ('albumartist:=' ~ album.albumartist)|term|q }}">{{ album.albumartist }}</a>{% if album.get('albumartist_original') %} <span class="original">({{ album.albumartist_original }})</span>{% endif %}{% if album.year %} · {{ album.year }}{% endif %}</h3>
+    <h1{{ album.album|lang }}>{{ album.album or '(untitled)' }}{% if album.get('album_original') %}<span class="original"{{ album.album_original|lang }}>{{ album.album_original }}</span>{% endif %}</h1>
+    <p class="subtitle"><a href="/library?q={{ ('albumartist:=' ~ album.albumartist)|term|q }}"{{ album.albumartist|lang }}>{{ album.albumartist }}</a>{% if album.get('albumartist_original') %} · <span class="original-inline"{{ album.albumartist_original|lang }}>{{ album.albumartist_original }}</span>{% endif %}{% if album.year %} · <span class="mono">{{ album.year }}</span>{% endif %}</p>
     <dl class="kv">
-      {% if album.label %}<dt>Label</dt><dd>{{ album.label }}{% if album.catalognum %} ({{ album.catalognum }}){% endif %}</dd>{% endif %}
+      {% if album.label %}<dt>Label</dt><dd>{{ album.label }}{% if album.catalognum %} <span class="mono">({{ album.catalognum }})</span>{% endif %}</dd>{% endif %}
       {% if fields.genres %}<dt>Genres</dt><dd>{{ fields.genres }}</dd>{% endif %}
       {% if album.albumtype %}<dt>Type</dt><dd>{{ album.albumtype }}</dd>{% endif %}
       {% if album.country %}<dt>Country</dt><dd>{{ album.country }}</dd>{% endif %}
-      {% if album.mb_albumid %}<dt>MusicBrainz</dt><dd><a href="https://musicbrainz.org/release/{{ album.mb_albumid }}" target="_blank" rel="noopener noreferrer">{{ album.mb_albumid }}</a></dd>{% endif %}
+      {% if album.mb_albumid %}<dt>MusicBrainz</dt><dd><a class="mono" href="https://musicbrainz.org/release/{{ album.mb_albumid }}" target="_blank" rel="noopener noreferrer">{{ album.mb_albumid }}</a></dd>{% endif %}
       {% if path %}<dt>Folder</dt><dd><code>{{ path }}</code></dd>{% endif %}
-      <dt>Added</dt><dd>{{ album.added|ts }}</dd>
-      <dt>Album ID</dt><dd>{{ album.id }}</dd>
+      <dt>Added</dt><dd class="mono">{{ album.added|ts }}</dd>
+      <dt>Album ID</dt><dd class="mono">{{ album.id }}</dd>
     </dl>
     <div class="bar">
-      <form class="inline wrap" method="post" action="/library/album/{{ album.id }}/run">
-        {% for a in ['mbsync', 'fetchart', 'embedart', 'replaygain', 'lyrics'] %}<button class="nc-btn nc-btn--sm" name="action" value="{{ a }}">{{ a }}</button>{% endfor %}
-      </form>
-      <form class="inline" method="post" action="/library/album/{{ album.id }}/lyrics"><button class="nc-btn nc-btn--sm" title="Time-synced lyrics from LRCLIB, with romaji under Japanese lines">Synced Lyrics</button></form>
-      {% if romanizable %}<form class="inline" method="post" action="/library/album/{{ album.id }}/romanize"><button class="nc-btn nc-btn--sm" title="Use romanized names from {{ album.get('data_source') }} and keep the original names alongside">Romanize</button></form>{% endif %}
-      <a class="nc-btn nc-btn--sm" href="/console?cmd={{ ('import -L -q album_id:' ~ album.id)|q }}" title="Re-imports the album: opens the console so you can check the command first">Re-tag…</a>
+      <form class="inline" method="post" action="/library/album/{{ album.id }}/run"><button class="btn" data-variant="outline" data-size="sm" name="action" value="fetchart" title="beet fetchart: looks for a cover with the fetchart plugin">Fetch cover</button></form>
+      <form class="inline" method="post" action="/library/album/{{ album.id }}/lyrics"><button class="btn" data-variant="outline" data-size="sm" title="Time-synced lyrics from LRCLIB, with romaji under Japanese lines">Fetch synced lyrics</button></form>
+      <details class="menu">
+        <summary class="btn" data-variant="outline" data-size="sm">More actions{{ icon('more') }}</summary>
+        <div class="menu-content">
+          <form method="post" action="/library/album/{{ album.id }}/run">
+            {% for a, label in [('mbsync', 'Refresh metadata from MusicBrainz'), ('embedart', 'Embed cover into files'), ('replaygain', 'Compute ReplayGain'), ('lyrics', 'Fetch plain lyrics')] %}
+            <button class="menu-item" name="action" value="{{ a }}">{{ label }}<span class="mono hint">beet {{ a }}</span></button>
+            {% endfor %}
+          </form>
+          {% if romanizable %}<form method="post" action="/library/album/{{ album.id }}/romanize"><button class="menu-item">Romanize names<span class="hint">from {{ album.get('data_source') }}</span></button></form>{% endif %}
+          <a class="menu-item" href="/console?cmd={{ ('import -L -q album_id:' ~ album.id)|q }}">Re-tag in the console…<span class="mono hint">beet import -L</span></a>
+        </div>
+      </details>
     </div>
   </div>
 </div>
 
 <h2>Tracks</h2>
-<div class="nc-tablewrap"><table class="nc-table">
-  <thead><tr><th class="num">#</th><th>Title</th><th>Artist</th><th class="num">Length</th><th class="hide-sm">Format</th></tr></thead>
-  <tbody>{% for it in items %}<tr><td class="num">{% if album.disctotal and album.disctotal > 1 %}{{ it.disc }}-{% endif %}{{ it.track }}</td><td><a href="/library/item/{{ it.id }}">{{ it.title }}</a>{% if it.lyrics and synced(it.lyrics) %} <span class="nc-hint" title="Has synced lyrics">♪</span>{% endif %}{% if it.get('title_original') %}<br><small class="original">{{ it.title_original }}</small>{% endif %}</td><td>{{ it.artist }}{% if it.get('artist_original') %}<br><small class="original">{{ it.artist_original }}</small>{% endif %}</td><td class="num">{{ it.length|duration }}</td><td class="hide-sm">{{ it.format }} {{ (it.bitrate // 1000) if it.bitrate else '' }}{% if it.bitdepth %} · {{ it.bitdepth }}bit/{{ (it.samplerate / 1000)|round(1) }}kHz{% endif %}</td></tr>{% endfor %}</tbody>
+<div class="table-container" data-density="compact"><table class="table">
+  <thead><tr><th class="table-head num">#</th><th class="table-head">Title</th><th class="table-head">Artist</th><th class="table-head num">Length</th><th class="table-head hide-sm">Format</th></tr></thead>
+  <tbody>{% for it in items %}<tr class="table-row"><td class="table-cell num">{% if album.disctotal and album.disctotal > 1 %}{{ it.disc }}-{% endif %}{{ it.track }}</td><td class="table-cell"><a href="/library/item/{{ it.id }}"{{ it.title|lang }}>{{ it.title }}</a>{% if it.lyrics and synced(it.lyrics) %} <span class="inline-icon" title="Has synced lyrics">{{ icon('music') }}<span class="sr-only">Has synced lyrics</span></span>{% endif %}{% if it.get('title_original') %}<span class="original"{{ it.title_original|lang }}>{{ it.title_original }}</span>{% endif %}</td><td class="table-cell"><span{{ it.artist|lang }}>{{ it.artist }}</span>{% if it.get('artist_original') %}<span class="original"{{ it.artist_original|lang }}>{{ it.artist_original }}</span>{% endif %}</td><td class="table-cell num">{{ it.length|duration }}</td><td class="table-cell hide-sm"><span class="badge" data-variant="outline" data-mono>{{ it.format }}{% if it.bitdepth %} {{ it.bitdepth }}/{{ (it.samplerate / 1000)|round(1)|string|replace('.0', '') }}{% elif it.bitrate %} {{ it.bitrate // 1000 }}{% endif %}</span></td></tr>{% endfor %}</tbody>
 </table></div>
 
 <details class="box">
-<summary>Edit Album</summary>
-<form method="post" action="/library/album/{{ album.id }}/edit">
+<summary>Edit album</summary>
+<form method="post" action="/library/album/{{ album.id }}/edit" class="box-body">
   <div class="fields">
-    {% for k, v in fields.items() %}<div><label for="f-{{ k }}">{{ k }}</label><input type="text" id="f-{{ k }}" name="{{ k }}" value="{{ v }}"></div>{% endfor %}
+    {% for k, v in fields.items() %}<div><label class="label mono" for="f-{{ k }}">{{ k }}</label><input class="input" type="text" id="f-{{ k }}" name="{{ k }}" value="{{ v }}"></div>{% endfor %}
   </div>
-  <label for="extra">Other fields, one <code>field=value</code> per line (<code>field!</code> deletes a flexible field)</label>
-  <textarea id="extra" name="extra" placeholder="mood=happy">{% for k, v in flex.items() %}{% if v is string or v is number %}{{ k }}={{ v }}
+  <label class="label" for="extra">Other fields</label>
+  <textarea class="input" data-mono id="extra" name="extra" placeholder="mood=happy">{% for k, v in flex.items() %}{% if v is string or v is number %}{{ k }}={{ v }}
 {% endif %}{% endfor %}</textarea>
+  <p class="field-description">One <code>field=value</code> per line. <code>field!</code> deletes a flexible field.</p>
   <div class="bar">
-    <label><input type="checkbox" name="write" value="1" checked> write tags to files</label>
-    <label><input type="checkbox" name="move" value="1"> move files to match the path format</label>
+    <label class="checkbox-item"><input class="checkbox" type="checkbox" name="write" value="1" checked>Write tags to files</label>
+    <label class="checkbox-item"><input class="checkbox" type="checkbox" name="move" value="1">Move files to match the path format</label>
     <span class="spacer"></span>
-    <button class="nc-btn nc-btn--sm nc-btn--accent">Save</button>
+    <button class="btn" data-size="sm">Save album</button>
   </div>
 </form>
 </details>
 
 <details class="box">
-<summary>Remove Album</summary>
-<form method="post" action="/library/album/{{ album.id }}/remove" data-confirm="Remove the album from the library? Its files stay on disk." data-confirm-checked="delete" data-confirm-alt="Remove the album and delete its files from disk?" data-confirm-button="Remove Album">
+<summary>Remove album</summary>
+<form method="post" action="/library/album/{{ album.id }}/remove" class="box-body" data-confirm="Remove the album from the library? Its files stay on disk." data-confirm-checked="delete" data-confirm-alt="Remove the album and delete its files from disk? This cannot be undone." data-confirm-button="Remove album" data-confirm-alt-button="Remove album and files">
   <div class="bar">
-    <label><input type="checkbox" name="delete" value="1"> also delete the files from disk</label>
+    <label class="checkbox-item"><input class="checkbox" type="checkbox" name="delete" value="1">Also delete the files from disk</label>
     <span class="spacer"></span>
-    <button class="nc-btn nc-btn--sm nc-btn--danger">Remove Album</button>
+    <button class="btn" data-variant="outline" data-tone="destructive" data-size="sm" data-label-alt="Remove album and files">Remove album</button>
   </div>
 </form>
 </details>

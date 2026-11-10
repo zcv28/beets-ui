@@ -1,55 +1,79 @@
-<!doctype html>
-<html lang="en">
+{% from "partials/macros.html" import icon, alert, nav_links %}<!doctype html>
+<html lang="en"{% if theme in ('light', 'dark') %} data-theme="{{ theme }}"{% endif %}>
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{% block title %}beets-ui{% endblock %} · beets-ui</title>
   <link rel="icon" href="/static/nocover.svg">
-  <link rel="stylesheet" href="/static/fonts/fonts.css?v={{ version }}">
-  <link rel="stylesheet" href="/static/nc/tokens.css?v={{ version }}">
-  <link rel="stylesheet" href="/static/nc/bundle.css?v={{ version }}">
+  <link rel="stylesheet" href="/static/ds/tokens.css?v={{ version }}">
+  <link rel="stylesheet" href="/static/ds/bundle.css?v={{ version }}">
   <link rel="stylesheet" href="/static/app.css?v={{ version }}">
   <script src="/static/htmx.min.js" defer></script>
   <script src="/static/app.js?v={{ version }}" defer></script>
 </head>
-<body class="nc nc-dither" data-theme="{{ theme or 'graphite' }}">
+<body>
 {% if user %}
-<div class="nc-container app">
-<section class="nc-window app-window">
-  <div class="nc-titlebar"><span class="nc-titlebar__text">beets-ui — {{ self.title() }}</span></div>
-  <nav class="nc-menubar" aria-label="Sections">
-    <a class="nc-menu__item" href="/inbox" {% if nav == 'inbox' %}aria-current="page"{% endif %}>Inbox</a>
-    <a class="nc-menu__item" href="/library" {% if nav == 'library' %}aria-current="page"{% endif %}>Library</a>
-    <a class="nc-menu__item" href="/artwork" {% if nav == 'artwork' %}aria-current="page"{% endif %}>Artwork</a>
-    <a class="nc-menu__item" href="/insights" {% if nav == 'insights' %}aria-current="page"{% endif %}>Insights</a>
-    {% if slskd_enabled %}<a class="nc-menu__item" href="/soulseek" {% if nav == 'soulseek' %}aria-current="page"{% endif %}>Soulseek</a>{% endif %}
-    <a class="nc-menu__item" href="/console" {% if nav == 'console' %}aria-current="page"{% endif %}>Console</a>
-    <a class="nc-menu__item" href="/jobs" {% if nav == 'jobs' %}aria-current="page"{% endif %}>Jobs</a>
-    <span class="spacer"></span>
-    <form class="inline" method="post" action="/logout"><span class="muted">{{ user }}</span><button class="nc-menu__item" type="submit">Log Out</button></form>
-  </nav>
-  <div class="nc-window__body">
-    {% for kind, text in flashes %}<div class="{{ kind }}">{{ text }}</div>{% endfor %}
-    {% block content %}{% endblock %}
-  </div>
-  <div class="nc-statusbar">
-    <span>{% block status %}&nbsp;{% endblock %}</span>
-    {% include "partials/jobs_pill.html" %}
-    <span>beets-ui {{ version }}</span>
-  </div>
-</section>
-</div>
-<div id="toasts" aria-live="polite"></div>
-<dialog class="nc-window nc-dialog confirm" id="confirm-dialog" aria-labelledby="confirm-title">
-  <div class="nc-titlebar"><span class="nc-titlebar__text" id="confirm-title">Are You Sure?</span></div>
-  <form method="dialog">
-    <div class="nc-dialog__body">
-      <div class="nc-callout__face" aria-hidden="true">:/</div>
-      <p id="confirm-text"></p>
+<a class="skip-link" href="#main">Skip to content</a>
+<div class="sidebar-layout">
+  <aside class="app-sidebar">
+    <div class="sidebar-header"><a class="sidebar-logo" href="/inbox"><span class="brand-mark" aria-hidden="true">b</span><span class="sidebar-logo-text">beets-ui</span></a></div>
+    <div class="sidebar-content">
+      {{ nav_links(nav, slskd_enabled) }}
+      {% include "partials/jobs_pill.html" %}
     </div>
-    <div class="nc-dialog__actions">
-      <button class="nc-btn" value="cancel">Cancel</button>
-      <button class="nc-btn nc-btn--danger" value="ok" id="confirm-ok">OK</button>
+    <div class="sidebar-footer">
+      <form method="post" action="/logout" class="sidebar-user">
+        <span class="sidebar-user-name">{{ user }}</span>
+        <button class="btn" data-variant="ghost" data-size="icon-sm" type="submit" aria-label="Log out" title="Log out">{{ icon('log-out') }}</button>
+      </form>
+      <p class="hint mono">beets-ui {{ version }}</p>
+    </div>
+  </aside>
+
+  <dialog class="sidebar-mobile" id="sidebar-mobile" aria-label="Sections">
+    <button class="sidebar-mobile-close" type="button" aria-label="Close menu">{{ icon('x') }}</button>
+    <div class="sidebar-header"><a class="sidebar-logo" href="/inbox"><span class="brand-mark" aria-hidden="true">b</span>beets-ui</a></div>
+    {# The links sit at the bottom of the sheet, where a thumb reaches. #}
+    <div class="sidebar-content">{{ nav_links(nav, slskd_enabled) }}</div>
+    <div class="sidebar-footer">
+      <form method="post" action="/logout" class="sidebar-user">
+        <span class="sidebar-user-name">{{ user }}</span>
+        <button class="btn" data-variant="ghost" data-size="sm" type="submit">{{ icon('log-out') }}Log out</button>
+      </form>
+    </div>
+  </dialog>
+
+  <div class="app-main">
+    <div class="mobile-bar">
+      <button class="sidebar-trigger" type="button" id="sidebar-open" aria-label="Open menu" aria-controls="sidebar-mobile">{{ icon('menu') }}</button>
+      <a class="sidebar-logo" href="/inbox"><span class="brand-mark" aria-hidden="true">b</span>beets-ui</a>
+      <span class="spacer"></span>
+      {% include "partials/jobs_mobile.html" %}
+    </div>
+    <main class="app-content" id="main" tabindex="-1">
+      {% if false %}{% block status %}{% endblock %}{% endif %}
+      {% block header %}
+      {% set st = self.status()|trim %}
+      <header class="page-header">
+        <h1>{{ self.title() }}</h1>
+        {% if st %}<p class="page-description">{{ st }}</p>{% endif %}
+      </header>
+      {% endblock %}
+      {% for kind, text in flashes %}{% call alert(kind) %}{{ text }}{% endcall %}{% endfor %}
+      {% block content %}{% endblock %}
+    </main>
+  </div>
+</div>
+<div class="toast-container" data-position="bottom-right" id="toasts" aria-live="polite"></div>
+<dialog class="dialog" id="confirm-dialog" aria-labelledby="confirm-title" aria-describedby="confirm-text">
+  <form method="dialog" class="dialog-content">
+    <div class="dialog-header">
+      <h2 class="dialog-title" id="confirm-title">Are you sure?</h2>
+      <p class="dialog-description" id="confirm-text"></p>
+    </div>
+    <div class="dialog-footer">
+      <button class="btn" data-variant="outline" value="cancel" id="confirm-cancel">Cancel</button>
+      <button class="btn" data-variant="destructive" value="ok" id="confirm-ok">OK</button>
     </div>
   </form>
 </dialog>

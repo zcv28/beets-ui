@@ -1,45 +1,49 @@
 {% extends "base.html" %}
+{% from "partials/macros.html" import empty, icon %}
 {% block title %}Album covers{% endblock %}
+{% block status %}{{ '{:,}'.format(total) }} album{{ 's' if total != 1 }}{% endblock %}
 {% block content %}
 {% set tab = 'covers' %}{% include "artwork/_tabs.html" %}
-<div class="nc-tabpanel">
+<div class="tab-content">
 <form class="bar" method="get" action="/artwork">
-  <select name="filter" onchange="this.form.submit()">
-    <option value="missing" {% if filter == 'missing' %}selected{% endif %}>no cover at all</option>
-    <option value="nofile" {% if filter == 'nofile' %}selected{% endif %}>no cover file (incl. embedded only)</option>
-    <option value="low" {% if filter == 'low' %}selected{% endif %}>missing or smaller than {{ min_px }}px</option>
-    <option value="all" {% if filter == 'all' %}selected{% endif %}>all albums</option>
+  <select class="input auto" name="filter" onchange="this.form.submit()" aria-label="Show">
+    <option value="missing" {% if filter == 'missing' %}selected{% endif %}>No cover at all</option>
+    <option value="nofile" {% if filter == 'nofile' %}selected{% endif %}>No cover file (incl. embedded only)</option>
+    <option value="low" {% if filter == 'low' %}selected{% endif %}>Missing or smaller than {{ min_px }}px</option>
+    <option value="all" {% if filter == 'all' %}selected{% endif %}>All albums</option>
   </select>
-  <input type="search" name="q" value="{{ q }}" placeholder="beets query">
-  <button class="nc-btn nc-btn--sm">Filter</button>
+  <div class="input-group grow">{{ icon('search') }}<input class="input" data-mono type="search" name="q" value="{{ q }}" placeholder="Beets query" aria-label="Beets query"></div>
+  <button class="btn" data-variant="outline">Filter</button>
 </form>
 <details class="box">
-  <summary>Fill Automatically <span class="nc-hint">uses the first match from the sources, in order</span></summary>
-  <form method="post" action="/artwork/covers/fill">
+  <summary>Fill automatically <span class="hint">Uses the first match from the sources, in order</span></summary>
+  <form method="post" action="/artwork/covers/fill" class="box-body">
     {% include "artwork/_sources.html" %}
     <div class="bar">
-      <label><input type="checkbox" name="low" value="1" {% if filter == 'low' %}checked{% endif %}> also replace covers under {{ min_px }}px</label>
-      <label><input type="checkbox" name="extract" value="1" checked> use art embedded in the files first</label>
-      <label><input type="checkbox" name="embed" value="1"> embed downloaded covers into files</label>
+      <label class="checkbox-item"><input class="checkbox" type="checkbox" name="low" value="1" {% if filter == 'low' %}checked{% endif %}>Also replace covers under {{ min_px }}px</label>
+      <label class="checkbox-item"><input class="checkbox" type="checkbox" name="extract" value="1" checked>Use art embedded in the files first</label>
+      <label class="checkbox-item"><input class="checkbox" type="checkbox" name="embed" value="1">Embed downloaded covers into files</label>
       <span class="spacer"></span>
-      <button class="nc-btn nc-btn--sm nc-btn--accent">Fill Missing Covers</button>
+      <button class="btn" data-size="sm">Fill missing covers</button>
     </div>
   </form>
 </details>
-<p class="muted">{{ total }} album{{ 's' if total != 1 }}</p>
 <div class="grid">
   {% for a, st in rows %}
-  <a class="card" href="/artwork/album/{{ a.id }}">
+  <a class="tile" href="/artwork/album/{{ a.id }}">
     <img loading="lazy" src="/library/album/{{ a.id }}/cover?size=300" alt="">
-    <div class="t" title="{{ a.album }}">{{ a.album or '(untitled)' }}</div>
-    <div class="s">{{ a.albumartist }} · {% if st.has %}{{ st.size[0] if st.size else '?' }}px{% if st.low %} <span class="warnc">low</span>{% endif %}{% elif st.embedded %}embedded{% if st.size %} {{ st.size[0] }}px{% endif %}{% if st.low %} <span class="warnc">low</span>{% endif %}{% else %}<span class="warnc">no cover</span>{% endif %}</div>
+    <span class="tile-title" title="{{ a.album }}">{{ a.album or '(untitled)' }}</span>
+    <span class="tile-sub">{{ a.albumartist }}</span>
+    {% set px = (st.size[0] ~ 'px') if st.size else ('?px' if st.has else '') %}
+    {% set label = (('Embedded ' if st.embedded and not st.has else '') ~ px)|trim %}
+    <span class="tile-sub">{% if not (st.has or st.embedded) %}<span class="status" data-status="warning">No cover</span>{% elif st.low %}<span class="status" data-status="warning">{{ label }} · Low</span>{% else %}{{ label }}{% endif %}</span>
   </a>
-  {% else %}<div class="msg">Nothing to do here.</div>{% endfor %}
+  {% else %}<div class="grid-all">{% call empty() %}Nothing to do here{% if filter != 'all' %}: every {{ 'album' if tab == 'covers' else 'artist' }} passes this filter{% endif %}.{% endcall %}</div>{% endfor %}
 </div>
 <div class="bar">
-  {% if page > 1 %}<a class="nc-btn nc-btn--sm" href="?filter={{ filter }}&q={{ q|q }}&page={{ page - 1 }}">← Previous</a>{% endif %}
+  {% if page > 1 %}<a class="btn" data-variant="outline" data-size="sm" href="?filter={{ filter }}&q={{ q|q }}&page={{ page - 1 }}">Previous</a>{% endif %}
   <span class="spacer"></span>
-  {% if more %}<a class="nc-btn nc-btn--sm" href="?filter={{ filter }}&q={{ q|q }}&page={{ page + 1 }}">Next →</a>{% endif %}
+  {% if more %}<a class="btn" data-variant="outline" data-size="sm" href="?filter={{ filter }}&q={{ q|q }}&page={{ page + 1 }}">Next</a>{% endif %}
 </div>
 </div>
 {% endblock %}

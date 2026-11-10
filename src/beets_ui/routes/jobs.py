@@ -57,6 +57,7 @@ def jobs_pill(request: Request, since: float = 0):
         pending=jobs.pending(),
         since=since,
         toasts=toasts,
+        oob=True,
     )
 
 

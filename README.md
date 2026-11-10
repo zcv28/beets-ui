@@ -29,7 +29,7 @@ A small, self-hosted web frontend for [beets](https://beets.io). It runs in one 
 - **Jobs.** Every change to the library goes through a single queue, so nothing fights over the database, and each job keeps its log. Lookups that only read the library (discographies, the Jellyfin sync) run in a second queue, so they never hold up an import.
 - **Login.** A single password, or LDAP (lldap, OpenLDAP, Authentik and others).
 
-The UI uses the *niki.moe classic* design system: dark, bevelled desktop-software windows in one of four themes (`graphite`, `slate`, `mahogany`, `phosphor`; set with `BEETSUI_THEME`). Its fonts are bundled, so pages load nothing from third parties.
+The UI uses the beets-ui design system: shadcn's neutral token model with a sidebar layout, light and dark themes that follow the browser (or `BEETSUI_THEME`), and system fonts, so pages load nothing from third parties. Colour only marks a state (matched, needs review, running, failed) and always comes with a word.
 
 ---
 
@@ -96,7 +96,7 @@ The container user (`user:`) must be able to read the inbox and write to `/music
 | `BEETSUI_DELETE_AFTER_IMPORT` | `false` | Delete the inbox folder after a successful import (beets copies by default). |
 | `BEETSUI_AUTO_IMPORT` | `0` (off) | Import an automatically looked-up folder without review when every album in it matches at least this % (e.g. `95`), has no missing tracks or unmatched files, and nothing in it is already in the library. Duplicates beets finds still wait for you. |
 | `BEETSUI_ROMANIZE` | `false` | Import VocaDB/UtaiteDB/TouhouDB/MusicBrainz matches with romanized names and keep the originals alongside. See *Romanized names* below. |
-| `BEETSUI_THEME` | `graphite` | Color theme: `graphite` (neutral gray), `slate` (steel blue), `mahogany` (red-brown) or `phosphor` (terminal green). |
+| `BEETSUI_THEME` | `auto` | Color theme: `auto` (follows the browser's light or dark setting), `light` or `dark`. The old theme names (`graphite`, `slate`, `mahogany`, `phosphor`) still work and mean `dark`. |
 | `BEETSUI_LYRICS_ROMAJI` | `below` | Romaji in synced lyrics of Japanese songs: `below` (a romaji line under each line, same timestamp), `inline` (`line / romaji` on one line, the way beets stores translations), `only` (romaji instead of the Japanese) or `off`. |
 | `JELLYFIN_URL` / `JELLYFIN_API_KEY` | — | Turns on *Insights → Listening*, e.g. `http://jellyfin:8096` and a key from Jellyfin's Dashboard → API Keys. |
 | `JELLYFIN_USER` | first admin | Whose play counts to read, when Jellyfin has several users. |
@@ -177,13 +177,13 @@ Tags: `latest` (main branch), `X.Y.Z` / `X.Y` (releases), `sha-<commit>`.
 
 ## Using it
 
-1. **Inbox.** New folders show up as *New*, get looked up, and become *Ready* (with the best match %) or *Needs attention*. Expand a row to see its files. Folders that are already in your library (same MusicBrainz album ID, or same album artist and album name) are marked with a link to the album; delete them one by one or all at once with **Delete imported**. Open a folder to review it:
-   - Every candidate shows match %, source, year, label, catalog number and what differs. Expand it to see a track-by-track diff (changed titles in yellow, length mismatches in red).
-   - Choose a candidate (click its row), *as-is* or *skip* for each album in the folder; the chosen candidate's track changes show below it. Then press **Import** (it stays pinned at the bottom, with a count of what will be imported). Press ▶ next to a file to listen to it in the Preview window.
-   - Keyboard: <kbd>j</kbd>/<kbd>k</kbd> move between candidates, <kbd>x</kbd> chooses one, <kbd>o</kbd> shows the current files, <kbd>p</kbd> plays the first track, <kbd>i</kbd> imports.
+1. **Inbox.** New folders show up as *Not looked up*, get looked up, and become *Ready* (with the best match %) or *Needs attention*. Expand a row to see its files. Folders that are already in your library (same MusicBrainz album ID, or same album artist and album name) are marked with a link to the album; delete them one by one or all at once with **Delete imported**. Press **Review N folders** to start on the first folder waiting for you, or open any folder:
+   - Every candidate shows match %, source, year, label, catalog number and what differs. The chosen one shows a track-by-track diff, with changed titles and length mismatches marked.
+   - Choose a candidate (click its row), *as-is* or *skip* for each album in the folder; the chosen candidate's track changes show below it. Then press **Import and next**: the import runs as a job and the next folder to review opens (**Import** stays on the folder). The bar stays pinned at the bottom with a count of what will be imported, and the header shows how many folders are left. Press ▶ next to a file to listen to it in the Preview window.
+   - Keyboard: <kbd>j</kbd>/<kbd>k</kbd> move between candidates, <kbd>x</kbd> chooses one, <kbd>o</kbd> shows the current files, <kbd>p</kbd> plays the first track, <kbd>i</kbd> imports and moves on, <kbd>n</kbd> / <kbd>Shift</kbd>+<kbd>N</kbd> open the next or previous folder.
    - Nothing good? Use **Search again** with artist/album, or paste MusicBrainz/Discogs IDs or URLs, and tick *keep current candidates* to add the results to the list. You can also switch the folder to *albums grouped by tags* or *individual tracks*.
    - If beets finds the album already in your library, the folder becomes *Duplicate*. Pick what to do and press Import again.
-2. **Library.** Search with [beets queries](https://beets.readthedocs.io/en/stable/reference/query.html) (`albumartist:Foo year:2000..2010`, `format:FLAC`, …). On an album page you can edit fields, write tags, move files, remove the album, or run `mbsync`, `fetchart`, `embedart`, `replaygain` and `lyrics` on it with one click (*re-tag* opens the console first).
+2. **Library.** Search with [beets queries](https://beets.readthedocs.io/en/stable/reference/query.html) (`albumartist:Foo year:2000..2010`, `format:FLAC`, …). On an album page you can edit fields, write tags, move files, remove the album, fetch its cover or synced lyrics, or run the other one-click commands under **More actions** (refresh from MusicBrainz, embed the cover, ReplayGain, plain lyrics; *re-tag* opens the console first).
    - **Undo.** Album and track edits, artist merges and primary-artist fixes save the old values first. Open the job (a pop-up links to it when it finishes) and press **Undo** to put the old values, tags and folders back.
    - **Artists.** Filter by name or letter. Tick two or more artists to merge them, or open *merge aliases* for suggestions: names that differ only in width or case, share an artist ID from the same source, or where one is the other's sort or credited name (MusicBrainz gives "ヌジャベス" the sort name "Nujabes"). Merged names are remembered and applied to future imports; remove one under *Remembered* to stop that.
 3. **Artwork.** *Album covers* lists albums with missing (or low-resolution) covers. *Artist pictures* lists artists without a picture. Run **Fill automatically** first, then open *needs review* for the few artists it was unsure about (matched by name, several artists with the same name, or not found) and pick or upload those by hand.
@@ -226,4 +226,4 @@ CI (`.github/workflows/ci.yml`) lints, runs the tests, builds the image, smoke-t
 
 ## License
 
-MIT. See [LICENSE](LICENSE). Includes htmx (BSD-2-Clause) and the Arimo, Cousine (Apache 2.0) and Libre Baskerville (SIL OFL 1.1) fonts; see `src/beets_ui/static/fonts/LICENSES.md`.
+MIT. See [LICENSE](LICENSE). Includes htmx (BSD-2-Clause), component CSS from [shadcn-html](https://github.com/codylindley/shadcn-html) (MIT) and icons from [Lucide](https://lucide.dev) (ISC); see `src/beets_ui/static/ds/LICENSES.md`.
