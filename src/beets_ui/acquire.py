@@ -26,7 +26,7 @@ import time
 from collections import Counter
 from typing import Any
 
-from . import discography
+from . import beets_ctx, discography
 from .rank import audio_count, rank
 from .sources import Source, SourceError
 from .state import State
@@ -242,6 +242,7 @@ class Acquirer:
         self._lock = threading.Lock()
         self._stop = threading.Event()
         self._wake = threading.Event()
+        self._settled = 0.0  # when requests were last checked against the library
 
     @classmethod
     def build(cls, state: State, inbox: Any, settings: Any, source: Source, watch: Any) -> Acquirer:
@@ -314,6 +315,12 @@ class Acquirer:
                 self.tick()
             except Exception:
                 log.exception("acquirer")
+            if time.time() - self._settled > SETTLE_EVERY:
+                self._settled = time.time()
+                try:
+                    settle(self.state, beets_ctx.lib())
+                except Exception:
+                    log.exception("settling requests")
             self._wake.wait(self.interval)
             self._wake.clear()
 
@@ -498,6 +505,34 @@ class Acquirer:
             self._set(
                 w, "failed", f"The download finished, but no inbox folder {w['folder']} appeared"
             )
+
+
+# --------------------------------------------------------------- settling
+
+# Requests waiting on you, or not started, that are over once the album is in
+# the library however it got there: another copy, the console, a re-import.
+# Requests mid-search, mid-download or importing finish on their own.
+SETTLE = ("queued", "choosing", "review", "failed")
+SETTLE_EVERY = 300  # seconds between checks from the request loop
+
+
+def settle(state: State, lib: Any) -> int:
+    """Mark requests whose album is already in the library as done. Returns how many."""
+    open_ = [w for w in state.wanted_list(SETTLE) if w["kind"] == "missing"]
+    if not open_:
+        return 0
+    index = discography.owned_index(lib)
+    n = 0
+    for w in open_:
+        if discography.is_owned(
+            index,
+            [w["release_id"], w["lookup_id"]],
+            [w["artist"], w["artist_original"] or ""],
+            [w["album"], w["album_original"] or ""],
+        ):
+            state.update_wanted(w["id"], status="done", status_text="In your library", error=None)
+            n += 1
+    return n
 
 
 # -------------------------------------------------------------- inbox hooks

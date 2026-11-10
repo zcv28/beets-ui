@@ -81,6 +81,33 @@ def norm(title: str) -> str:
 # ---------------------------------------------------------------- library
 
 
+def owned_index(lib: Any) -> dict[str, set]:
+    """What the library has, to tell whether an album asked for is in it.
+
+    "ids": release group IDs (MusicBrainz) and album IDs (VocaDB, TouhouDB,
+    UtaiteDB and MusicBrainz releases); "pairs": (artist, album) names,
+    normalised, romanized and original.
+    """
+    ids: set[str] = set()
+    pairs: set[tuple[str, str]] = set()
+    for a in lib.albums():
+        for f in ("mb_releasegroupid", "mb_albumid"):
+            if a.get(f):
+                ids.add(str(a[f]))
+        names = {norm(a.album), norm(a.get("album_original") or "")} - {""}
+        artists = {norm(a.albumartist), norm(a.get("albumartist_original") or "")} - {""}
+        pairs |= {(ar, n) for ar in artists for n in names}
+    return {"ids": ids, "pairs": pairs}
+
+
+def is_owned(index: dict[str, set], ids: list[str], artists: list[str], albums: list[str]) -> bool:
+    if any(i and i in index["ids"] for i in ids):
+        return True
+    ars = {norm(x) for x in artists} - {""}
+    als = {norm(x) for x in albums} - {""}
+    return any((ar, al) in index["pairs"] for ar in ars for al in als)
+
+
 def source_key(album: Any) -> tuple[str, str] | None:
     """(source, artist ID) an album's artist is looked up by, if any."""
     src = str(album.get("data_source") or "").lower()
