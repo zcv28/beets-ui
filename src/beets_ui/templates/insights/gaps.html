@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% from "partials/macros.html" import alert, empty %}
+{% from "partials/macros.html" import alert, empty, icon %}
 {% block title %}Discography gaps{% endblock %}
 {% block status %}{{ looked }} of {{ artists }} artist{{ 's' if artists != 1 }} looked up{% if looked %} · {{ missing }} release{{ 's' if missing != 1 }} missing{% endif %}{% endblock %}
 {% block content %}
@@ -8,14 +8,19 @@
 <div class="tab-content">
 <p class="lead">Releases by the artists in your library that the library doesn't have. Each artist is looked up where its albums were tagged from: VocaDB, TouhouDB or UtaiteDB by the artist's own releases, MusicBrainz by release group. Albums count as owned by ID or by title.</p>
 
-{% if busy %}{% call alert('wip') %}Looking up discographies. Reload the page when the job is done; it runs alongside imports.{% endcall %}{% endif %}
+{% if busy %}
+<div class="alert" data-status="info" role="status" hx-get="/insights/gaps/busy" hx-trigger="every 3s [!document.hidden]" hx-swap="none">
+  <svg class="alert-icon spinner" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>
+  <div class="alert-content"><p class="alert-title">Looking up discographies</p><p class="alert-description">The list updates by itself when the job is done. It runs alongside imports.</p></div>
+</div>
+{% endif %}
 {% if not looked and artists %}
 {% call alert('info', 'Nothing looked up yet') %}{{ artists }} artist{{ 's' if artists != 1 }} in the library can be looked up. With many MusicBrainz artists this takes a while (one request a second).{% endcall %}
-{% elif not artists %}
-{% call empty() %}No artist in the library comes from VocaDB, TouhouDB, UtaiteDB or MusicBrainz yet, so there is nothing to look up.{% endcall %}
 {% endif %}
 
-<form class="toolbar" method="get" action="/insights/gaps">
+{% if artists %}
+<form class="toolbar" method="get" action="/insights/gaps" data-autosubmit>
+  <input type="hidden" name="sort" value="{{ sort }}">
   <span class="choice-row" role="group" aria-label="Release types">
     {% for k in kinds %}<label class="checkbox-item"><input class="checkbox" type="checkbox" name="kinds" value="{{ k }}" {% if k in picked %}checked{% endif %}>{{ {'ep': 'EPs', 'other': 'Other'}.get(k, k|capitalize ~ 's') }}</label>{% endfor %}
   </span>
@@ -24,22 +29,41 @@
     <option value="complete" {% if show == 'complete' %}selected{% endif %}>Complete artists</option>
     <option value="all" {% if show == 'all' %}selected{% endif %}>All artists</option>
   </select>
-  <button class="btn" data-variant="outline" data-size="sm">Show</button>
+  <noscript><button class="btn" data-variant="outline" data-size="sm">Apply</button></noscript>
   <span class="spacer"></span>
-  <button class="btn" data-size="sm" {% if looked %}data-variant="outline"{% endif %} form="refresh-all" {% if busy or not artists %}disabled{% endif %}>{{ 'Look up all artists' if not looked else 'Refresh all' }}</button>
+  <button class="btn" data-size="sm" {% if looked %}data-variant="outline"{% endif %} form="refresh-all" {% if busy %}disabled{% endif %}>{{ 'Look up all artists' if not looked else 'Refresh all' }}</button>
 </form>
 <form id="refresh-all" method="post" action="/insights/gaps/refresh"></form>
+{% else %}
+{% call empty() %}No artist in the library comes from VocaDB, TouhouDB, UtaiteDB or MusicBrainz yet, so there is nothing to look up.{% endcall %}
+{% endif %}
 
+{% set base %}?{% for k in picked %}kinds={{ k }}&amp;{% endfor %}show={{ show }}{% endset %}
+{% if rows %}
+<div class="gap-list">
+  <div class="gap-head">
+    <span></span>
+    <a href="{{ base }}&amp;sort=name"{% if sort == 'name' %} aria-current="true"{% endif %}>Artist{% if sort == 'name' %}{{ icon('chevron', 'icon sort-icon') }}{% endif %}<span class="sr-only">{{ ', sorted' if sort == 'name' else ', sort by name' }}</span></a>
+    <span class="num">Owned</span>
+    <a href="{{ base }}&amp;sort=missing"{% if sort == 'missing' %} aria-current="true"{% endif %}>Missing{% if sort == 'missing' %}{{ icon('chevron', 'icon sort-icon') }}{% endif %}<span class="sr-only">{{ ', sorted, most first' if sort == 'missing' else ', sort by most missing' }}</span></a>
+    <span class="gap-source">Source</span>
+  </div>
 {% for r in rows %}
-<details class="box gap" {% if loop.length == 1 %}open{% endif %}>
+<details class="gap" {% if loop.length == 1 %}open{% endif %}>
   <summary>
-    <span{{ r.artist|lang }}>{{ r.artist }}</span>{% if r.artist_original and r.artist_original != r.artist %} · <span class="original-inline"{{ r.artist_original|lang }}>{{ r.artist_original }}</span>{% endif %}
-    <span class="hint">
-      {%- if not r.looked_up %}Not looked up yet
-      {%- else %}{{ r.owned|length }} of {{ r.owned|length + r.missing|length }} owned{% if r.missing %} · <span class="status" data-status="warning">{{ r.missing|length }} missing</span>{% endif %}{% if r.upcoming %} · {{ r.upcoming|length }} upcoming{% endif %}{% endif %} · {{ r.source_name }}</span>
+    {{ icon('chevron', 'icon gap-chevron') }}
+    <h3 class="gap-artist"><span{{ r.artist|lang }}>{{ r.artist }}</span>{% if r.artist_original and r.artist_original != r.artist %}<span class="original"{{ r.artist_original|lang }}>{{ r.artist_original }}</span>{% endif %}</h3>
+    {% if r.looked_up %}
+    <span class="gap-owned num" title="{{ r.owned|length }} of {{ r.owned|length + r.missing|length }} owned"><span class="sr-only">Owned </span>{{ r.owned|length }}/{{ r.owned|length + r.missing|length }}</span>
+    <span class="gap-missing">{% if r.missing %}<span class="status" data-status="warning">{{ r.missing|length }} missing</span>{% else %}<span class="hint">Complete</span>{% endif %}{% if r.upcoming %}<span class="hint"> · {{ r.upcoming|length }} upcoming</span>{% endif %}</span>
+    {% else %}
+    <span class="gap-owned num hint">–</span>
+    <span class="gap-missing hint">{{ 'Lookup failed' if r.error else 'Not looked up yet' }}</span>
+    {% endif %}
+    <span class="gap-source hint">{{ r.source_name }}</span>
   </summary>
   <div class="box-body">
-    {% if r.error %}{% call alert('warn') %}Last lookup failed: {{ r.error }}{% endcall %}{% endif %}
+    {% if r.error %}{% set err = (r.error.splitlines() or [''])|first %}{% call alert('warn', 'The last lookup failed') %}<span title="{{ r.error }}">{{ err[:160].rstrip('.') }}{{ '…' if err|length > 160 }}</span>. The source may be down or rate-limiting; press Look up again in a while.{% endcall %}{% endif %}
     {% for title, list in [('Missing', r.missing), ('Upcoming', r.upcoming)] if list %}
     {% if title == 'Upcoming' %}<h3>Upcoming</h3>{% endif %}
     <div class="table-container" data-density="compact"><table class="table">
@@ -93,8 +117,10 @@
     </form>
   </div>
 </details>
-{% else %}
-{% if looked %}{% call empty() %}No artist matches this filter.{% endcall %}{% endif %}
 {% endfor %}
+</div>
+{% elif looked %}
+{% call empty() %}No artist matches this filter.{% endcall %}
+{% endif %}
 </div>
 {% endblock %}

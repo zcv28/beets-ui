@@ -1,11 +1,21 @@
 {% extends "base.html" %}
-{% from "partials/macros.html" import back %}
+{% from "partials/macros.html" import back, icon %}
 {% block title %}{{ item.title }}{% endblock %}
 {% block header %}
 <header class="page-header">
   {% if album %}{{ back('/library/album/' ~ album.id, album.album) }}{% else %}{{ back('/library/tracks?singletons=1', 'Singletons') }}{% endif %}
   <h1{{ item.title|lang }}>{{ item.title or '(untitled)' }}{% if item.get('title_original') %}<span class="original"{{ item.title_original|lang }}>{{ item.title_original }}</span>{% endif %}</h1>
   <p class="subtitle"><span{{ item.artist|lang }}>{{ item.artist }}</span>{% if item.get('artist_original') %} · <span class="original-inline"{{ item.artist_original|lang }}>{{ item.artist_original }}</span>{% endif %}</p>
+  <div class="bar tight">
+    {% if album %}<a class="btn" data-variant="outline" data-size="sm" href="/library/album/{{ album.id }}">Open album</a>{% endif %}
+    <details class="menu">
+      <summary class="btn" data-variant="outline" data-size="sm">More actions{{ icon('more') }}</summary>
+      <div class="menu-content">
+        <form method="post" action="/library/item/{{ item.id }}/remove" data-confirm="Remove {{ item.title }} from the library? The file stays on disk." data-confirm-button="Remove track"><button class="menu-item" data-tone="destructive">Remove from library…<span class="hint">The file stays on disk</span></button></form>
+        <form method="post" action="/library/item/{{ item.id }}/remove" data-confirm="Remove {{ item.title }} and delete its file from disk? This cannot be undone." data-confirm-button="Delete track and file"><input type="hidden" name="delete" value="1"><button class="menu-item" data-tone="destructive">Delete track and file…<span class="hint">Removes the file from disk</span></button></form>
+      </div>
+    </details>
+  </div>
 </header>
 {% endblock %}
 {% block content %}
@@ -51,14 +61,5 @@
   </div>
 </form>
 </details>
-<details class="box">
-<summary>Remove track</summary>
-<form method="post" action="/library/item/{{ item.id }}/remove" class="box-body" data-confirm="Remove the track from the library? The file stays on disk." data-confirm-checked="delete" data-confirm-alt="Remove the track and delete its file from disk? This cannot be undone." data-confirm-button="Remove track" data-confirm-alt-button="Remove track and file">
-  <div class="bar">
-    <label class="checkbox-item"><input class="checkbox" type="checkbox" name="delete" value="1">Also delete the file from disk</label>
-    <span class="spacer"></span>
-    <button class="btn" data-variant="outline" data-tone="destructive" data-size="sm" data-label-alt="Remove track and file">Remove track</button>
-  </div>
-</form>
-</details>
+
 {% endblock %}

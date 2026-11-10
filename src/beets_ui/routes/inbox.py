@@ -233,12 +233,23 @@ async def folder_import(request: Request):
         flash(request, "Every album is set to skip; nothing to import.", "wip")
         return redirect(_furl(f))
     job = request.app.state.inbox.queue_import(f, decisions, user=user(request))
-    nxt = _queue(request.app.state.state.folders(), f)["next"] if form.get("next") else None
+    if not form.get("next"):
+        return redirect(_furl(f))
+    # Keep the session moving: the import runs as a job while the next folder is up.
+    done = int(request.session.get("review_run", 0)) + 1
+    nxt = _queue(request.app.state.state.folders(), f)["next"]
     if nxt:
-        # Keep the session moving: the import runs as a job, the next folder is up.
+        request.session["review_run"] = done
         flash(request, f"Importing {f} as job #{job}. A pop-up reports when it is done.")
         return redirect(_furl(nxt))
-    return redirect(_furl(f))
+    request.session.pop("review_run", None)
+    flash(
+        request,
+        f"Importing {f} as job #{job}. That was the last one: {done} folder"
+        f"{'s' if done != 1 else ''} imported in this session, nothing left to review.",
+        "ok",
+    )
+    return redirect("/inbox")
 
 
 @router.post("/folder/delete")
