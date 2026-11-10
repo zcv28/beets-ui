@@ -1,9 +1,10 @@
-{# Get: missing → coming in, and finding music by hand. The source alert shows once, here. #}
+{# Get: missing, discover → coming in, and finding music by hand. The source alert shows once, here. #}
 {% include "get/_source.html" %}
-{% if sources_enabled %}
 <nav class="tab-list" data-variant="line" aria-label="Get views">
   <a class="tab-trigger" href="/get/missing" {% if tab == 'missing' %}aria-current="page"{% endif %}>Missing</a>
-  <a class="tab-trigger" href="/get/coming" {% if tab == 'coming' %}aria-current="page"{% endif %}>Coming in{% if coming_count %} <span class="tab-count">{{ coming_count }}</span>{% endif %}</a>
+  <a class="tab-trigger" href="/get/discover" {% if tab == 'discover' %}aria-current="page"{% endif %}>Discover</a>
+  {% if sources_enabled %}
+  <a class="tab-trigger" href="/get/coming" {% if tab == 'coming' %}aria-current="page"{% endif %}>Coming in</a>
   <a class="tab-trigger" href="/get/find" {% if tab == 'find' %}aria-current="page"{% endif %}>Find</a>
+  {% endif %}
 </nav>
-{% endif %}

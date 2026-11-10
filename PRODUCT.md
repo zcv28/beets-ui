@@ -16,7 +16,7 @@ beets-ui is a light web front end for [beets](https://beets.io) that runs beets 
 
 ## Positioning
 
-One place for the whole path a release takes: notice it is missing (discographies from VocaDB, TouhouDB, UtaiteDB, MusicBrainz), get it (search a download source, pick a copy, download it), review and import it with beets, then keep it tidy. Getting is automatic but never silent: anything beets-ui is not sure about waits for the owner. Lidarr-style watching for new releases is deliberately left to Lidarr.
+One place for the whole path a release takes: notice it is missing (discographies from VocaDB, TouhouDB, UtaiteDB, MusicBrainz), get it (search a download source, pick a copy, download it), review and import it with beets, then keep it tidy. Getting is automatic but never silent: anything beets-ui is not sure about waits for the owner. New releases by artists the owner listens to, and albums suggested from their listening, come from ListenBrainz (Get › Discover); there is no Lidarr.
 
 ## Operating Context
 
@@ -26,7 +26,7 @@ One place for the whole path a release takes: notice it is missing (discographie
 
 ## Capabilities and Constraints
 
-- Get: Missing (discography gaps), Coming in (requests and downloads on their way) and Find (search by hand), over a source-neutral layer of download sources (Soulseek through slskd today; others such as streaming rippers may be added). Pages never name the source except where it needs fixing.
+- Get: Missing (discography gaps), Discover (ListenBrainz suggestions and fresh releases), Coming in (requests and downloads on their way) and Find (search by hand), over a source-neutral layer of download sources (Soulseek through slskd today; others such as streaming rippers may be added). Pages never name the source except where it needs fixing.
 - Inbox: for review only. Folders are looked up and reviewed against candidates; confident matches can import on their own.
 - Library, Artwork, Insights (upgrades, listening, lyrics), Console (any non-interactive beet command), Jobs (one queue for library changes, undo for edits).
 - Stack: FastAPI, Jinja templates, htmx; plain JS and CSS, no build step. Boosted navigation, live updates over server-sent events, installable as an app.

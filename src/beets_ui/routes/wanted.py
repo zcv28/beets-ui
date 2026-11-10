@@ -92,6 +92,29 @@ def get_artist(
     return redirect(_back(back, "/get/missing"))
 
 
+@router.post("/discover")
+def get_discovered(
+    request: Request,
+    id: str = Form(...),
+    title: str = Form(...),
+    artist: str = Form(...),
+    date: str = Form(""),
+    back: str = Form("/get/discover"),
+):
+    """Get an album from Discover: a MusicBrainz release group."""
+    acq = _engine(request)
+    row = {"source": "musicbrainz", "artist": artist, "artist_original": ""}
+    rel = {"id": id, "title": title, "original": "", "date": date}
+    wid, created = acquire.from_gap(request.app.state.state, row, rel)
+    acq.wake()
+    w = request.app.state.state.wanted(wid)
+    msg = f"Getting {title}" if created else f"Already getting {title}"
+    if is_fragment(request):
+        return _chip(request, w, msg, "Follow it under Coming in.")
+    flash(request, f"{msg}. Follow it under Coming in.", "ok")
+    return redirect(_back(back, "/get/discover"))
+
+
 @router.post("/album/{album_id}")
 def get_better_copy(request: Request, album_id: int, back: str = Form("/insights/upgrades")):
     """Get a better copy of an album in the library; it replaces the old one."""

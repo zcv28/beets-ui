@@ -9,7 +9,7 @@ from __future__ import annotations
 from fastapi import APIRouter, Form, Query, Request
 from fastapi.responses import HTMLResponse, RedirectResponse, Response
 
-from .. import beets_ctx, discography
+from .. import beets_ctx, discography, discover
 from ..sources import incoming, requests_in_flight
 from ..web import flash, is_fragment, partial, redirect, render, toast, user
 
@@ -48,6 +48,84 @@ def coming_page(request: Request):
 @router.get("/requests")
 def coming_requests(request: Request):
     return partial(request, "get/_requests.html", requests=requests_in_flight(request.app))
+
+
+# --------------------------------------------------------------- discover
+
+
+def _picked(kinds: list[str]) -> tuple[str, ...]:
+    picked = tuple(k for k in kinds if k in discography.KINDS)
+    return picked or discover.DEFAULT_KINDS
+
+
+@router.get("/discover")
+def discover_page(request: Request, kinds: list[str] = Query(default=[])):
+    settings = request.app.state.settings
+    state = request.app.state.state
+    if settings.listenbrainz_user and discover.sync_due(state):
+        request.app.state.jobs.submit(
+            discover.SYNC_KIND, "Read ListenBrainz recommendations", {}, user(request)
+        )
+    jobs = state.jobs(1, kind=discover.SYNC_KIND)
+    last = jobs[0] if jobs else None
+    picked = _picked(kinds)
+    return render(
+        request,
+        "get/discover.html",
+        nav="get",
+        enabled=bool(settings.listenbrainz_user),
+        data=discover.view(beets_ctx.lib(), state, picked),
+        kinds=discography.KINDS,
+        picked=picked,
+        busy=bool(last and last["status"] in ("queued", "running")),
+        last_job=last,
+        get_enabled=getattr(request.app.state, "acquirer", None) is not None,
+    )
+
+
+@router.get("/discover/busy")
+def discover_busy(request: Request):
+    """Polled while a sync runs: 204 until it is done, then the page reloads itself."""
+    jobs = request.app.state.state.jobs(1, kind=discover.SYNC_KIND)
+    if jobs and jobs[0]["status"] in ("queued", "running"):
+        return Response(status_code=204)
+    return Response(headers={"HX-Refresh": "true"})
+
+
+@router.post("/discover/sync")
+def discover_sync(request: Request):
+    if not request.app.state.settings.listenbrainz_user:
+        flash(request, "Set LISTENBRAINZ_USER to your ListenBrainz name first.", "warn")
+        return redirect("/get/discover")
+    request.app.state.jobs.submit(
+        discover.SYNC_KIND, "Read ListenBrainz recommendations", {}, user(request)
+    )
+    return redirect("/get/discover")
+
+
+@router.post("/discover/dismiss")
+def discover_dismiss(
+    request: Request, id: str = Form(...), label: str = Form(""), back: str = Form("")
+):
+    request.app.state.state.dismiss(discover.DISMISS_KIND, id, label)
+    undo = {"url": "/get/discover/restore", "vals": {"id": id}}
+    done = toast(f"Dismissed {label}" if label else "Dismissed", undo=undo)
+    return _done(request, back, "/get/discover", done)
+
+
+@router.post("/discover/restore")
+def discover_restore(request: Request, id: str = Form(...)):
+    request.app.state.state.undismiss(discover.DISMISS_KIND, id)
+    return _done(request, "", "/get/discover")
+
+
+@router.post("/discover/restore-all")
+def discover_restore_all(request: Request):
+    state = request.app.state.state
+    for key in state.dismissed(discover.DISMISS_KIND):
+        state.undismiss(discover.DISMISS_KIND, key)
+    flash(request, "Dismissed albums are suggested again.")
+    return redirect("/get/discover")
 
 
 # ---------------------------------------------------------------- missing

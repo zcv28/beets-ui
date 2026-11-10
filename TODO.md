@@ -8,7 +8,7 @@
 
 ## Out of scope for now
 
-- **New release alerts.** Watching artists and announcing new releases is what
-  [Lidarr](https://lidarr.audio) already does, and it can hand downloads to slskd
-  through Soularr. Revisit only if Get → Missing (VocaDB, TouhouDB,
-  UtaiteDB, MusicBrainz) should turn into a scheduled check with notifications.
+- **New release alerts.** Get → Discover lists ListenBrainz's fresh releases by
+  artists you listen to when you open it. Notifications, or getting them on their
+  own, wait until that list proves useful. ListenBrainz only knows releases in
+  MusicBrainz; VocaDB-only circles still show up only under Get → Missing.
