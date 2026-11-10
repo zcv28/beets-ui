@@ -125,7 +125,8 @@ beets-ui reads `/config/beets/config.yaml` exactly as the `beet` command does. C
 
 - **beets 2.x needs `musicbrainz` in the plugin list.** If you list plugins and leave it out, lookups return no MusicBrainz candidates.
 - ReplayGain: add `replaygain` to `plugins:` and set `replaygain: {backend: ffmpeg}`. ffmpeg is bundled; the GStreamer backend is not.
-- Doujin sources: add `vocadb`, `touhoudb` and/or `utaitedb` to `plugins:` and their candidates appear on the review page. See [beets-vocadb](https://github.com/prTopi/beets-vocadb) for their options.
+- The default `config.yaml` written on first start enables MusicBrainz, the doujin sources (`vocadb`, `touhoudb`, `utaitedb`; see [beets-vocadb](https://github.com/prTopi/beets-vocadb) for their options), AcoustID fingerprints (`chroma`), cover fetching and `mbsync`. It sets no `import.languages`, so beets keeps each artist's primary name and `BEETSUI_ROMANIZE` can romanize it with the original kept alongside.
+- `fetchart: sources:` must be a YAML list (`[filesystem, coverart, …]`): beets 2.14 rejects a space-separated string and fetchart then fails to load.
 - Artist pictures need each album artist to have their own folder, e.g. `paths: default: $albumartist/$album%aunique{}/$track $title` (the default). With a flat layout such as `$albumartist - $album/…` there is no artist folder to put the picture in, and the Artwork page says so.
 
 ### Migrating from beets-flask
