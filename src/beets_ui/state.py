@@ -134,6 +134,15 @@ FOLDER_MIGRATIONS = (
     ("wanted_id", "INTEGER"),
 )
 
+WANTED_MIGRATIONS = (
+    # Bytes received from the current copy, and when they last grew (stall detection).
+    ("progress_bytes", "INTEGER NOT NULL DEFAULT 0"),
+    ("progress_at", "REAL"),
+    ("progress_place", "INTEGER"),  # place in the uploader's queue: moving up counts as progress
+    # Searches started again after every copy found had been tried.
+    ("researched", "INTEGER NOT NULL DEFAULT 0"),
+)
+
 WANTED_JSON = ("tracks", "offers", "tried")
 FOLDER_JSON = ("tasks", "duplicates", "decisions", "files", "tagkeys", "library")
 FOLDER_JSON_LISTS = ("tasks", "files", "library")
@@ -153,6 +162,10 @@ class State:
             for name, definition in FOLDER_MIGRATIONS:
                 if name not in cols:
                     self._conn.execute(f"ALTER TABLE folders ADD COLUMN {name} {definition}")
+            cols = {r[1] for r in self._conn.execute("PRAGMA table_info(wanted)")}
+            for name, definition in WANTED_MIGRATIONS:
+                if name not in cols:
+                    self._conn.execute(f"ALTER TABLE wanted ADD COLUMN {name} {definition}")
             # Jobs interrupted by a restart can never finish.
             self._conn.execute(
                 "UPDATE jobs SET status='failed', error='interrupted by restart', "

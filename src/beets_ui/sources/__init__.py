@@ -29,8 +29,9 @@ def incoming(app) -> list[dict]:
     mine = {
         (w["origin"], w["remote_folder"]) for w in app.state.state.wanted_list(("downloading",))
     }
+    fetches = app.state.state.meta("fetches") or {}
     return [
-        r
+        {**r, "fetch": fetches.get(f"{r['origin']}|{r['folder']}")}
         for r in (watch.rows if watch else [])
         if r["state"] != "done" and (r["origin"], r["folder"]) not in mine
     ]

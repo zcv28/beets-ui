@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import time
 
 import httpx
 import pytest
@@ -65,6 +66,7 @@ class FakeSource(Source):
         self.rows: list = []
         self.running = False
         self.searched: list = []
+        self.cancelled: list = []
 
     def status(self):
         return {"reachable": True, "connected": True, "error": ""}
@@ -89,7 +91,7 @@ class FakeSource(Source):
         return self.rows
 
     def cancel(self, origin, ids, remove=False):
-        pass
+        self.cancelled.append((origin, list(ids), remove))
 
 
 def transfer(o, state):
@@ -530,3 +532,178 @@ def test_importing_any_folder_settles_requests(app, engine):
     app.state.inbox._job_import(JobContext(state, job, {"folder": rel}))
     assert state.folder(rel)["status"] == "imported"
     assert state.wanted(wid)["status"] == "done"
+
+
+# ---------------------------------------------------------------- fallback
+
+
+def stuck_row(o, state="queued", files=None):
+    row = transfer(o, state)
+    row.update(transferred=0, files=files or [{"id": "f1", "kind": "queued", "failure": ""}])
+    return row
+
+
+def test_a_stalled_uploader_is_given_up_on(app, engine):
+    acq, src = engine
+    state = app.state.state
+    wid = want(state)
+    first = offer("alice", "Test Artist - Test Album")
+    second = offer("carol", "Test Album (Test Artist) FLAC")
+    src.offered = [first, second]
+    acq.tick()
+    acq.tick()
+    assert state.wanted(wid)["origin"] == "alice"
+    # Queued at alice and nothing moves.
+    src.rows = [stuck_row(first)]
+    acq.tick()
+    assert state.wanted(wid)["origin"] == "alice"  # not yet
+    state.update_wanted(wid, progress_at=time.time() - 16 * 60)
+    acq.tick()
+    w = state.wanted(wid)
+    assert w["status"] == "downloading" and w["origin"] == "carol"
+    assert src.cancelled == [("alice", ["f1"], True)]
+    assert "still queued at alice after 16 minutes" in w["error"]
+
+
+def test_progress_keeps_the_uploader(app, engine):
+    acq, src = engine
+    state = app.state.state
+    wid = want(state)
+    first = offer("alice", "Test Artist - Test Album")
+    src.offered = [first]
+    acq.tick()
+    acq.tick()
+    state.update_wanted(wid, progress_at=time.time() - 16 * 60)
+    row = stuck_row(first, "downloading")
+    row["transferred"] = 500  # bytes came in since the last look
+    src.rows = [row]
+    acq.tick()
+    w = state.wanted(wid)
+    assert w["origin"] == "alice" and w["progress_bytes"] == 500
+    assert time.time() - w["progress_at"] < 5
+
+
+def test_a_rejection_moves_on_at_once(app, engine):
+    acq, src = engine
+    state = app.state.state
+    wid = want(state)
+    first = offer("alice", "Test Artist - Test Album")
+    second = offer("carol", "Test Album (Test Artist) FLAC")
+    src.offered = [first, second]
+    acq.tick()
+    acq.tick()
+    files = [
+        {"id": "f1", "kind": "failed", "failure": "Rejected"},
+        {"id": "f2", "kind": "queued", "failure": ""},
+    ]
+    src.rows = [stuck_row(first, files=files)]
+    acq.tick()
+    w = state.wanted(wid)
+    assert w["origin"] == "carol" and "alice rejected it" in w["error"]
+
+
+def test_out_of_copies_searches_again_for_other_uploaders(app, engine):
+    acq, src = engine
+    state = app.state.state
+    wid = want(state)
+    first = offer("alice", "Test Artist - Test Album")
+    src.offered = [first]
+    acq.tick()
+    acq.tick()
+    src.rows = [transfer(first, "failed")]
+    acq.tick()
+    w = state.wanted(wid)
+    assert w["status"] == "queued" and w["researched"] == 1
+    assert "searching for another uploader" in w["status_text"]
+    # The new search finds alice again (skipped) and dave.
+    other = offer("dave", "Test Artist - Test Album [FLAC]")
+    src.offered = [offer("alice", "Test Artist - Test Album (2)"), other]
+    src.rows = []
+    acq.tick()
+    acq.tick()
+    w = state.wanted(wid)
+    assert w["status"] == "downloading" and w["origin"] == "dave"
+    # dave fails too: no more searching, you choose.
+    src.rows = [transfer(other, "failed")]
+    acq.tick()
+    w = state.wanted(wid)
+    assert w["status"] == "choosing" and "choose" in w["status_text"]
+
+
+def test_skip_tries_another_copy(app, engine):
+    acq, src = engine
+    state = app.state.state
+    wid = want(state)
+    first = offer("alice", "Test Artist - Test Album")
+    second = offer("carol", "Test Album (Test Artist) FLAC")
+    src.offered = [first, second]
+    acq.tick()
+    acq.tick()
+    src.rows = [stuck_row(first, "downloading")]
+    acq.skip(state.wanted(wid))
+    w = state.wanted(wid)
+    assert w["origin"] == "carol" and "you skipped alice" in w["error"]
+
+
+def test_a_stuck_download_from_find_switches_to_the_same_folder(app, engine, env):
+    acq, src = engine
+    state = app.state.state
+    first = offer("alice", "Test Album [FLAC]")
+    acquire.remember_fetch(
+        state, "alice", first["folder"], "Test Album [FLAC]", "s9", "test album", 3
+    )
+    # One track already arrived from alice; bob has the same folder, carol another one.
+    (env["inbox"] / "Test Album [FLAC]").mkdir()
+    (env["inbox"] / "Test Album [FLAC]" / "01.flac").write_bytes(b"x")
+    src.offered = [offer("carol", "Test Album (2020)"), offer("bob", "Test Album [FLAC]")]
+    files = [
+        {"id": "a1", "kind": "done", "failure": ""},
+        {"id": "a2", "kind": "failed", "failure": "Rejected"},
+        {"id": "a3", "kind": "queued", "failure": ""},
+    ]
+    src.rows = [stuck_row(first, files=files)]
+    acq.tick()
+    assert src.fetched == [("bob", 2)]  # only the two tracks still missing
+    assert src.cancelled == [("alice", ["a3"], True)]
+    fetches = state.meta(acquire.FETCHES_KEY)
+    f = fetches[f"bob|{offer('bob', 'Test Album [FLAC]')['folder']}"]
+    assert f["note"] == "Switched to bob: alice rejected it"
+
+
+def test_a_stuck_download_with_no_twin_waits_for_you(app, engine, client):
+    acq, src = engine
+    state = app.state.state
+    first = offer("alice", "Test Album [FLAC]")
+    acquire.remember_fetch(state, "alice", first["folder"], "Test Album [FLAC]", "s9", "", 3)
+    src.offered = [offer("carol", "Test Album (2020)")]
+    src.rows = [transfer(first, "failed")]
+    acq.tick()
+    f = state.meta(acquire.FETCHES_KEY)[f"alice|{first['folder']}"]
+    assert f["stuck"] == "failed from alice"
+    # Try another copy: nobody has this folder, so the search results open.
+    r = client.post(
+        "/get/downloads/another",
+        data={"username": "alice", "folder": first["folder"], "name": "Test Album [FLAC]"},
+        follow_redirects=False,
+    )
+    assert r.headers["location"] == "/get/find/s/s9"
+
+
+def test_moving_up_the_queue_counts_as_progress(app, engine):
+    acq, src = engine
+    state = app.state.state
+    wid = want(state)
+    first = offer("alice", "Test Artist - Test Album")
+    src.offered = [first, offer("carol", "Test Album (Test Artist) FLAC")]
+    acq.tick()
+    acq.tick()
+    row = stuck_row(first)
+    row["place"] = 50
+    src.rows = [row]
+    acq.tick()  # first look: place 50 noted
+    assert state.wanted(wid)["progress_place"] == 50
+    state.update_wanted(wid, progress_at=time.time() - 16 * 60)
+    row["place"] = 12  # moved up: keep waiting
+    acq.tick()
+    w = state.wanted(wid)
+    assert w["origin"] == "alice" and w["progress_place"] == 12

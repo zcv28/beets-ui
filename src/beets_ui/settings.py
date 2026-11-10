@@ -88,6 +88,8 @@ class Settings:
     discogs_token: str = ""
     auto_import: int = 0
     get_auto_import: int = 90
+    # Minutes a download may go without progress before another uploader is tried (0: never).
+    stall_minutes: int = 15
     romanize: bool = False
     theme: str = "auto"
     jellyfin_url: str = ""
@@ -142,6 +144,7 @@ class Settings:
             discogs_token=_str("DISCOGS_TOKEN"),
             auto_import=min(100, max(0, _int("BEETSUI_AUTO_IMPORT", 0))),
             get_auto_import=min(100, max(0, _int("BEETSUI_GET_AUTO_IMPORT", 90))),
+            stall_minutes=max(0, _int("BEETSUI_STALL_MINUTES", 15)),
             romanize=_bool("BEETSUI_ROMANIZE", False),
             theme=_theme(_str("BEETSUI_THEME", "auto").lower() or "auto"),
             jellyfin_url=_str("JELLYFIN_URL").rstrip("/"),

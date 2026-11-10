@@ -13,7 +13,7 @@ from urllib.parse import quote
 from fastapi import APIRouter, Form, HTTPException, Request
 from fastapi.responses import RedirectResponse
 
-from .. import rank
+from .. import acquire, rank
 from ..slskd import QUEUE_CHOICES, SEARCH_DEFAULTS, SPEED_CHOICES, WAIT_CHOICES
 from ..sources import Source, SourceError, incoming
 from ..web import flash, is_fragment, partial, redirect, render, toast
@@ -293,6 +293,19 @@ def download(
     except SourceError as e:
         flash(request, str(e), "warn")
         return redirect(back)
+    try:
+        text = source.search_info(search_id).get("text") or ""
+    except SourceError:
+        text = ""
+    acquire.remember_fetch(
+        request.app.state.state,
+        origin=username,
+        folder=folder,
+        folder_name=name,
+        search_id=search_id,
+        text=text,
+        tracks=rank.audio_count(files),
+    )
     n = len(files)
     flash(
         request,
@@ -366,6 +379,29 @@ def downloads_retry(
     n = len(files)
     title = f"Retrying {name}" if name else "Retrying"
     return _downloads_done(request, (title, f"{n} file{'s' if n != 1 else ''} from {username}."))
+
+
+@router.post("/downloads/another")
+def downloads_another(
+    request: Request, username: str = Form(...), folder: str = Form(...), name: str = Form("")
+):
+    """Stop downloading from this uploader: the same folder from someone else, or choose."""
+    _source(request)
+    acq = getattr(request.app.state, "acquirer", None)
+    new_key, f = acq.another(username, folder) if acq else ("", None)
+    if new_key:
+        flash(request, f"{name or 'It'} now comes from {new_key.split('|', 1)[0]}.", "ok")
+        return redirect("/get/coming")
+    flash(
+        request,
+        f"Nobody else in the search has exactly this folder. Choose another copy of {name}."
+        if f
+        else f"Search for another copy of {name}.",
+        "wip",
+    )
+    if f and f.get("search_id"):
+        return redirect(f"/get/find/s/{f['search_id']}")
+    return redirect(f"/get/find?q={quote(name, safe='')}")
 
 
 @router.post("/downloads/clear")
