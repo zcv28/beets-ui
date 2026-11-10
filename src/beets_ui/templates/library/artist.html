@@ -1,0 +1,72 @@
+{% extends "base.html" %}
+{% from "partials/macros.html" import back, empty, icon %}
+{% block title %}{{ artist }}{% endblock %}
+{% block header %}{% endblock %}
+{% block content %}
+{{ back('/library/artists', 'Artists') }}
+<div class="album-head">
+  <div class="art"><img class="art-img artist-img" src="/artwork/artist/image?name={{ artist|q }}" alt="Picture of {{ artist }}"></div>
+  <div class="meta">
+    <h1{{ artist|lang }}>{{ artist }}{% if original %}<span class="original"{{ original|lang }}>{{ original }}</span>{% endif %}</h1>
+    <p class="subtitle">{{ albums|length }} album{{ 's' if albums|length != 1 }} · {{ '{:,}'.format(tracks) }} track{{ 's' if tracks != 1 }} · {{ '%.1f'|format(hours) }} hours</p>
+    <div class="bar">
+      {% for r in gaps if r.missing and get_enabled %}
+      {% set gettable = r.missing|rejectattr('id', 'in', open_ids(wanted, r.source))|list %}
+      {% if gettable %}
+      <form class="inline" method="post" action="/wanted/artist">
+        <input type="hidden" name="source" value="{{ r.source }}"><input type="hidden" name="artist_id" value="{{ r.artist_id }}"><input type="hidden" name="back" value="{{ request.url.path }}?name={{ artist|q }}">
+        <button class="btn" data-size="sm" title="Search, download and import them for you, two at a time">Get {{ gettable|length }} missing</button>
+      </form>
+      {% endif %}
+      {% endfor %}
+      <a class="btn" data-variant="outline" data-size="sm" href="/artwork/artist?name={{ artist|q }}">Change picture</a>
+    </div>
+  </div>
+</div>
+
+<h2>Albums</h2>
+<div class="grid">{% include "library/_album_cards.html" %}</div>
+
+{% if missing %}
+<h2>Missing <span class="hint">{{ missing|length }}</span></h2>
+<p class="hint">Albums and EPs from {{ gaps|map(attribute='source_name')|unique|join(' and ') }} that your library doesn't have.</p>
+<div class="table-container" data-density="compact"><table class="table stack-sm">
+  <thead><tr><th class="table-head">Date</th><th class="table-head">Release</th><th class="table-head hide-sm">Type</th><th class="table-head num"><span class="sr-only">Actions</span></th></tr></thead>
+  <tbody>
+  {% for r, rel in missing %}
+  {% set w = wanted.get(r.source ~ ':' ~ rel.id) %}
+  <tr class="table-row">
+    <td class="table-cell nowrap mono">{{ rel.date or '?' }}</td>
+    <td class="table-cell col-main"><a href="{{ rel.url }}" target="_blank" rel="noopener noreferrer"{{ rel.title|lang }}>{{ rel.title }}</a>{% if rel.original and rel.original != rel.title %}<span class="original"{{ rel.original|lang }}>{{ rel.original }}</span>{% endif %}</td>
+    <td class="table-cell hide-sm hint">{{ rel.type }}</td>
+    <td class="table-cell nowrap col-actions">
+      {% if get_enabled %}<span class="get-slot">{% if w and w.status != 'cancelled' %}{% include "wanted/_chip.html" %}{% else %}<form class="inline" method="post" action="/wanted/release" hx-post="/wanted/release" hx-target="closest .get-slot" hx-swap="innerHTML">
+        <input type="hidden" name="source" value="{{ r.source }}"><input type="hidden" name="artist_id" value="{{ r.artist_id }}"><input type="hidden" name="release_id" value="{{ rel.id }}"><input type="hidden" name="back" value="{{ request.url.path }}?name={{ artist|q }}">
+        <button class="btn" data-size="xs" title="Search, download and import {{ rel.title }}">Get</button>
+      </form>{% endif %}</span>{% endif %}
+      <form class="inline" method="post" action="/insights/gaps/dismiss" hx-post="/insights/gaps/dismiss" hx-target="closest tr" hx-swap="delete">
+        <input type="hidden" name="source" value="{{ r.source }}"><input type="hidden" name="release_id" value="{{ rel.id }}"><input type="hidden" name="label" value="{{ artist }} – {{ rel.title }}">
+        <button class="btn" data-variant="ghost" data-size="xs" title="Not interested: hide this release" aria-label="Dismiss {{ rel.title }}">Dismiss</button>
+      </form>
+    </td>
+  </tr>
+  {% endfor %}
+  </tbody>
+</table></div>
+{% endif %}
+
+{% if upcoming %}
+<h2>Upcoming</h2>
+<ul class="plain">{% for r, rel in upcoming %}<li><span class="mono hint">{{ rel.date }}</span> · <span{{ rel.title|lang }}>{{ rel.title }}</span></li>{% endfor %}</ul>
+{% endif %}
+
+{% if gaps and not missing and not upcoming %}
+{% if gaps|selectattr('looked_up')|list %}<p class="hint">Nothing missing: you have every album and EP {{ gaps|map(attribute='source_name')|unique|join(' and ') }} lists.</p>
+{% else %}
+<div class="bar">
+  <p class="hint">Their discography hasn't been looked up yet.</p>
+  {% for r in gaps %}<form class="inline" method="post" action="/insights/gaps/refresh"><input type="hidden" name="source" value="{{ r.source }}"><input type="hidden" name="artist_id" value="{{ r.artist_id }}"><button class="btn" data-variant="outline" data-size="sm">Look up on {{ r.source_name }}</button></form>{% endfor %}
+</div>
+{% endif %}
+{% endif %}
+{% endblock %}

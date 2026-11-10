@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% from "partials/macros.html" import back, icon, status %}
+{% from "partials/macros.html" import alert, back, icon, status %}
 {% block title %}{{ album.album }}{% endblock %}
 {% block header %}{% endblock %}
 {% block content %}
@@ -11,7 +11,18 @@
   </div>
   <div class="meta">
     <h1{{ album.album|lang }}>{{ album.album or '(untitled)' }}{% if album.get('album_original') %}<span class="original"{{ album.album_original|lang }}>{{ album.album_original }}</span>{% endif %}</h1>
-    <p class="subtitle"><a href="/library?q={{ ('albumartist:=' ~ album.albumartist)|term|q }}"{{ album.albumartist|lang }}>{{ album.albumartist }}</a>{% if album.get('albumartist_original') %} · <span class="original-inline"{{ album.albumartist_original|lang }}>{{ album.albumartist_original }}</span>{% endif %}{% if album.year %} · <span class="mono">{{ album.year }}</span>{% endif %}</p>
+    <p class="subtitle"><a href="/library/artist?name={{ album.albumartist|q }}"{{ album.albumartist|lang }}>{{ album.albumartist }}</a>{% if album.get('albumartist_original') %} · <span class="original-inline"{{ album.albumartist_original|lang }}>{{ album.albumartist_original }}</span>{% endif %}{% if album.year %} · <span class="mono">{{ album.year }}</span>{% endif %}</p>
+    <p class="album-facts">{{ items|length }} track{{ 's' if items|length != 1 }} · <span class="mono">{{ length|duration }}</span> · {{ formats|join(', ') }}</p>
+    {% if issues %}
+    {% call alert('wip', 'A better copy may exist') %}{% for k, detail in issues.items() if not (k == 'lossy' and 'bitrate' in issues) %}{{ reasons[k] }}: {{ detail }}{{ '. ' if not loop.last else '.' }}{% endfor %}
+      <div class="bar">
+        {% if get_enabled %}<span class="get-slot">{% if wanted and wanted.status not in ('cancelled', 'done') %}{% set w = wanted %}{% include "wanted/_chip.html" %}{% else %}<form class="inline" method="post" action="/wanted/album/{{ album.id }}" hx-post="/wanted/album/{{ album.id }}" hx-target="closest .get-slot" hx-swap="innerHTML"><input type="hidden" name="back" value="/library/album/{{ album.id }}"><button class="btn" data-size="sm" title="Search, download and import a better copy; it replaces this one">Get a better copy</button></form>{% endif %}</span>{% endif %}
+        {% if sources_enabled %}<a class="btn" data-variant="outline" data-size="sm" href="/inbox/find?q={{ (album.albumartist ~ ' ' ~ album.album)|q }}">Find</a>{% endif %}
+      </div>
+    {% endcall %}
+    {% endif %}
+    <details class="sub album-details">
+    <summary class="hint">Details</summary>
     <dl class="kv">
       {% if album.label %}<dt>Label</dt><dd>{{ album.label }}{% if album.catalognum %} <span class="mono">({{ album.catalognum }})</span>{% endif %}</dd>{% endif %}
       {% if fields.genres %}<dt>Genres</dt><dd>{{ fields.genres }}</dd>{% endif %}
@@ -22,6 +33,7 @@
       <dt>Added</dt><dd class="mono">{{ album.added|ts }}</dd>
       <dt>Album ID</dt><dd class="mono">{{ album.id }}</dd>
     </dl>
+    </details>
     <div class="bar">
       <form class="inline" method="post" action="/library/album/{{ album.id }}/run"><button class="btn" data-variant="outline" data-size="sm" name="action" value="fetchart" title="beet fetchart: looks for a cover with the fetchart plugin">Fetch cover</button></form>
       <form class="inline" method="post" action="/library/album/{{ album.id }}/lyrics"><button class="btn" data-variant="outline" data-size="sm" title="Time-synced lyrics from LRCLIB, with romaji under Japanese lines">Fetch synced lyrics</button></form>

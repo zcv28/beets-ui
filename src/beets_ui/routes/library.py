@@ -1,12 +1,13 @@
 from __future__ import annotations
 
+import shlex
 import unicodedata
 
 from fastapi import APIRouter, Form, HTTPException, Request
 from fastapi.responses import FileResponse, Response
 
 from .. import artists as artists_svc
-from .. import beets_ctx, romanize
+from .. import beets_ctx, discography, romanize, upgrades
 from .. import library as libsvc
 from ..web import HERE, flash, is_fragment, partial, redirect, render, user
 
@@ -125,6 +126,39 @@ def artists(request: Request):
     )
 
 
+@router.get("/artist")
+def artist_page(request: Request, name: str = ""):
+    """One album artist: their albums, and what the library is missing of theirs."""
+    if not name:
+        return redirect("/library/artists")
+    rows, _ = libsvc.albums(shlex.quote(f"albumartist:={name}"), "artist", per_page=1000)
+    if not rows:
+        raise HTTPException(404, "no albums by that artist")
+    state = request.app.state.state
+    lib = beets_ctx.lib()
+    with lib.transaction() as tx:
+        tracks, seconds = tx.query(
+            "SELECT COUNT(*), COALESCE(SUM(length), 0) FROM items WHERE albumartist=?", (name,)
+        )[0]
+    gaps = discography.artist_gaps(lib, state, name)
+    wanted = state.wanted_list()
+    return render(
+        request,
+        "library/artist.html",
+        nav="library",
+        artist=name,
+        original=_albumartist_originals().get(name, ""),
+        albums=rows,
+        tracks=tracks,
+        hours=seconds / 3600,
+        gaps=gaps,
+        missing=[(r, rel) for r in gaps for rel in r["missing"]],
+        upcoming=[(r, rel) for r in gaps for rel in r["upcoming"]],
+        wanted={f"{w['source']}:{w['release_id']}": w for w in wanted if w["kind"] == "missing"},
+        get_enabled=getattr(request.app.state, "acquirer", None) is not None,
+    )
+
+
 @router.get("/artists/aliases")
 def artists_aliases(request: Request):
     state = request.app.state.state
@@ -215,6 +249,12 @@ def album(request: Request, album_id: int):
         cover=request.app.state.artwork.cover_status(a),
         romanizable=_romanizable(a),
         path=items[0].filepath.parent if items else None,
+        issues=upgrades.album_issues(beets_ctx.lib(), request.app.state.state, album_id),
+        reasons=upgrades.REASONS,
+        wanted=request.app.state.state.wanted_for_album(album_id),
+        get_enabled=getattr(request.app.state, "acquirer", None) is not None,
+        length=sum(i.length or 0 for i in items),
+        formats=sorted({str(i.format) for i in items}),
     )
 
 

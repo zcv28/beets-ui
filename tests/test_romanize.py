@@ -530,7 +530,7 @@ def test_artist_links_work_for_names_with_spaces(app, client, env, monkeypatch):
     client.post("/library/romanize", data={"only_new": "1", "write": "1", "move": "1"})
     run_jobs(app)
     page = client.get("/library/artists").text
-    link = "/library?q=" + quote("'albumartist:=kessoku band'", safe="")
+    link = "/library/artist?name=" + quote("kessoku band", safe="")
     assert link in page
     hits = client.get(link).text
     assert "Seisyun Complex" in hits and "Kessoku Band" in hits

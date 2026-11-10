@@ -307,6 +307,18 @@ def gaps(lib: Any, state: State, kinds: tuple[str, ...] = DEFAULT_KINDS) -> list
     return rows
 
 
+def artist_gaps(
+    lib: Any, state: State, name: str, kinds: tuple[str, ...] = DEFAULT_KINDS
+) -> list[dict[str, Any]]:
+    """gaps() for one album artist, by its name as shown or as written (one row per source)."""
+    key = name.casefold()
+    return [
+        r
+        for r in gaps(lib, state, kinds)
+        if key in (r["artist"].casefold(), (r["artist_original"] or "").casefold())
+    ]
+
+
 # ------------------------------------------------------------------- job
 
 
