@@ -1,31 +1,32 @@
+{% from "partials/macros.html" import alert, icon %}
 <div id="results" {% if not done %}hx-get="/soulseek/s/{{ search_id }}/results?fmt={{ fmt }}&free={{ free }}" hx-trigger="every 2s" hx-swap="outerHTML"{% endif %}>
-<p class="muted">{% if not done %}<span class="loading">Searching</span> · {% endif %}{{ search.responseCount or 0 }} users responded · {{ groups|length }} folders shown</p>
+<p class="hint">{% if not done %}<span class="loading">Searching</span> · {% endif %}{{ search.responseCount or 0 }} users responded · {{ groups|length }} folders shown</p>
 {% if groups %}
-<div class="nc-tablewrap"><table class="nc-table">
-  <thead><tr><th>Folder</th><th>Format</th><th class="num">kbps</th><th class="num">Files</th><th class="num">Size</th><th class="hide-sm">User</th><th class="num hide-sm">Speed</th><th class="num hide-sm">Queue</th><th></th></tr></thead>
+<div class="table-container" data-density="compact"><table class="table">
+  <thead><tr><th class="table-head">Folder</th><th class="table-head">Format</th><th class="table-head num">kbps</th><th class="table-head num">Files</th><th class="table-head num">Size</th><th class="table-head hide-sm">User</th><th class="table-head num hide-sm">Speed</th><th class="table-head num hide-sm">Queue</th><th class="table-head"><span class="sr-only">Actions</span></th></tr></thead>
   <tbody>
   {% for g in groups %}
-  <tr>
-    <td>
-      <details><summary><strong>{{ g.folder_name }}</strong></summary>
-        <small class="muted">{{ g.folder }}</small>
-        <ol>{% for f in g.files %}<li><small>{{ f.name }} · {{ f.size|size }}{% if f.length %} · {{ f.length|duration }}{% endif %}</small></li>{% endfor %}</ol>
+  <tr class="table-row">
+    <td class="table-cell">
+      <details><summary class="strong">{{ g.folder_name }}</summary>
+        <p class="hint mono">{{ g.folder }}</p>
+        <ol class="file-list">{% for f in g.files %}<li class="hint">{{ f.name }} · {{ f.size|size }}{% if f.length %} · {{ f.length|duration }}{% endif %}</li>{% endfor %}</ol>
       </details>
     </td>
-    <td>{{ g.format }}</td>
-    <td class="num">{{ g.bitrate or '' }}</td>
-    <td class="num">{{ g.files|length }}</td>
-    <td class="num nowrap">{{ g.size|size }}</td>
-    <td class="hide-sm"><small>{{ g.username }}</small>{% if g.locked %} <small class="warnc" title="some files are locked">🔒</small>{% endif %}</td>
-    <td class="num hide-sm nowrap"><small>{{ (g.speed or 0)|size }}/s</small></td>
-    <td class="num hide-sm">{% if g.free_slot %}<span class="pct good">free</span>{% else %}{{ g.queue }}{% endif %}</td>
-    <td>
-      {% if g.in_inbox %}<small class="muted">in inbox</small>{% endif %}
+    <td class="table-cell"><span class="badge" data-variant="outline" data-mono>{{ g.format }}</span></td>
+    <td class="table-cell num">{{ g.bitrate or '' }}</td>
+    <td class="table-cell num">{{ g.files|length }}</td>
+    <td class="table-cell num">{{ g.size|size }}</td>
+    <td class="table-cell hide-sm hint">{{ g.username }}{% if g.locked %} <span class="inline-icon" title="Some files are locked">{{ icon('lock') }}<span class="sr-only">Some files are locked</span></span>{% endif %}</td>
+    <td class="table-cell num hide-sm">{{ (g.speed or 0)|size }}/s</td>
+    <td class="table-cell num hide-sm">{% if g.free_slot %}<span class="status" data-status="success">Free</span>{% else %}{{ g.queue }}{% endif %}</td>
+    <td class="table-cell nowrap">
+      {% if g.in_inbox %}<span class="hint">In inbox</span>{% endif %}
       <form class="inline" method="post" action="/soulseek/download">
         <input type="hidden" name="search_id" value="{{ search_id }}">
         <input type="hidden" name="username" value="{{ g.username }}">
         <input type="hidden" name="folder" value="{{ g.folder }}">
-        <button class="nc-btn nc-btn--sm nc-btn--accent">Download</button>
+        <button class="btn" data-variant="outline" data-size="sm">Download</button>
       </form>
     </td>
   </tr>
@@ -33,6 +34,6 @@
   </tbody>
 </table></div>
 {% elif done %}
-<div class="wip">No audio folders found. Try fewer words.</div>
+{% call alert('wip') %}No audio folders found. Try fewer words.{% endcall %}
 {% endif %}
 </div>

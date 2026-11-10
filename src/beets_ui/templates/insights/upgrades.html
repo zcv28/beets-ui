@@ -1,47 +1,46 @@
 {% extends "base.html" %}
+{% from "partials/macros.html" import empty %}
 {% block title %}Upgrades{% endblock %}
+{% block status %}{{ rows|length }} album{{ 's' if rows|length != 1 }}{% endblock %}
 {% block content %}
 {% set tab = 'upgrades' %}{% include "insights/_tabs.html" %}
 {% set here = request.url.path ~ ('?' ~ request.url.query if request.url.query else '') %}
-<div class="nc-tabpanel">
-<p class="muted">Albums worth replacing with a better copy. Lossy means MP3, AAC, Vorbis, Opus or WMA; low bitrate is under 192 kbps (96 kbps for Opus); incomplete means fewer tracks than the track or disc totals say. Missing and small covers are on the <a href="/artwork?filter=low">Artwork page</a> (under {{ min_px }}px).</p>
-<nav class="nc-tabs" aria-label="Upgrade reasons">
-  <a class="nc-tab" href="/insights/upgrades" {% if not reason %}aria-current="page"{% endif %}>All</a>
-  {% for k, label in reasons.items() %}<a class="nc-tab" href="/insights/upgrades?reason={{ k }}" {% if reason == k %}aria-current="page"{% endif %}>{{ label }} ({{ counts[k] }})</a>{% endfor %}
+<div class="tab-content">
+<p class="lead">Albums worth replacing with a better copy. Lossy means MP3, AAC, Vorbis, Opus or WMA; low bitrate is under 192 kbps (96 kbps for Opus); incomplete means fewer tracks than the track or disc totals say. Missing and small covers are on the <a href="/artwork?filter=low">Artwork page</a> (under {{ min_px }}px).</p>
+<nav class="toggles" aria-label="Upgrade reasons">
+  <a class="toggle" data-variant="outline" href="/insights/upgrades" {% if not reason %}aria-current="page"{% endif %}>All</a>
+  {% for k, label in reasons.items() %}<a class="toggle" data-variant="outline" href="/insights/upgrades?reason={{ k }}" {% if reason == k %}aria-current="page"{% endif %}>{{ label }} · {{ counts[k] }}</a>{% endfor %}
 </nav>
-<div class="nc-tabpanel">
 {% if rows %}
-<div class="nc-tablewrap"><table class="nc-table">
-  <thead><tr><th>Album</th><th>Why</th><th></th></tr></thead>
+<div class="table-container"><table class="table">
+  <thead><tr><th class="table-head">Album</th><th class="table-head">Why</th><th class="table-head"><span class="sr-only">Actions</span></th></tr></thead>
   <tbody>
   {% for a in rows %}
   {% set q = a.albumartist ~ ' ' ~ a.album %}
-  <tr>
-    <td><a href="/library/album/{{ a.id }}"><strong>{{ a.album or '(untitled)' }}</strong></a><br><small class="muted">{{ a.albumartist }}{% if a.year %} · {{ a.year }}{% endif %} · {{ a.tracks }} track{{ 's' if a.tracks != 1 }}</small></td>
-    <td>{% for k, detail in a.issues.items() if not reason or k == reason %}
+  <tr class="table-row">
+    <td class="table-cell"><div class="table-cell-title"><a class="strong" href="/library/album/{{ a.id }}"{{ a.album|lang }}>{{ a.album or '(untitled)' }}</a><span class="hint">{{ a.albumartist }}{% if a.year %} · {{ a.year }}{% endif %} · {{ a.tracks }} track{{ 's' if a.tracks != 1 }}</span></div></td>
+    <td class="table-cell">{% for k, detail in a.issues.items() if not reason or k == reason %}
       <div class="issue">
-        <span class="nc-badge {{ 'failed' if k in ('bitrate', 'incomplete') else 'attention' }}">{{ reasons[k] }}</span> <small>{{ detail }}</small>
+        <span class="badge" data-status="warning">{{ reasons[k] }}</span> <span class="hint">{{ detail }}</span>
         <form class="inline" method="post" action="/insights/upgrades/dismiss" hx-post="/insights/upgrades/dismiss" hx-target="closest .issue" hx-swap="delete">
           <input type="hidden" name="album_id" value="{{ a.id }}"><input type="hidden" name="reason" value="{{ k }}"><input type="hidden" name="label" value="{{ q }}"><input type="hidden" name="back" value="{{ here }}">
-          <button class="link" title="This is the best copy there is: stop listing it for this reason"><small>dismiss</small></button>
+          <button class="btn" data-variant="ghost" data-size="xs" title="This is the best copy there is: stop listing it for this reason" aria-label="Dismiss {{ reasons[k]|lower }} for {{ a.album }}">Dismiss</button>
         </form>
       </div>
     {% endfor %}</td>
-    <td class="nowrap">{% if slskd_enabled %}<a class="nc-btn nc-btn--sm" href="/soulseek?q={{ q|q }}">Soulseek</a>{% endif %}</td>
+    <td class="table-cell nowrap">{% if slskd_enabled %}<a class="btn" data-variant="outline" data-size="sm" href="/soulseek?q={{ q|q }}">Soulseek</a>{% endif %}</td>
   </tr>
   {% endfor %}
   </tbody>
 </table></div>
 {% else %}
-<div class="ok-box">Nothing to upgrade{% if reason %} for this reason{% endif %}.</div>
+{% call empty() %}Nothing to upgrade{% if reason %} for this reason{% endif %}.{% endcall %}
 {% endif %}
 {% if dismissed %}
 <form class="bar right" method="post" action="/insights/upgrades/restore">
-  <span class="nc-hint">{{ dismissed }} dismissed</span>
-  <button class="nc-btn nc-btn--sm">List Dismissed Again</button>
+  <span class="hint">{{ dismissed }} dismissed</span>
+  <button class="btn" data-variant="outline" data-size="sm">List dismissed again</button>
 </form>
 {% endif %}
 </div>
-</div>
 {% endblock %}
-{% block status %}{{ rows|length }} album{{ 's' if rows|length != 1 }}{% endblock %}

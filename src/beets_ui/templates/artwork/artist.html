@@ -1,27 +1,29 @@
 {% extends "base.html" %}
+{% from "partials/macros.html" import back, alert %}
 {% block title %}{{ info.name }}{% endblock %}
+{% block header %}{% endblock %}
 {% block content %}
-<p><a href="/artwork/artists">← Artist pictures</a> · <a href="/library?q={{ ('albumartist:=' ~ info.name)|term|q }}">albums</a></p>
+<div class="bar tight">{{ back('/artwork/artists', 'Artist pictures') }}<span class="spacer"></span><a class="btn" data-variant="outline" data-size="sm" href="/library?q={{ ('albumartist:=' ~ info.name)|term|q }}">Show albums</a></div>
 <div class="album-head">
-  <div class="art"><img class="cover" src="/artwork/artist/image?name={{ info.name|q }}&size=600" alt=""></div>
+  <div class="art"><img class="art-img" src="/artwork/artist/image?name={{ info.name|q }}&size=600" alt="Picture of {{ info.name }}"></div>
   <div class="meta">
-    <h1>{{ info.name }}</h1>
+    <h1{{ info.name|lang }}>{{ info.name }}</h1>
     <dl class="kv">
       <dt>Albums</dt><dd>{{ info.albums|length }}</dd>
-      {% if info.mbid %}<dt>MusicBrainz</dt><dd><a href="https://musicbrainz.org/artist/{{ info.mbid }}" target="_blank" rel="noopener noreferrer">{{ info.mbid }}</a></dd>{% endif %}
-      <dt>Folder</dt><dd>{% if info.folder %}<code>{{ info.folder }}</code>{% else %}<span class="warnc">{{ info.reason }}</span>{% endif %}</dd>
-      <dt>Picture</dt><dd>{% if info.image %}<code>{{ info.image.name }}</code>{% else %}none{% endif %}</dd>
-      {% if info.auto %}<dt>Auto-fill</dt><dd>{{ {'id': 'found by MusicBrainz ID', 'name': 'matched by name, check it is the right artist', 'ambiguous': 'several artists share this name, pick one below', 'notfound': 'nothing found', 'manual': 'set by hand', 'nofolder': 'no artist folder'}.get(info.auto.status, info.auto.status) }}{% if info.auto.source %} ({{ info.auto.source }}){% endif %}{% if info.auto.note %}<br><small class="muted">{{ info.auto.note }}</small>{% endif %}</dd>{% endif %}
+      {% if info.mbid %}<dt>MusicBrainz</dt><dd><a class="mono" href="https://musicbrainz.org/artist/{{ info.mbid }}" target="_blank" rel="noopener noreferrer">{{ info.mbid }}</a></dd>{% endif %}
+      <dt>Folder</dt><dd>{% if info.folder %}<code>{{ info.folder }}</code>{% else %}<span class="status" data-status="warning">{{ info.reason }}</span>{% endif %}</dd>
+      <dt>Picture</dt><dd>{% if info.image %}<code>{{ info.image.name }}</code>{% else %}None{% endif %}</dd>
+      {% if info.auto %}<dt>Auto-fill</dt><dd>{{ {'id': 'Found by MusicBrainz ID', 'name': 'Matched by name, check it is the right artist', 'ambiguous': 'Several artists share this name, pick one below', 'notfound': 'Nothing found', 'manual': 'Set by hand', 'nofolder': 'No artist folder'}.get(info.auto.status, info.auto.status) }}{% if info.auto.source %} ({{ info.auto.source }}){% endif %}{% if info.auto.note %}<p class="hint">{{ info.auto.note }}</p>{% endif %}</dd>{% endif %}
     </dl>
     {% if info.folder %}
-    <h3>Upload your own</h3>
+    <h2>Upload your own</h2>
     <form method="post" action="/artwork/artist/set" enctype="multipart/form-data">
       <input type="hidden" name="name" value="{{ info.name }}">
-      <input type="file" name="upload" accept="image/jpeg,image/png,image/webp" required>
-      <div class="bar"><button class="nc-btn nc-btn--sm nc-btn--accent">Upload</button></div>
+      <input class="input" type="file" name="upload" accept="image/jpeg,image/png,image/webp" required aria-label="Image file">
+      <div class="bar right"><button class="btn" data-size="sm">Upload picture</button></div>
     </form>
     {% else %}
-    <div class="wip">Pictures can only be saved when every album by this artist sits inside one folder that holds nothing else (for example a path format like <code>$albumartist/$album</code>).</div>
+    {% call alert('wip') %}Pictures can only be saved when every album by this artist sits inside one folder that holds nothing else (for example a path format like <code>$albumartist/$album</code>).{% endcall %}
     {% endif %}
   </div>
 </div>
@@ -30,8 +32,8 @@
 <form hx-get="/artwork/artist/candidates" hx-target="#cands" hx-trigger="load, submit" hx-indicator="#cands">
   <input type="hidden" name="name" value="{{ info.name }}">
   {% include "artwork/_sources.html" %}
-  <div class="bar right"><button class="nc-btn nc-btn--sm">Search</button></div>
+  <div class="bar right"><button class="btn" data-variant="outline" data-size="sm">Search</button></div>
 </form>
-<div id="cands"><p class="loading muted">Searching</p></div>
+<div id="cands"><p class="loading hint">Searching</p></div>
 {% endif %}
 {% endblock %}

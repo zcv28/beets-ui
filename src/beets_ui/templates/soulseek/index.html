@@ -1,26 +1,27 @@
 {% extends "base.html" %}
+{% from "partials/macros.html" import alert, icon %}
 {% block title %}Soulseek{% endblock %}
 {% block content %}
 {% set tab = 'search' %}{% include "soulseek/_tabs.html" %}
-<div class="nc-tabpanel">
-{% if error %}<div class="warn">{{ error }}</div>{% endif %}
+<div class="tab-content">
+{% if error %}{% call alert('warn') %}{{ error }}{% endcall %}{% endif %}
 <form method="post" action="/soulseek/search" class="bar">
-  <input type="search" name="q" value="{{ q }}" placeholder="artist album" autofocus required minlength="3">
-  <button class="nc-btn nc-btn--sm">Search</button>
+  <div class="input-group grow">{{ icon('search') }}<input class="input" type="search" name="q" value="{{ q }}" placeholder="Artist album" data-autofocus required minlength="3" aria-label="Search Soulseek"></div>
+  <button class="btn">Search</button>
 </form>
-<p class="muted">Downloads go to slskd's download folder, which is the beets-ui inbox, so finished albums appear for review automatically.</p>
+<p class="hint">Downloads go to slskd's download folder, which is the beets-ui inbox, so finished albums appear for review automatically.</p>
 {% if searches %}
-<h2>Recent Searches</h2>
-<div class="nc-tablewrap"><table class="nc-table">
-  <thead><tr><th>Search</th><th>State</th><th class="num">Responses</th><th class="num">Files</th><th></th></tr></thead>
+<h2>Recent searches</h2>
+<div class="table-container"><table class="table">
+  <thead><tr><th class="table-head">Search</th><th class="table-head">State</th><th class="table-head num">Responses</th><th class="table-head num">Files</th><th class="table-head"><span class="sr-only">Actions</span></th></tr></thead>
   <tbody>
   {% for s in searches %}
-  <tr>
-    <td><a href="/soulseek/s/{{ s.id }}">{{ s.searchText }}</a></td>
-    <td><small>{{ s.state }}</small></td>
-    <td class="num">{{ s.responseCount }}</td>
-    <td class="num">{{ s.fileCount }}</td>
-    <td><form class="inline" method="post" action="/soulseek/s/{{ s.id }}/delete"><button class="link">Delete</button></form></td>
+  <tr class="table-row">
+    <td class="table-cell"><a href="/soulseek/s/{{ s.id }}">{{ s.searchText }}</a></td>
+    <td class="table-cell hint">{{ s.state }}</td>
+    <td class="table-cell num">{{ s.responseCount }}</td>
+    <td class="table-cell num">{{ s.fileCount }}</td>
+    <td class="table-cell nowrap"><form class="inline" method="post" action="/soulseek/s/{{ s.id }}/delete"><button class="btn" data-variant="ghost" data-size="xs">Delete</button></form></td>
   </tr>
   {% endfor %}
   </tbody>

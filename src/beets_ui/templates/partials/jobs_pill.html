@@ -1,4 +1,22 @@
-<span id="jobs-pill" class="mono" hx-get="/jobs/pill?since={{ since }}" hx-trigger="every 4s [!document.hidden]" hx-swap="outerHTML">{% if running or pending %}Jobs: {% if running %}{{ running }} running{% endif %}{% if running and pending %} · {% endif %}{% if pending %}{{ pending }} queued{% endif %}{% else %}Jobs: idle{% endif %}</span>
+{% from "partials/macros.html" import icon %}<div id="jobs-pill" hx-get="/jobs/pill?since={{ since }}" hx-trigger="every 4s [!document.hidden]" hx-swap="outerHTML">{% if running or pending %}
+<a class="jobs-panel" href="/jobs">
+  <span class="status" data-status="info">{% if running %}{{ running }} job{{ 's' if running != 1 }} running{% else %}{{ pending }} job{{ 's' if pending != 1 }} queued{% endif %}</span>
+  {% if running and pending %}<span class="hint">{{ pending }} queued</span>{% endif %}
+  <progress class="progress" aria-label="Jobs running"></progress>
+</a>
+{% endif %}</div>
+{% if oob %}{% include "partials/jobs_mobile.html" %}{% endif %}
 {% if toasts %}<div hx-swap-oob="beforeend:#toasts">{% for j in toasts %}
-<a class="toast nc-callout {{ 'nc-status--ok' if j.status == 'done' else 'nc-status--danger' }}" href="/jobs/{{ j.id }}"><span class="nc-callout__face" aria-hidden="true">{{ ':)' if j.status == 'done' else ':(' }}</span><span><span class="nc-callout__title">{{ j.title }}</span><small>{% if j.status == 'done' %}Finished{% if j.kind in undoable %} · open it to undo{% endif %}{% else %}{{ j.status|capitalize }}{% if j.error %}: {{ j.error[:120] }}{% endif %}{% endif %}</small></span></a>
+{% set ok = j.status == 'done' %}
+<div class="toast" data-variant="{{ 'success' if ok else 'destructive' }}" role="status"{% if not ok or j.kind in undoable %} data-sticky{% endif %}>
+  <div class="toast-content">
+    {{ icon('success' if ok else 'destructive', 'toast-icon') }}
+    <div class="toast-text">
+      <p class="toast-title">{{ j.title }}</p>
+      <p class="toast-description">{% if ok %}Finished{% if j.kind in undoable %}. You can undo it from the job page.{% endif %}{% else %}{{ j.status|capitalize }}{% if j.error %}: {{ j.error[:120] }}{% endif %}{% endif %}</p>
+      <div class="toast-actions"><a class="btn" data-variant="outline" data-size="xs" href="/jobs/{{ j.id }}">{{ "Open job to undo" if ok and j.kind in undoable else "View job" }}</a></div>
+    </div>
+    <button class="toast-close" type="button" aria-label="Dismiss">{{ icon('x') }}</button>
+  </div>
+</div>
 {% endfor %}</div>{% endif %}

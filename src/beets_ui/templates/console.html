@@ -1,28 +1,31 @@
 {% extends "base.html" %}
+{% from "partials/macros.html" import status %}
 {% block title %}Console{% endblock %}
 {% block content %}
-<p class="muted">Runs any <code>beet</code> command against your library, queued with the other jobs. Commands cannot answer prompts, so use the non-interactive flags (<code>-y</code>, <code>-q</code>, …).</p>
-<form method="post" action="/console" class="bar">
+<p class="lead">Runs any <code>beet</code> command against your library, queued with the other jobs. Commands cannot answer prompts, so use the non-interactive flags (<code>-y</code>, <code>-q</code>, …).</p>
+<form method="post" action="/console" class="bar console-bar">
   <span class="mono">beet</span>
-  <input type="text" name="cmd" value="{{ cmd }}" placeholder="ls -a albumartist:Foo" autofocus autocomplete="off" spellcheck="false" class="mono" aria-label="Command">
-  <button class="nc-btn nc-btn--accent">Run</button>
+  <input class="input grow" data-mono type="text" name="cmd" value="{{ cmd }}" placeholder="ls -a albumartist:Foo" data-autofocus autocomplete="off" autocapitalize="off" spellcheck="false" aria-label="Command">
+  <button class="btn">Run</button>
 </form>
-<form method="post" action="/console/kill" class="bar right"><button class="nc-btn nc-btn--sm nc-btn--danger">Interrupt Running Command</button></form>
-<div class="nc-grid">
-  <div class="nc-c7">
-    <h2>Common Commands</h2>
-    <div class="nc-tablewrap"><table class="nc-table"><tbody>
-    {% for c, desc in suggestions %}<tr><td class="nowrap"><a class="mono" href="/console?cmd={{ c|q }}">{{ c }}</a></td><td><small>{{ desc }}</small></td></tr>{% endfor %}
+{% if console_busy %}
+<form method="post" action="/console/kill" class="bar"><span class="status" data-status="info">A command is running</span><button class="btn" data-variant="outline" data-tone="destructive" data-size="sm">Interrupt command</button></form>
+{% endif %}
+<div class="columns">
+  <section>
+    <h2>Common commands</h2>
+    <div class="table-container"><table class="table"><tbody>
+    {% for c, desc in suggestions %}<tr class="table-row"><td class="table-cell nowrap"><a class="mono" href="/console?cmd={{ c|q }}">{{ c }}</a></td><td class="table-cell hint">{{ desc }}</td></tr>{% endfor %}
     </tbody></table></div>
-  </div>
-  <div class="nc-c5">
+  </section>
+  <section>
     <h2>Recent</h2>
-    <div class="nc-tablewrap"><table class="nc-table"><tbody>
-    {% for j in recent %}<tr><td><a href="/jobs/{{ j.id }}" class="mono">{{ j.title }}</a></td><td><span class="nc-badge {{ j.status }}">{{ j.status|capitalize }}</span></td><td class="nowrap"><small>{{ j.created_at|ts }}</small></td></tr>
-    {% else %}<tr><td class="muted">No commands yet.</td></tr>{% endfor %}
+    <div class="table-container"><table class="table"><tbody>
+    {% for j in recent %}<tr class="table-row"><td class="table-cell"><a href="/jobs/{{ j.id }}" class="mono">{{ j.title }}</a></td><td class="table-cell nowrap">{{ status(j.status) }}</td><td class="table-cell nowrap mono hint">{{ j.created_at|ts }}</td></tr>
+    {% else %}<tr class="table-row"><td class="table-cell hint">No commands yet.</td></tr>{% endfor %}
     </tbody></table></div>
-    <h3>Loaded Plugins</h3>
-    <p><small>{{ plugins|join(', ') or 'none' }}</small></p>
-  </div>
+    <h3>Loaded plugins</h3>
+    <p class="hint">{{ plugins|join(', ') or 'None' }}</p>
+  </section>
 </div>
 {% endblock %}

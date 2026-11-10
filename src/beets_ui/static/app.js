@@ -3,15 +3,47 @@
 "use strict";
 
 // ------------------------------------------------------------------ toasts
-// Job pop-ups arrive through the polled status bar cell; drop them after they fade.
-document.addEventListener("animationend", (e) => {
-  if (e.target.classList && e.target.classList.contains("toast")) e.target.remove();
-});
+// Job pop-ups arrive through the polled jobs panel. Finished jobs leave after four
+// seconds (not while hovered); failures stay until dismissed.
+(() => {
+  const box = document.getElementById("toasts");
+  if (!box) return;
+  const dismiss = (t) => {
+    t.classList.add("leaving");
+    setTimeout(() => t.remove(), 200);
+  };
+  const arm = (t) => {
+    if (t.dataset.armed) return;
+    t.dataset.armed = "1";
+    if (t.hasAttribute("data-sticky")) return;
+    let timer = setTimeout(() => dismiss(t), 4000);
+    t.addEventListener("mouseenter", () => clearTimeout(timer));
+    t.addEventListener("mouseleave", () => { timer = setTimeout(() => dismiss(t), 2000); });
+  };
+  new MutationObserver(() => box.querySelectorAll(".toast").forEach(arm)).observe(box, { childList: true, subtree: true });
+  box.addEventListener("click", (e) => {
+    const close = e.target.closest(".toast-close");
+    if (close) dismiss(close.closest(".toast"));
+  });
+})();
+
+// ---------------------------------------------------------- mobile sidebar
+(() => {
+  const sheet = document.getElementById("sidebar-mobile");
+  const open = document.getElementById("sidebar-open");
+  if (!sheet || !open || typeof sheet.showModal !== "function") return;
+  open.addEventListener("click", () => sheet.showModal());
+  sheet.querySelector(".sidebar-mobile-close").addEventListener("click", () => sheet.close());
+  // A click on the backdrop lands on the dialog itself.
+  sheet.addEventListener("click", (e) => { if (e.target === sheet) sheet.close(); });
+})();
 
 // ----------------------------------------------------------- confirmations
 // Forms with data-confirm ask first, in the page's dialog:
-//   data-confirm="text"  data-confirm-button="Delete"  data-confirm-kind="accent"
+//   data-confirm="text"  data-confirm-button="Delete"  data-confirm-kind="default"
 //   data-confirm-checked="delete" data-confirm-alt="text when that checkbox is ticked"
+//   data-confirm-alt-button="button label when that checkbox is ticked"
+// The dialog is titled with the action, and Cancel has focus, so Enter never destroys.
 (() => {
   const dialog = document.getElementById("confirm-dialog");
   document.addEventListener("submit", (e) => {
@@ -20,21 +52,56 @@ document.addEventListener("animationend", (e) => {
     if (form.dataset.confirmed === "1") { delete form.dataset.confirmed; return; }
     e.preventDefault();
     const box = form.dataset.confirmChecked && form.elements[form.dataset.confirmChecked];
-    const text = box && box.checked ? form.dataset.confirmAlt : form.dataset.confirm;
+    const alt = box && box.checked;
+    const text = alt ? form.dataset.confirmAlt : form.dataset.confirm;
+    const label = (alt && form.dataset.confirmAltButton) || form.dataset.confirmButton || "Continue";
     const go = () => { form.dataset.confirmed = "1"; form.requestSubmit(e.submitter || undefined); };
     if (!dialog || typeof dialog.showModal !== "function") {
       if (window.confirm(text)) go();
       return;
     }
+    document.getElementById("confirm-title").textContent = `${label}?`;
     document.getElementById("confirm-text").textContent = text;
     const ok = document.getElementById("confirm-ok");
-    ok.textContent = form.dataset.confirmButton || "OK";
-    ok.className = "nc-btn " + (form.dataset.confirmKind === "accent" ? "nc-btn--accent" : "nc-btn--danger");
+    ok.textContent = label;
+    ok.dataset.variant = form.dataset.confirmKind === "default" ? "default" : "destructive";
     dialog.returnValue = "";
     dialog.onclose = () => { if (dialog.returnValue === "ok") go(); };
     dialog.showModal();
-    ok.focus();
+    document.getElementById("confirm-cancel").focus();
   }, true);
+
+  // A submit button with data-label-alt says what it will do once the form's checkbox is ticked.
+  document.addEventListener("change", (e) => {
+    const form = e.target.form;
+    if (!form || !form.dataset.confirmChecked || e.target.name !== form.dataset.confirmChecked) return;
+    for (const btn of form.querySelectorAll("button[data-label-alt]")) {
+      if (!btn.dataset.label) btn.dataset.label = btn.textContent;
+      btn.textContent = e.target.checked ? btn.dataset.labelAlt : btn.dataset.label;
+    }
+  });
+})();
+
+// -------------------------------------------------------------- autofocus
+// Fields marked data-autofocus take focus only with a mouse or trackpad: on a phone
+// it would pop the keyboard up over the page.
+(() => {
+  const field = document.querySelector("[data-autofocus]");
+  if (field && window.matchMedia("(pointer: fine)").matches) field.focus();
+})();
+
+// ---------------------------------------------------- review queue: n / N
+(() => {
+  const next = document.getElementById("queue-next");
+  const prev = document.getElementById("queue-prev");
+  if (!next && !prev) return;
+  document.addEventListener("keydown", (e) => {
+    if (e.ctrlKey || e.metaKey || e.altKey) return;
+    const t = e.target;
+    if (t.closest && t.closest("textarea, select, dialog, [contenteditable], input:not([type=radio]):not([type=checkbox])")) return;
+    if (e.key === "n" && next) { e.preventDefault(); next.click(); }
+    if (e.key === "N" && prev) { e.preventDefault(); prev.click(); }
+  });
 })();
 
 // ------------------------------------------------------------ audio player
@@ -97,7 +164,6 @@ document.addEventListener("animationend", (e) => {
     if (skip) parts.push(`${skip} skipped`);
     if (dupOpen) parts.push(`${dupOpen} duplicate${dupOpen > 1 ? "s" : ""} to resolve`);
     decided.textContent = parts.join(" · ");
-    decided.classList.toggle("warnc", dupOpen > 0);
   };
 
   // The chosen candidate's row is selected and its track changes are shown.
@@ -131,6 +197,7 @@ document.addEventListener("animationend", (e) => {
     if (!list.length) return;
     idx = Math.max(0, Math.min(list.length - 1, i));
     list.forEach((r, n) => r.classList.toggle("kfocus", n === idx));
+    list[idx].querySelector('input[type="radio"]').focus({ preventScroll: true });
     list[idx].scrollIntoView({ block: "nearest", behavior: "smooth" });
   };
   const focusedTask = () => {
@@ -140,7 +207,9 @@ document.addEventListener("animationend", (e) => {
   document.addEventListener("keydown", (e) => {
     if (e.ctrlKey || e.metaKey || e.altKey) return;
     const t = e.target;
-    if (t.closest && t.closest("input, textarea, select, dialog, [contenteditable]")) return;
+    // A candidate's radio has focus after j/k: the shortcuts keep working from there.
+    const onCand = t.matches && t.matches("tr.cand input[type=radio]");
+    if (!onCand && t.closest && t.closest("input, textarea, select, dialog, [contenteditable]")) return;
     const cur = rows()[idx];
     switch (e.key) {
       case "j": focus(idx + 1); break;
@@ -152,7 +221,7 @@ document.addEventListener("animationend", (e) => {
       }
       case "x":
       case "Enter": {
-        if (!cur || (e.key === "Enter" && t !== document.body)) return;
+        if (!cur || (e.key === "Enter" && t !== document.body && !onCand)) return;
         const r = cur.querySelector('input[type="radio"]');
         r.checked = true;
         r.dispatchEvent(new Event("change", { bubbles: true }));
@@ -165,7 +234,7 @@ document.addEventListener("animationend", (e) => {
         if (btn) window.beetsPlay(btn); else if (window.beetsTogglePlayer) window.beetsTogglePlayer();
         break;
       }
-      case "i": form.requestSubmit(); break;
+      case "i": form.requestSubmit(document.getElementById("import-next") || undefined); break;
       default: return;
     }
     e.preventDefault();
@@ -179,7 +248,7 @@ document.addEventListener("animationend", (e) => {
   const input = document.getElementById("artist-filter");
   const letters = document.getElementById("artist-letters");
   const none = document.getElementById("artist-none");
-  const cards = [...grid.querySelectorAll(".card")];
+  const cards = [...grid.querySelectorAll(".tile")];
   let letter = decodeURIComponent(location.hash.slice(1));
 
   const apply = () => {
@@ -222,12 +291,38 @@ document.addEventListener("animationend", (e) => {
     count.textContent = one ? `Rename ${picked[0]}` : `Merge ${picked.length} artists`;
     verb.textContent = one ? "to" : "into";
     button.textContent = one ? "Rename" : "Merge";
-    target.placeholder = one ? "new name" : "pick or type a name";
+    target.placeholder = one ? "New name" : "Pick or type a name";
     names.replaceChildren(...picked.map((n) => new Option(n)));
     if (!one && !target.value && picked.length) target.value = picked[0];
     if (one && target.value === picked[0]) target.value = "";
     for (const c of cards) c.classList.toggle("picked", !!c.querySelector("input:checked"));
+    confirmText();
   };
+  const form = document.getElementById("merge-form");
+  const confirmText = () => {
+    const picked = [...grid.querySelectorAll('input[name="name"]:checked')].map((p) => p.value);
+    const name = target.value.trim() || "the new name";
+    const one = picked.length === 1;
+    form.dataset.confirm = (one ? `Rename ${picked[0]} to ${name}?` : `Merge ${picked.length} artists into ${name}?`)
+      + " Tags are rewritten and files move to that artist's folder. You can undo it from the job page.";
+    form.dataset.confirmButton = one ? "Rename artist" : `Merge ${picked.length} artists`;
+  };
+  target.addEventListener("input", confirmText);
   grid.addEventListener("change", update);
   update();
 })();
+
+// ------------------------------------------------------------- menus
+// A details menu closes on Escape (focus back on its button) and on a click elsewhere.
+document.addEventListener("keydown", (e) => {
+  if (e.key !== "Escape") return;
+  for (const m of document.querySelectorAll("details.menu[open]")) {
+    m.open = false;
+    m.querySelector("summary").focus();
+  }
+});
+document.addEventListener("click", (e) => {
+  for (const m of document.querySelectorAll("details.menu[open]")) {
+    if (!m.contains(e.target)) m.open = false;
+  }
+});

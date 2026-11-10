@@ -1,41 +1,48 @@
 {% extends "base.html" %}
+{% from "partials/macros.html" import empty, icon %}
 {% block title %}Artist pictures{% endblock %}
+{% block status %}{{ '{:,}'.format(total) }} artist{{ 's' if total != 1 }}{% endblock %}
 {% block content %}
 {% set tab = 'artists' %}{% include "artwork/_tabs.html" %}
-<div class="nc-tabpanel">
-<p class="muted">Artist pictures are saved as <code>{{ names|join('</code>, <code>')|safe }}</code> in each album artist's folder, which is where Jellyfin and most players look.</p>
+<div class="tab-content">
+<p class="lead">Artist pictures are saved as <code>{{ names|join('</code>, <code>')|safe }}</code> in each album artist's folder, which is where Jellyfin and most players look.</p>
 <form class="bar" method="get" action="/artwork/artists">
-  <select name="filter" onchange="this.form.submit()">
-    <option value="missing" {% if filter == 'missing' %}selected{% endif %}>missing pictures</option>
-    <option value="review" {% if filter == 'review' %}selected{% endif %}>needs review</option>
-    <option value="all" {% if filter == 'all' %}selected{% endif %}>all artists</option>
-    <option value="nofolder" {% if filter == 'nofolder' %}selected{% endif %}>no artist folder</option>
+  <select class="input auto" name="filter" onchange="this.form.submit()" aria-label="Show">
+    <option value="missing" {% if filter == 'missing' %}selected{% endif %}>Missing pictures</option>
+    <option value="review" {% if filter == 'review' %}selected{% endif %}>Needs review</option>
+    <option value="all" {% if filter == 'all' %}selected{% endif %}>All artists</option>
+    <option value="nofolder" {% if filter == 'nofolder' %}selected{% endif %}>No artist folder</option>
   </select>
-  <input type="search" name="q" value="{{ q }}" placeholder="artist name">
-  <button class="nc-btn nc-btn--sm">Filter</button>
+  <div class="input-group grow">{{ icon('search') }}<input class="input" type="search" name="q" value="{{ q }}" placeholder="Artist name" aria-label="Artist name"></div>
+  <button class="btn" data-variant="outline">Filter</button>
 </form>
 <details class="box">
-  <summary>Fill Automatically <span class="nc-hint">searches every artist and saves a picture when the match is safe</span></summary>
-  <p class="muted">A picture found through the artist's MusicBrainz ID is used right away. Otherwise the first source that knows exactly one artist with that name is used, and the artist is flagged for a quick check. Names shared by several artists are left for you. Afterwards pick <em>needs review</em> above.</p>
+  <summary>Fill automatically <span class="hint">Searches every artist and saves a picture when the match is safe</span></summary>
+  <div class="box-body">
+  <p class="hint">A picture found through the artist's MusicBrainz ID is used right away. Otherwise the first source that knows exactly one artist with that name is used, and the artist is flagged for a quick check. Names shared by several artists are left for you. Afterwards pick <em>Needs review</em> above.</p>
   <form method="post" action="/artwork/artists/fill">
     {% include "artwork/_sources.html" %}
     <div class="bar">
-      <label><input type="checkbox" name="retry" value="1"> retry artists that were not found before</label>
-      <label><input type="checkbox" name="overwrite" value="1"> replace existing pictures</label>
+      <label class="checkbox-item"><input class="checkbox" type="checkbox" name="retry" value="1">Retry artists that were not found before</label>
+      <label class="checkbox-item"><input class="checkbox" type="checkbox" name="overwrite" value="1">Replace existing pictures</label>
       <span class="spacer"></span>
-      <button class="nc-btn nc-btn--sm nc-btn--accent">Fill Missing Pictures</button>
+      <button class="btn" data-size="sm">Fill missing pictures</button>
     </div>
   </form>
+  </div>
 </details>
-<p class="muted">{{ total }} artist{{ 's' if total != 1 }}</p>
 <div class="grid">
   {% for a in rows %}
-  <a class="card" href="/artwork/artist?name={{ a.name|q }}">
+  <a class="tile" href="/artwork/artist?name={{ a.name|q }}">
     <img loading="lazy" src="/artwork/artist/image?name={{ a.name|q }}" alt="">
-    <div class="t" title="{{ a.name }}">{{ a.name }}</div>
-    <div class="s">{{ a.albums|length }} album{{ 's' if a.albums|length != 1 }}{% if a.folder is none %} · <span class="warnc" title="{{ a.reason }}">no folder</span>{% elif a.auto and a.auto.status == 'name' %} · <span class="changed" title="matched by name on {{ a.auto.source }}">check</span>{% elif a.auto and a.auto.status == 'ambiguous' and not a.image %} · <span class="warnc" title="{{ a.auto.note }}">ambiguous</span>{% elif not a.image %} · <span class="warnc" title="{{ a.auto.note if a.auto else '' }}">{{ 'not found' if a.auto and a.auto.status == 'notfound' else 'missing' }}</span>{% endif %}</div>
+    <span class="tile-title" title="{{ a.name }}">{{ a.name }}</span>
+    <span class="tile-sub">{{ a.albums|length }} album{{ 's' if a.albums|length != 1 }}</span>
+    {% if a.folder is none %}<span class="tile-sub"><span class="status" data-status="destructive" title="{{ a.reason }}">No folder</span></span>
+    {% elif a.auto and a.auto.status == 'name' %}<span class="tile-sub"><span class="status" data-status="warning" title="Matched by name on {{ a.auto.source }}">Check match</span></span>
+    {% elif a.auto and a.auto.status == 'ambiguous' and not a.image %}<span class="tile-sub"><span class="status" data-status="warning" title="{{ a.auto.note }}">Ambiguous</span></span>
+    {% elif not a.image %}<span class="tile-sub"><span class="status" data-status="warning" title="{{ a.auto.note if a.auto else '' }}">{{ 'Not found' if a.auto and a.auto.status == 'notfound' else 'Missing' }}</span></span>{% endif %}
   </a>
-  {% else %}<div class="msg">Nothing to do here.</div>{% endfor %}
+  {% else %}<div class="grid-all">{% call empty() %}Nothing to do here{% if filter != 'all' %}: every {{ 'album' if tab == 'covers' else 'artist' }} passes this filter{% endif %}.{% endcall %}</div>{% endfor %}
 </div>
 </div>
 {% endblock %}

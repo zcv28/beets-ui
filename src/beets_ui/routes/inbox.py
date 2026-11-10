@@ -1,12 +1,14 @@
 from __future__ import annotations
 
+import hashlib
+import json
 import mimetypes
 import re
 from pathlib import Path
 from urllib.parse import quote
 
 from fastapi import APIRouter, Form, HTTPException, Request
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, Response
 
 from ..importer import DUPLICATE_ACTIONS
 from ..inbox import AUDIO_EXT, STATUS_LABELS, is_within
@@ -15,6 +17,8 @@ from ..web import flash, partial, redirect, render, user
 router = APIRouter(prefix="/inbox")
 
 BUSY = ("queued", "previewing", "importing")
+# Folders waiting for a decision: the review queue, in inbox order.
+REVIEW = ("ready", "attention", "duplicate")
 
 
 def _furl(f: str) -> str:
@@ -39,6 +43,29 @@ def _deletable(row: dict) -> bool:
     return row["status"] not in BUSY and (row["status"] == "imported" or bool(row["library"]))
 
 
+def _queue(rows: list[dict], current: str) -> dict:
+    """Where `current` sits in the review queue, and the folders before and after it."""
+    order = {r["path"]: i for i, r in enumerate(rows)}
+    waiting = [r["path"] for r in rows if r["status"] in REVIEW]
+    others = [p for p in waiting if p != current]
+    here = order.get(current, -1)
+    after = [p for p in others if order[p] > here]
+    before = [p for p in others if order[p] < here]
+    return {
+        "pos": waiting.index(current) + 1 if current in waiting else 0,
+        "total": len(waiting),
+        "left": len(others),
+        "next": (after or before or [None])[0],
+        "prev": (before or after or [None])[-1],
+    }
+
+
+def _version(rows: list[dict]) -> str:
+    """Changes whenever anything the inbox table shows changes."""
+    blob = json.dumps(rows, sort_keys=True, default=str).encode()
+    return hashlib.md5(blob).hexdigest()[:12]
+
+
 def _filter(rows: list[dict], status: str) -> list[dict]:
     if status == "inlib":
         return [r for r in rows if _deletable(r)]
@@ -55,21 +82,28 @@ def inbox_page(request: Request, status: str = ""):
         folders=_filter(rows, status),
         summary=_summary(rows),
         imported=sum(1 for r in rows if _deletable(r)),
+        to_review=_queue(rows, ""),
         labels=STATUS_LABELS,
         status=status,
+        version=_version(rows),
         settings=request.app.state.settings,
     )
 
 
 @router.get("/table")
-def inbox_table(request: Request, status: str = ""):
+def inbox_table(request: Request, status: str = "", v: str = ""):
     rows = request.app.state.state.folders()
+    version = _version(rows)
+    if v == version:
+        # Nothing changed: htmx leaves the table (and the focus in it) alone.
+        return Response(status_code=204)
     return partial(
         request,
         "inbox/_table.html",
         folders=_filter(rows, status),
         labels=STATUS_LABELS,
         status=status,
+        version=version,
     )
 
 
@@ -107,6 +141,7 @@ def folder_page(request: Request, f: str):
         "inbox/folder.html",
         nav="inbox",
         folder=row,
+        queue=_queue(request.app.state.state.folders(), f),
         labels=STATUS_LABELS,
         busy=row["status"] in BUSY,
         dup_actions=list(DUPLICATE_ACTIONS),
@@ -197,7 +232,12 @@ async def folder_import(request: Request):
     if all(d["action"] == "skip" for d in decisions.values()):
         flash(request, "Every album is set to skip; nothing to import.", "wip")
         return redirect(_furl(f))
-    request.app.state.inbox.queue_import(f, decisions, user=user(request))
+    job = request.app.state.inbox.queue_import(f, decisions, user=user(request))
+    nxt = _queue(request.app.state.state.folders(), f)["next"] if form.get("next") else None
+    if nxt:
+        # Keep the session moving: the import runs as a job, the next folder is up.
+        flash(request, f"Importing {f} as job #{job}. A pop-up reports when it is done.")
+        return redirect(_furl(nxt))
     return redirect(_furl(f))
 
 

@@ -1,26 +1,26 @@
 {% extends "base.html" %}
+{% from "partials/macros.html" import icon %}
 {% block title %}Inbox{% endblock %}
+{% block status %}{{ folders|length }} folder{{ 's' if folders|length != 1 }}{% if status %} shown{% endif %}{% if to_review.total %} · {{ to_review.total }} to review{% endif %}{% endblock %}
 {% block content %}
-<p class="muted">Review folder: <code>{{ settings.inbox }}</code>. Each sub-folder is looked up{% if settings.auto_preview %} automatically once it has been unchanged for {{ settings.debounce }}s{% endif %} and waits for you to review it.{% if settings.auto_import %} Folders where every album matches {{ settings.auto_import }}% or better, with no missing tracks and nothing already in the library, are imported without review.{% endif %}</p>
-<nav class="nc-tabs" aria-label="Inbox filters">
-  <a class="nc-tab" href="/inbox" {% if not status %}aria-current="page"{% endif %}>All</a>
-  {% for st, n in summary|dictsort %}<a class="nc-tab" href="/inbox?status={{ st }}" {% if status == st %}aria-current="page"{% endif %}>{{ labels.get(st, st) }} ({{ n }})</a>{% endfor %}
-  {% if imported %}<a class="nc-tab" href="/inbox?status=inlib" {% if status == 'inlib' %}aria-current="page"{% endif %}>In Library ({{ imported }})</a>{% endif %}
-</nav>
-<div class="nc-tabpanel">
-<div class="bar">
+<p class="lead">Review folder: <code>{{ settings.inbox }}</code>. Each sub-folder is looked up{% if settings.auto_preview %} automatically once it has been unchanged for {{ settings.debounce }}s{% endif %} and waits for you to review it.{% if settings.auto_import %} Folders where every album matches {{ settings.auto_import }}% or better, with no missing tracks and nothing already in the library, are imported without review.{% endif %}</p>
+{% if to_review.next %}
+<div class="bar"><a class="btn" href="/inbox/folder?f={{ to_review.next|q }}">Review {{ to_review.total }} folder{{ 's' if to_review.total != 1 }}{{ icon('arrow-right') }}</a></div>
+{% endif %}
+<div class="toolbar">
+  <nav class="toggles" aria-label="Inbox filters">
+    <a class="toggle" data-variant="outline" href="/inbox" {% if not status %}aria-current="page"{% endif %}>All</a>
+    {% for st, n in summary|dictsort %}<a class="toggle" data-variant="outline" href="/inbox?status={{ st }}" {% if status == st %}aria-current="page"{% endif %}>{{ labels.get(st, st) }} · {{ n }}</a>{% endfor %}
+    {% if imported %}<a class="toggle" data-variant="outline" href="/inbox?status=inlib" {% if status == 'inlib' %}aria-current="page"{% endif %}>In library · {{ imported }}</a>{% endif %}
+  </nav>
   <span class="spacer"></span>
+  <form class="inline" method="post" action="/inbox/preview-all"><button class="btn" data-variant="outline" data-size="sm">Look up new</button></form>
+  <form class="inline" method="post" action="/inbox/scan"><button class="btn" data-variant="outline" data-size="sm">Rescan</button></form>
   {% if imported %}
-  <form class="inline" method="post" action="/inbox/delete-imported" data-confirm="Delete {{ imported }} folder(s) that are imported or already in the library? Their files are removed from the inbox." data-confirm-button="Delete Folders">
-    <button class="nc-btn nc-btn--sm nc-btn--danger">Delete Imported ({{ imported }})</button>
+  <form class="inline" method="post" action="/inbox/delete-imported" data-confirm="Delete {{ imported }} folder{{ 's' if imported != 1 }} that {{ 'are' if imported != 1 else 'is' }} imported or already in the library? Their files are removed from the inbox; the library copies stay." data-confirm-button="Delete {{ imported }} folder{{ 's' if imported != 1 }}">
+    <button class="btn" data-variant="outline" data-tone="destructive" data-size="sm">Delete imported ({{ imported }})</button>
   </form>
   {% endif %}
-  <form class="inline" method="post" action="/inbox/preview-all"><button class="nc-btn nc-btn--sm">Look Up New</button></form>
-  <form class="inline" method="post" action="/inbox/scan"><button class="nc-btn nc-btn--sm">Rescan</button></form>
 </div>
-<div hx-get="/inbox/table?status={{ status }}" hx-trigger="every 5s" hx-swap="innerHTML">
-  {% include "inbox/_table.html" %}
-</div>
-</div>
+{% include "inbox/_table.html" %}
 {% endblock %}
-{% block status %}{{ folders|length }} folder{{ 's' if folders|length != 1 }}{% if status %} shown{% endif %}{% endblock %}

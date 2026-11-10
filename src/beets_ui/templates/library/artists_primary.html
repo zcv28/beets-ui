@@ -1,32 +1,33 @@
 {% extends "base.html" %}
+{% from "partials/macros.html" import empty %}
 {% block title %}Primary artists{% endblock %}
 {% block content %}
 {% set tab = 'artists' %}{% include "library/_tabs.html" %}
-<div class="nc-tabpanel">
-<p class="muted">These albums are credited to several artists. Each one can keep only its first artist as album artist, so it sits with that artist's other albums. Track artists keep the full credit (for example "ヌジャベス &amp; Joe Claussell").</p>
-<p class="muted">New imports {% if enabled %}already do this (<code>BEETSUI_PRIMARY_ARTIST=true</code>){% else %}keep the full credit. Set <code>BEETSUI_PRIMARY_ARTIST=true</code> to reduce them on import too{% endif %}.</p>
+<div class="tab-content">
+<p class="lead">These albums are credited to several artists. Each one can keep only its first artist as album artist, so it sits with that artist's other albums. Track artists keep the full credit (for example "ヌジャベス &amp; Joe Claussell").</p>
+<p class="hint">New imports {% if enabled %}already do this (<code>BEETSUI_PRIMARY_ARTIST=true</code>){% else %}keep the full credit. Set <code>BEETSUI_PRIMARY_ARTIST=true</code> to reduce them on import too{% endif %}.</p>
 {% if rows %}
 <form method="post" action="/library/artists/primary">
-  <div class="nc-tablewrap"><table class="nc-table">
-    <thead><tr><th><input type="checkbox" checked onclick="for (const c of this.form.querySelectorAll('input[name=album]')) c.checked = this.checked"></th><th>Album</th><th>Album Artist Now</th><th>Becomes</th></tr></thead>
+  <div class="table-container"><table class="table">
+    <thead><tr><th class="table-head pick"><input class="checkbox" type="checkbox" checked aria-label="Select all" onclick="for (const c of this.form.querySelectorAll('input[name=album]')) c.checked = this.checked"></th><th class="table-head">Album</th><th class="table-head">Album artist now</th><th class="table-head">Becomes</th></tr></thead>
     <tbody>
       {% for r in rows %}
-      <tr>
-        <td><input type="checkbox" name="album" value="{{ r.id }}" checked></td>
-        <td><a href="/library/album/{{ r.id }}">{{ r.album }}</a>{% if r.year %} <span class="muted">({{ r.year }})</span>{% endif %}</td>
-        <td>{{ r.current }}</td>
-        <td>{{ r.primary }}{% if not r.merges %} <span class="muted">(new artist)</span>{% endif %}</td>
+      <tr class="table-row">
+        <td class="table-cell pick"><input class="checkbox" type="checkbox" name="album" value="{{ r.id }}" checked aria-label="Select {{ r.album }}"></td>
+        <td class="table-cell"><a href="/library/album/{{ r.id }}">{{ r.album }}</a>{% if r.year %} <span class="hint mono">{{ r.year }}</span>{% endif %}</td>
+        <td class="table-cell">{{ r.current }}</td>
+        <td class="table-cell">{{ r.primary }}{% if not r.merges %} <span class="badge" data-variant="outline">New artist</span>{% endif %}</td>
       </tr>
       {% endfor %}
     </tbody>
   </table></div>
   <div class="bar">
-    <label><input type="checkbox" name="write" value="1" checked> write tags to the files</label>
-    <label><input type="checkbox" name="move" value="1" checked> move files to the new artist folder</label>
+    <label class="checkbox-item"><input class="checkbox" type="checkbox" name="write" value="1" checked>Write tags to the files</label>
+    <label class="checkbox-item"><input class="checkbox" type="checkbox" name="move" value="1" checked>Move files to the new artist folder</label>
     <span class="spacer"></span>
-    <button class="nc-btn nc-btn--sm nc-btn--accent">Update Selected Albums</button>
+    <button class="btn" data-size="sm">Update selected albums</button>
   </div>
 </form>
-{% else %}<div class="msg">Every album already has a single album artist.</div>{% endif %}
+{% else %}{% call empty() %}Every album already has a single album artist.{% endcall %}{% endif %}
 </div>
 {% endblock %}

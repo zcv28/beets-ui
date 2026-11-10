@@ -147,9 +147,9 @@ def test_inbox_lists_files_and_detects_library_albums(app, client, env):
     assert app.state.state.folder("fresh")["library"] == []
 
     page = client.get("/inbox")
-    assert "In Library (2)" in page.text  # imported "first" + "again"
+    assert "In library · 2" in page.text  # imported "first" + "again"
     assert "01 Track 1.mp3" in page.text  # file listing dropdown
-    assert "Delete Imported (2)" in page.text
+    assert "Delete imported (2)" in page.text
 
     client.post("/inbox/delete-imported")
     assert not (env["inbox"] / "again").exists()
@@ -178,7 +178,7 @@ def test_unimported_folder_can_be_deleted(app, client, env):
     table = client.get("/inbox/table")
     assert "junk has not been imported. Delete it" in table.text
     page = client.get("/inbox/folder", params={"f": "junk"})
-    assert "Delete Folder" in page.text
+    assert "Delete folder" in page.text
 
     # A busy folder offers no delete button.
     app.state.state.upsert_folder("junk", status="previewing")

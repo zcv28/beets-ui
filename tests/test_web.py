@@ -145,24 +145,28 @@ def test_theme_setting_and_bundled_assets(env, fake_source, monkeypatch):
     from beets_ui.main import create_app
     from beets_ui.settings import SettingsError
 
-    monkeypatch.setenv("BEETSUI_THEME", "phosphor")
+    # The default follows the browser's colour scheme: no data-theme on <html>.
+    app = create_app(Settings.from_env(), background=False)
+    assert "data-theme" not in TestClient(app).get("/login").text
+    monkeypatch.setenv("BEETSUI_THEME", "dark")
     app = create_app(Settings.from_env(), background=False)
     c = TestClient(app)
     login = c.get("/login")
-    assert 'data-theme="phosphor"' in login.text and "Log In" in login.text
+    assert 'data-theme="dark"' in login.text and "Log in" in login.text
     c.post("/login", data={"password": "secret"})
     page = c.get("/inbox").text
-    assert 'data-theme="phosphor"' in page and 'class="nc-window app-window"' in page
+    assert 'data-theme="dark"' in page and 'class="app-sidebar"' in page
     for path in (
-        "/static/nc/tokens.css",
-        "/static/nc/bundle.css",
-        "/static/fonts/fonts.css",
-        "/static/fonts/arimo-latin.woff2",
+        "/static/ds/tokens.css",
+        "/static/ds/bundle.css",
         "/static/app.css",
         "/static/app.js",
     ):
         assert c.get(path).status_code == 200, path
-    assert "fonts.googleapis" not in page
+    assert "fonts.googleapis" not in page and "/static/fonts/" not in page
+    # Themes of the old UI were all dark and still start.
+    monkeypatch.setenv("BEETSUI_THEME", "phosphor")
+    assert Settings.from_env().theme == "dark"
     monkeypatch.setenv("BEETSUI_THEME", "neon")
     with pytest.raises(SettingsError):
         Settings.from_env()

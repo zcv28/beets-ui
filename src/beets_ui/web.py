@@ -5,6 +5,7 @@ from __future__ import annotations
 import datetime as dt
 import hashlib
 import os
+import re
 import shlex
 import time
 from pathlib import Path
@@ -14,6 +15,7 @@ from urllib.parse import quote
 from fastapi import Request
 from fastapi.responses import RedirectResponse
 from fastapi.templating import Jinja2Templates
+from markupsafe import Markup
 
 from . import __version__
 from .history import UNDOABLE
@@ -49,13 +51,32 @@ def fmt_time(ts: float | None) -> str:
 
 
 def match_class(pct: float | None) -> str:
+    """Status token for a match confidence: 90% or more is a confident match."""
     if pct is None:
-        return "bad"
+        return "destructive"
     if pct >= 90:
-        return "good"
+        return "success"
     if pct >= 75:
-        return "ok"
-    return "bad"
+        return "warning"
+    return "destructive"
+
+
+_KANA = re.compile(r"[\u3040-\u30ff\u31f0-\u31ff\uff66-\uff9f]")
+_HAN = re.compile(r"[\u3400-\u4dbf\u4e00-\u9fff]")
+_HANGUL = re.compile(r"[\uac00-\ud7af]")
+
+
+def lang_attr(text: Any) -> Markup:
+    """` lang="ja"` (or ko) for names in their own script, so they are read and drawn right.
+
+    Han without kana is taken as Japanese too: this library is mostly Japanese releases.
+    """
+    s = str(text or "")
+    if _KANA.search(s) or _HAN.search(s):
+        return Markup(' lang="ja"')
+    if _HANGUL.search(s):
+        return Markup(' lang="ko"')
+    return Markup("")
 
 
 def fsdecode(v: Any) -> str:
@@ -71,6 +92,7 @@ templates.env.filters.update(
     # One beets query term, quoted so names with spaces stay one term.
     term=lambda s: shlex.quote(str(s)),
     fsdecode=fsdecode,
+    lang=lang_attr,
     uid=lambda s: hashlib.md5(str(s).encode()).hexdigest()[:12],
 )
 templates.env.globals["version"] = __version__

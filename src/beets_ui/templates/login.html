@@ -1,19 +1,23 @@
 {% extends "base.html" %}
-{% block title %}Log In{% endblock %}
+{% from "partials/macros.html" import alert %}
+{% block title %}Log in{% endblock %}
 {% block bare %}
-<div class="nc-backdrop login">
-<section class="nc-window nc-dialog" aria-labelledby="login-title">
-  <div class="nc-titlebar"><span class="nc-titlebar__text" id="login-title">beets-ui — Log In</span></div>
-  <form class="nc-window__body nc-form" method="post" action="/login">
-    {% if error %}<div class="warn">{{ error }}</div>{% endif %}
+<main class="login">
+<section class="card" aria-labelledby="login-title">
+  <div class="card-header">
+    <span class="brand-mark" aria-hidden="true">b</span>
+    <h1 class="card-title" id="login-title">Log in to beets-ui</h1>
+    <p class="card-description">{% if ldap %}Sign in with your directory account.{% else %}Use the password from <code>BEETSUI_PASSWORD</code>.{% endif %}</p>
+  </div>
+  <form class="card-content form-stack" method="post" action="/login">
+    {% if error %}{% call alert('warn') %}{{ error }}{% endcall %}{% endif %}
     <input type="hidden" name="next" value="{{ next }}">
     {% if ldap %}
-    <label class="nc-label" for="username">Username<input type="text" id="username" name="username" value="{{ username or '' }}" autocomplete="username" required autofocus></label>
+    <div><label class="label" for="username">Username</label><input class="input" type="text" id="username" name="username" value="{{ username or '' }}" autocomplete="username" required autofocus></div>
     {% endif %}
-    <label class="nc-label" for="password">Password<input type="password" id="password" name="password" autocomplete="current-password" required {% if not ldap %}autofocus{% endif %}></label>
-    <p class="nc-hint">{% if ldap %}Sign in with your directory account.{% else %}Use the password from <code>BEETSUI_PASSWORD</code>.{% endif %}</p>
-    <div class="bar right"><button class="nc-btn nc-btn--accent" type="submit">Log In</button></div>
+    <div><label class="label" for="password">Password</label><input class="input" type="password" id="password" name="password" autocomplete="current-password" required {% if not ldap %}autofocus{% endif %}></div>
+    <button class="btn wide" type="submit">Log in</button>
   </form>
 </section>
-</div>
+</main>
 {% endblock %}

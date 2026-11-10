@@ -1,64 +1,78 @@
 {% extends "base.html" %}
-{% from "partials/macros.html" import play %}
+{% from "partials/macros.html" import play, alert, status, match, back, icon %}
 {% block title %}{{ folder.path }}{% endblock %}
+{% block header %}
+<header class="page-header">
+  <div class="queue-nav">
+    {{ back('/inbox', 'Inbox') }}
+    {% if queue.total %}
+    <span class="spacer"></span>
+    <span class="hint">{% if queue.pos %}<span class="mono">{{ queue.pos }}</span> of <span class="mono">{{ queue.total }}</span> to review{% else %}<span class="mono">{{ queue.total }}</span> to review{% endif %}</span>
+    {% if queue.prev and queue.left > 1 %}<a class="btn" data-variant="ghost" data-size="icon-sm" id="queue-prev" href="/inbox/folder?f={{ queue.prev|q }}" aria-label="Previous folder: {{ queue.prev }}" title="Previous folder (Shift+N)">{{ icon('arrow-left') }}</a>{% endif %}
+    {% if queue.next %}<a class="btn" data-variant="outline" data-size="sm" id="queue-next" href="/inbox/folder?f={{ queue.next|q }}" title="{{ queue.next }} (N)">Next folder{{ icon('arrow-right') }}</a>{% endif %}
+    {% endif %}
+  </div>
+  <h1>{{ folder.path }}</h1>
+  <div class="bar tight">
+    {{ status(folder.status, labels.get(folder.status, folder.status), badge=True) }}
+    <span class="hint">{{ {'albums': 'Albums, one per directory', 'grouped': 'Albums grouped by tags', 'tracks': 'Individual tracks'}[folder.mode] }}</span>
+    {% if folder.job_id %}<a class="hint" href="/jobs/{{ folder.job_id }}">Last job #{{ folder.job_id }}</a>{% endif %}
+    {% if not (folder.status == 'imported' or folder.library) %}
+    <span class="spacer"></span>
+    <form class="inline" method="post" action="/inbox/folder/delete" data-confirm="{{ folder.path }} has not been imported. Delete it and all its files from the inbox? This cannot be undone." data-confirm-button="Delete folder">
+      <input type="hidden" name="f" value="{{ folder.path }}">
+      <button class="btn" data-variant="outline" data-tone="destructive" data-size="sm" {% if busy %}disabled{% endif %}>Delete folder</button>
+    </form>
+    {% endif %}
+  </div>
+</header>
+{% endblock %}
 {% block content %}
 {% set audio = folder.files|selectattr('audio')|list %}
-<p><a href="/inbox">← Inbox</a></p>
-<h1>{{ folder.path }}</h1>
-<div class="bar">
-  <span class="nc-badge {{ folder.status }}">{{ labels.get(folder.status, folder.status) }}</span>
-  <span class="nc-hint">Mode: {{ {'albums': 'albums (per directory)', 'grouped': 'albums grouped by tags', 'tracks': 'individual tracks'}[folder.mode] }}</span>
-  {% if folder.job_id %}<a class="nc-hint" href="/jobs/{{ folder.job_id }}">Last job #{{ folder.job_id }}</a>{% endif %}
-  {% if not (folder.status == 'imported' or folder.library) %}
-  <span class="spacer"></span>
-  <form class="inline" method="post" action="/inbox/folder/delete" data-confirm="{{ folder.path }} has not been imported. Delete it and all its files from the inbox?" data-confirm-button="Delete Folder">
-    <input type="hidden" name="f" value="{{ folder.path }}">
-    <button class="nc-btn nc-btn--sm nc-btn--danger" {% if busy %}disabled{% endif %}>Delete Folder</button>
-  </form>
-  {% endif %}
-</div>
 
 {% if busy %}{% include "inbox/_busy.html" %}{% endif %}
-{% if folder.error and folder.status not in ('duplicate',) %}<div class="{{ 'warn' if folder.status == 'failed' else 'wip' }}">{{ folder.error }}</div>{% endif %}
+{% if folder.error and folder.status not in ('duplicate',) %}{% call alert('warn' if folder.status == 'failed' else 'wip') %}{{ folder.error }}{% endcall %}{% endif %}
 
 {% if folder.status == 'imported' or folder.library %}
-<div class="ok-box">
-  <p class="callout-title">{% if folder.status == 'imported' %}Imported into the library{% else %}Already in your library{% endif %}</p>
-  {% if folder.library %}<ul>{% for a in folder.library %}<li><a href="/library/album/{{ a.id }}">{{ a.albumartist }} – {{ a.album }}</a> <small class="muted">({{ a.how }})</small></li>{% endfor %}</ul>{% endif %}
-  <div class="bar">
-    <span class="muted">The source files are still in the inbox.</span>
-    <span class="spacer"></span>
-    <form class="inline" method="post" action="/inbox/folder/delete" data-confirm="Delete {{ folder.path }} from the inbox? Its files are removed." data-confirm-button="Delete">
+{% call alert('ok', 'Imported into the library' if folder.status == 'imported' else 'Already in your library') %}
+  {% if folder.library %}<ul>{% for a in folder.library %}<li><a href="/library/album/{{ a.id }}">{{ a.albumartist }} – {{ a.album }}</a> <span class="hint">({{ a.how }})</span></li>{% endfor %}</ul>{% endif %}
+  <p class="hint">The source files are still in the inbox.</p>
+  <div class="bar tight">
+    {% if queue.next %}<a class="btn" data-size="sm" href="/inbox/folder?f={{ queue.next|q }}">Next folder{{ icon('arrow-right') }}</a>{% else %}<a class="btn" data-size="sm" href="/inbox">Back to the inbox</a>{% endif %}
+    <form class="inline" method="post" action="/inbox/folder/delete" data-confirm="Delete {{ folder.path }} from the inbox? The imported copy in the library stays." data-confirm-button="Delete source folder">
       <input type="hidden" name="f" value="{{ folder.path }}">
-      <button class="nc-btn nc-btn--sm nc-btn--danger" {% if busy %}disabled{% endif %}>Delete Source Folder</button>
+      <button class="btn" data-variant="outline" data-tone="destructive" data-size="sm" {% if busy %}disabled{% endif %}>Delete source folder</button>
     </form>
   </div>
-</div>
+{% endcall %}
 {% endif %}
 
+{% if folder.status == 'new' and not busy %}
+{% call alert('info', 'Not looked up yet') %}Search below by artist and album, or paste a release ID. Leave the fields empty to look it up from its tags.{% endcall %}
+{% endif %}
 <details class="box" {% if not folder.tasks %}open{% endif %}>
-  <summary>Search Again</summary>
+  <summary>{{ 'Look up' if not folder.tasks else 'Search again' }}</summary>
   <form method="post" action="/inbox/folder/preview" class="box-body">
     <input type="hidden" name="f" value="{{ folder.path }}">
     <div class="fields">
-      <label class="nc-label">Artist<input type="text" name="artist" placeholder="search artist"></label>
-      <label class="nc-label">Album / Title<input type="text" name="album" placeholder="search album"></label>
-      <label class="nc-label">IDs or URLs<input type="text" name="ids" placeholder="MusicBrainz, Discogs, VocaDB…"></label>
-      <label class="nc-label">Import As
-        <select name="mode">
-          <option value="albums" {% if folder.mode == 'albums' %}selected{% endif %}>Albums (per directory)</option>
+      <label class="field">Artist<input class="input" type="text" name="artist" placeholder="Search artist"></label>
+      <label class="field">Album or title<input class="input" type="text" name="album" placeholder="Search album"></label>
+      <label class="field">IDs or URLs<input class="input" data-mono type="text" name="ids" placeholder="MusicBrainz, Discogs, VocaDB…"></label>
+      <label class="field">Import as
+        <select class="input" name="mode">
+          <option value="albums" {% if folder.mode == 'albums' %}selected{% endif %}>Albums, one per directory</option>
           <option value="grouped" {% if folder.mode == 'grouped' %}selected{% endif %}>Albums grouped by tags</option>
           <option value="tracks" {% if folder.mode == 'tracks' %}selected{% endif %}>Individual tracks (singletons)</option>
         </select>
       </label>
     </div>
     <div class="bar">
-      <label class="nc-choice"><input type="checkbox" name="merge" value="1" checked>Keep current candidates</label>
+      {% if folder.tasks|selectattr('candidates')|list %}<label class="checkbox-item"><input class="checkbox" type="checkbox" name="merge" value="1" checked>Keep current candidates</label>{% endif %}
       <span class="spacer"></span>
       {% if slskd_enabled and folder.tasks %}
-      <a class="nc-btn nc-btn--sm" href="/soulseek?q={{ (folder.tasks[0].cur_artist ~ ' ' ~ folder.tasks[0].cur_album)|q }}">Search Soulseek</a>
+      <a class="btn" data-variant="outline" data-size="sm" href="/soulseek?q={{ (folder.tasks[0].cur_artist ~ ' ' ~ folder.tasks[0].cur_album)|q }}">Search Soulseek</a>
       {% endif %}
-      <button class="nc-btn nc-btn--sm" {% if busy %}disabled{% endif %}>Look Up</button>
+      <button class="btn" data-size="sm" {% if busy %}disabled{% endif %}>Look up</button>
     </div>
   </form>
 </details>
@@ -72,113 +86,119 @@
 {% set dup = folder.duplicates.get(task.key) %}
 <section class="task" data-task="{{ ti }}">
 <h2>{% if task.is_album %}{{ task.cur_artist or '?' }} – {{ task.cur_album or '?' }}{% else %}{{ task['items'][0].artist }} – {{ task['items'][0].title }}{% endif %}</h2>
-<p class="nc-hint">{{ task['items']|length }} file{{ 's' if task['items']|length != 1 }}{% if task['items'] %} · {{ task['items']|map(attribute='format')|unique|join(', ') }}{% endif %} · <span class="nc-url">{{ task.paths[0]|replace(inbox_root ~ '/', '') }}</span></p>
+<p class="hint">{{ task['items']|length }} file{{ 's' if task['items']|length != 1 }}{% if task['items'] %} · {{ task['items']|map(attribute='format')|unique|join(', ') }}{% endif %} · <span class="mono">{{ task.paths[0]|replace(inbox_root ~ '/', '') }}</span></p>
 
 {% if dup %}
-<div class="warn">
-  <p class="callout-title">Already in your library</p>
-  <ul>{% for e in dup.existing %}<li>{% if e.type == 'album' %}<a href="/library/album/{{ e.id }}">{{ e.albumartist }} – {{ e.album }}</a>{% else %}{{ e.albumartist }} – {{ e.album }}{% endif %} ({{ e.year or '?' }}, {{ e.tracks }} tracks, {{ e.format }} {{ e.bitrate }}kbps) <small class="nc-url">{{ e.path }}</small></li>{% endfor %}</ul>
-  <fieldset class="nc-group">
-    <legend>Resolve</legend>
-    {% for a in dup_actions %}<label class="nc-choice"><input type="radio" name="dup-{{ ti }}" value="{{ a }}" {% if loop.first %}required{% endif %}>{{ {'skip': 'Skip the new one', 'keep': 'Keep both', 'remove': 'Replace the old one', 'merge': 'Merge', 'upgrade': 'Upgrade better tracks'}[a] }}</label>{% endfor %}
+{% call alert('wip', 'Already in your library') %}
+  <ul>{% for e in dup.existing %}<li>{% if e.type == 'album' %}<a href="/library/album/{{ e.id }}">{{ e.albumartist }} – {{ e.album }}</a>{% else %}{{ e.albumartist }} – {{ e.album }}{% endif %} ({{ e.year or '?' }}, {{ e.tracks }} tracks, {{ e.format }} {{ e.bitrate }}kbps) <span class="hint mono">{{ e.path }}</span></li>{% endfor %}</ul>
+  <fieldset class="choice-group">
+    <legend class="label">Resolve</legend>
+    {% for a in dup_actions %}<label class="checkbox-item"><input class="radio" type="radio" name="dup-{{ ti }}" value="{{ a }}" {% if loop.first %}required{% endif %}>{{ {'skip': 'Skip the new one', 'keep': 'Keep both', 'remove': 'Replace the old one', 'merge': 'Merge', 'upgrade': 'Upgrade better tracks'}[a] }}</label>{% endfor %}
   </fieldset>
-</div>
+{% endcall %}
 {% endif %}
 
 {% if task.candidates %}
-<div class="nc-tablewrap">
-  <table class="nc-table cands">
-    <thead><tr><th class="pick"><span class="sr-only">Choose</span></th><th class="num">Match</th><th>Release</th><th class="hide-sm">Details</th><th>Source</th></tr></thead>
+<div class="table-container">
+  <table class="table cands">
+    <thead><tr><th class="table-head pick"><span class="sr-only">Choose</span></th><th class="table-head">Match</th><th class="table-head">Release</th><th class="table-head hide-sm">Details</th><th class="table-head">Source</th></tr></thead>
     <tbody>
     {% for c in task.candidates %}
     {% set ci = loop.index0 %}
     {% set chosen = dec.get('action') == 'apply' and dec.get('id') == c.id and dec.get('source') == c.source %}
-    <tr class="cand" data-diff="diff-{{ ti }}-{{ ci }}" {% if chosen %}aria-selected="true"{% endif %}>
-      <td class="pick"><input type="radio" name="choice-{{ ti }}" value="c:{{ ci }}" id="c-{{ ti }}-{{ ci }}" {% if chosen %}checked{% endif %}></td>
-      <td class="num"><span class="pct {{ c.match|match_class }}">{{ '%.1f'|format(c.match) }}%</span></td>
-      <td><label for="c-{{ ti }}-{{ ci }}"><strong>{{ c.artist }} – {{ c.album if c.kind == 'album' else c.title }}</strong></label>
-        <div class="show-sm nc-hint">{% if c.kind == 'album' %}{{ c.year or '' }}{% if c.media %} · {{ c.media }}{% endif %} · {{ c.track_count }} tracks{% else %}{{ c.length|duration }}{% endif %}</div></td>
-      <td class="hide-sm">
+    <tr class="table-row cand" data-diff="diff-{{ ti }}-{{ ci }}" {% if chosen %}aria-selected="true"{% endif %}>
+      <td class="table-cell pick"><input class="radio" type="radio" name="choice-{{ ti }}" value="c:{{ ci }}" id="c-{{ ti }}-{{ ci }}" {% if chosen %}checked{% endif %}></td>
+      <td class="table-cell">{{ match(c.match) }}</td>
+      <td class="table-cell"><label class="strong" for="c-{{ ti }}-{{ ci }}">{{ c.artist }} – {{ c.album if c.kind == 'album' else c.title }}</label>
+        <div class="show-sm hint">{% if c.kind == 'album' %}{{ c.year or '' }}{% if c.media %} · {{ c.media }}{% endif %} · {{ c.track_count }} tracks{% else %}{{ c.length|duration }}{% endif %}</div></td>
+      <td class="table-cell hide-sm">
         {% if c.kind == 'album' %}{{ c.year or '' }}{% if c.label %} · {{ c.label }}{% endif %}{% if c.catalognum %} · {{ c.catalognum }}{% endif %}{% if c.country %} · {{ c.country }}{% endif %}{% if c.media %} · {{ c.mediums ~ '×' if c.mediums and c.mediums > 1 }}{{ c.media }}{% endif %} · {{ c.track_count }} tracks
         {% else %}{{ c.album or '' }} · {{ c.length|duration }}{% endif %}
-        {% if c.penalties %}<br><span class="nc-hint">differs: {{ c.penalties|join(', ') }}</span>{% endif %}
-        {% if c.disambig %}<br><span class="nc-hint">{{ c.disambig }}</span>{% endif %}
+        {% if c.penalties %}<p class="hint">Differs: {{ c.penalties|join(', ') }}</p>{% endif %}
+        {% if c.disambig %}<p class="hint">{{ c.disambig }}</p>{% endif %}
       </td>
-      <td class="nowrap">{{ c.source }}{% if c.url %} <a href="{{ c.url }}" target="_blank" rel="noopener noreferrer" aria-label="Open on {{ c.source }}">↗</a>{% endif %}</td>
+      <td class="table-cell nowrap">{{ c.source }}{% if c.url %} <a class="icon-link" href="{{ c.url }}" target="_blank" rel="noopener noreferrer" aria-label="Open on {{ c.source }}">{{ icon('external') }}</a>{% endif %}</td>
     </tr>
     {% endfor %}
     </tbody>
   </table>
 </div>
 {% else %}
-<div class="wip">No candidates. Search by artist/album or paste an ID above, or import as-is.</div>
+{% call alert('wip') %}No candidates. Search by artist and album or paste an ID above, or import as-is.{% endcall %}
 {% endif %}
 <div class="bar">
-  <label class="nc-choice"><input type="radio" name="choice-{{ ti }}" value="asis" {% if dec.get('action') == 'asis' %}checked{% endif %}>Import as-is (keep current tags)</label>
-  <label class="nc-choice"><input type="radio" name="choice-{{ ti }}" value="skip" {% if dec.get('action', 'skip') == 'skip' %}checked{% endif %}>Skip</label>
+  <label class="checkbox-item"><input class="radio" type="radio" name="choice-{{ ti }}" value="asis" {% if dec.get('action') == 'asis' %}checked{% endif %}>Import as-is (keep current tags)</label>
+  <label class="checkbox-item"><input class="radio" type="radio" name="choice-{{ ti }}" value="skip" {% if dec.get('action', 'skip') == 'skip' %}checked{% endif %}>Skip</label>
 </div>
 
 {% for c in task.candidates if c.kind == 'album' %}
 {% set ci = loop.index0 %}
 {% set chosen = dec.get('action') == 'apply' and dec.get('id') == c.id and dec.get('source') == c.source %}
+{% set changed = c.tracks|selectattr('title_changed')|list|length %}
 <div class="diff" id="diff-{{ ti }}-{{ task.candidates.index(c) }}" {% if not chosen %}hidden{% endif %}>
-  <h3>Track Changes <span class="nc-hint">{{ c.artist }} – {{ c.album }}, {{ c.source }}</span></h3>
-  <div class="nc-tablewrap">
-    <table class="nc-table">
-      <thead><tr><th class="num">#</th><th>Current Tags</th><th class="arrow"><span class="sr-only">becomes</span></th><th>New Title</th><th class="num">Length</th><th class="pick"><span class="sr-only">Play</span></th></tr></thead>
+  <h3>Track changes <span class="hint">{{ c.artist }} – {{ c.album }}, {{ c.source }}</span></h3>
+  <p class="bar tight"><span class="status"{% if changed %} data-status="warning"{% endif %}>{{ changed }} changed</span><span class="status">{{ c.tracks|length - changed }} unchanged</span></p>
+  <div class="table-container" data-density="compact">
+    <table class="table">
+      <thead><tr><th class="table-head num">#</th><th class="table-head">Current tags</th><th class="table-head">New title</th><th class="table-head hide-sm">Change</th><th class="table-head num">Length</th><th class="table-head pick"><span class="sr-only">Play</span></th></tr></thead>
       <tbody>
       {% for t in c.tracks %}
-      <tr>
-        <td class="num mono">{% if t.medium and c.mediums and c.mediums > 1 %}{{ t.medium }}-{% endif %}{{ t.new_track }}</td>
-        <td>{{ t.cur_title }}</td>
-        <td class="arrow">→</td>
-        <td {% if t.title_changed %}class="changed"{% endif %}>{{ t.new_title }}{% if t.new_artist and t.new_artist != c.artist %} <small class="muted">({{ t.new_artist }})</small>{% endif %}</td>
-        <td class="num mono {% if t.length_off %}warnc{% endif %}">{{ t.cur_length|duration }}{% if t.length_off %} → {{ t.new_length|duration }}{% endif %}</td>
-        <td class="pick">{{ play('/inbox/file?p=' ~ t.path|q, t.cur_title or t.new_title) }}</td>
+      <tr class="table-row"{% if t.title_changed %} data-change="changed"{% endif %}>
+        <td class="table-cell num">{% if t.medium and c.mediums and c.mediums > 1 %}{{ t.medium }}-{% endif %}{{ t.new_track }}</td>
+        <td class="table-cell mono hint">{{ t.cur_title }}</td>
+        <td class="table-cell">{{ t.new_title }}{% if t.new_artist and t.new_artist != c.artist %} <span class="hint">({{ t.new_artist }})</span>{% endif %}</td>
+        <td class="table-cell hide-sm">{% if t.title_changed %}<span class="badge" data-status="warning">Changed</span>{% else %}<span class="badge" data-variant="outline">Same</span>{% endif %}</td>
+        <td class="table-cell num">{% if t.length_off %}<span class="status" data-status="warning">{{ t.cur_length|duration }} → {{ t.new_length|duration }}</span>{% else %}{{ t.cur_length|duration }}{% endif %}</td>
+        <td class="table-cell pick">{{ play('/inbox/file?p=' ~ t.path|q, t.cur_title or t.new_title) }}</td>
       </tr>
       {% endfor %}
       </tbody>
     </table>
   </div>
-  {% if c.extra_tracks %}<div class="wip">Missing tracks ({{ c.extra_tracks|length }}): {{ c.extra_tracks|join(', ') }}</div>{% endif %}
-  {% if c.extra_items %}<div class="wip">Unmatched files ({{ c.extra_items|length }}): {{ c.extra_items|join(', ') }}</div>{% endif %}
+  {% if c.extra_tracks %}{% call alert('wip', 'Missing tracks (' ~ c.extra_tracks|length ~ ')') %}{{ c.extra_tracks|join(', ') }}{% endcall %}{% endif %}
+  {% if c.extra_items %}{% call alert('wip', 'Unmatched files (' ~ c.extra_items|length ~ ')') %}{{ c.extra_items|join(', ') }}{% endcall %}{% endif %}
 </div>
 {% endfor %}
 
 <details class="box current">
-  <summary>Current Files</summary>
-  <div class="nc-tablewrap box-body"><table class="nc-table">
-    <thead><tr><th class="pick"><span class="sr-only">Play</span></th><th class="num">#</th><th>Title</th><th>Artist</th><th class="hide-sm">Album</th><th class="hide-sm">File</th><th class="num">Length</th><th class="num hide-sm">kbps</th></tr></thead>
-    <tbody>{% for it in task['items'] %}<tr><td class="pick">{{ play('/inbox/file?p=' ~ it.path|q, it.filename) }}</td><td class="num mono">{{ it.track or '' }}</td><td>{{ it.title }}</td><td>{{ it.artist }}</td><td class="hide-sm">{{ it.album }}</td><td class="hide-sm"><small class="nc-url">{{ it.filename }}</small></td><td class="num mono">{{ it.length|duration }}</td><td class="num mono hide-sm">{{ it.bitrate }}</td></tr>{% endfor %}</tbody>
+  <summary>Current files</summary>
+  <div class="table-container box-body" data-density="compact"><table class="table">
+    <thead><tr><th class="table-head pick"><span class="sr-only">Play</span></th><th class="table-head num">#</th><th class="table-head">Title</th><th class="table-head">Artist</th><th class="table-head hide-sm">Album</th><th class="table-head hide-sm">File</th><th class="table-head num">Length</th><th class="table-head num hide-sm">kbps</th></tr></thead>
+    <tbody>{% for it in task['items'] %}<tr class="table-row"><td class="table-cell pick">{{ play('/inbox/file?p=' ~ it.path|q, it.filename) }}</td><td class="table-cell num">{{ it.track or '' }}</td><td class="table-cell">{{ it.title }}</td><td class="table-cell">{{ it.artist }}</td><td class="table-cell hide-sm">{{ it.album }}</td><td class="table-cell hide-sm mono hint">{{ it.filename }}</td><td class="table-cell num">{{ it.length|duration }}</td><td class="table-cell num hide-sm">{{ it.bitrate }}</td></tr>{% endfor %}</tbody>
   </table></div>
 </details>
 </section>
 {% endfor %}
-<p class="nc-hint">Copy/move, tag writing and path format come from your beets config.{% if romanize %} VocaDB, UtaiteDB, TouhouDB and MusicBrainz matches are imported with romanized names where the source has them; the original names are kept alongside.{% endif %}</p>
-<div class="nc-panel sticky-bar">
-  <span id="decided" class="nc-lcd" data-tasks="{{ folder.tasks|length }}"></span>
-  <span class="nc-hint hide-sm keys"><span><kbd>j</kbd>/<kbd>k</kbd> move</span> <span><kbd>x</kbd> choose</span> <span><kbd>o</kbd> files</span> <span><kbd>p</kbd> play</span> <span><kbd>i</kbd> import</span></span>
+<p class="hint">Copy or move, tag writing and the path format come from your beets config.{% if romanize %} VocaDB, UtaiteDB, TouhouDB and MusicBrainz matches are imported with romanized names where the source has them; the original names are kept alongside.{% endif %}</p>
+<div class="sticky-bar">
+  <span id="decided" class="strong" data-tasks="{{ folder.tasks|length }}"></span>
+  <span class="hint hide-sm keys"><span><kbd>j</kbd> <kbd>k</kbd> move</span> <span><kbd>x</kbd> choose</span> <span><kbd>o</kbd> files</span> <span><kbd>p</kbd> play</span> <span><kbd>i</kbd> import</span>{% if queue.next %} <span><kbd>n</kbd> next folder</span>{% endif %}</span>
   <span class="spacer"></span>
-  <button class="nc-btn nc-btn--accent" {% if busy %}disabled{% endif %}>Import</button>
+  {% if queue.next %}
+  <button class="btn" data-variant="outline" name="next" value="" {% if busy %}disabled{% endif %}>Import</button>
+  <button class="btn" name="next" value="1" id="import-next" {% if busy %}disabled{% endif %}>Import and next</button>
+  {% else %}
+  <button class="btn" {% if busy %}disabled{% endif %}>Import</button>
+  {% endif %}
 </div>
 </form>
 {% endif %}
 
 {% if folder.files %}
 <details class="box">
-  <summary>Folder Files <span class="nc-hint">{{ audio|length }} audio · {{ folder.files|length }} total · {{ folder.files|sum(attribute='size')|size }}</span></summary>
-  <div class="nc-tablewrap box-body"><table class="nc-table">
-    <tbody>{% for file in folder.files %}<tr><td class="pick">{% if file.audio %}{{ play('/inbox/file?p=' ~ (folder.path ~ '/' ~ file.path)|q, file.path) }}{% endif %}</td><td class="nc-url {% if not file.audio %}muted{% endif %}">{{ file.path }}</td><td class="num mono nowrap muted">{{ file.size|size }}</td></tr>{% endfor %}</tbody>
+  <summary>Folder files <span class="hint">{{ audio|length }} audio · {{ folder.files|length }} total · {{ folder.files|sum(attribute='size')|size }}</span></summary>
+  <div class="table-container box-body" data-density="compact"><table class="table">
+    <tbody>{% for file in folder.files %}<tr class="table-row"><td class="table-cell pick">{% if file.audio %}{{ play('/inbox/file?p=' ~ (folder.path ~ '/' ~ file.path)|q, file.path) }}{% endif %}</td><td class="table-cell mono{% if not file.audio %} hint{% endif %}">{{ file.path }}</td><td class="table-cell num hint">{{ file.size|size }}</td></tr>{% endfor %}</tbody>
   </table></div>
 </details>
 {% endif %}
 
-<section class="nc-window player" id="player-bar" aria-label="Preview" hidden>
-  <div class="nc-titlebar"><span class="nc-titlebar__text">Preview</span><span class="nc-tbtns"><button class="nc-tbtn" type="button" id="player-close" aria-label="Close preview">x</button></span></div>
-  <div class="nc-window__body">
-    <div class="player-name nc-lcd" id="player-name"></div>
-    <audio id="player" controls preload="none"></audio>
+<section class="card player" id="player-bar" aria-label="Preview" hidden>
+  <div class="player-head">
+    <span class="label">Preview</span>
+    <button class="btn" data-variant="ghost" data-size="icon-xs" type="button" id="player-close" aria-label="Close preview">{{ icon('x') }}</button>
   </div>
+  <div class="player-name mono" id="player-name"></div>
+  <audio id="player" controls preload="none"></audio>
 </section>
 {% endblock %}
-{% block status %}{{ folder.files|selectattr('audio')|list|length }} audio · {{ folder.files|length }} files · {{ labels.get(folder.status, folder.status) }}{% endblock %}

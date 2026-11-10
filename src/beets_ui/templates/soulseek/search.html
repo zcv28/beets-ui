@@ -1,19 +1,19 @@
 {% extends "base.html" %}
+{% from "partials/macros.html" import icon %}
 {% block title %}{{ search.searchText }}{% endblock %}
 {% block content %}
 {% set tab = 'search' %}{% include "soulseek/_tabs.html" %}
-<div class="nc-tabpanel">
+<div class="tab-content">
 <form method="post" action="/soulseek/search" class="bar">
-  <input type="search" name="q" value="{{ search.searchText }}" required minlength="3">
-  <button class="nc-btn nc-btn--sm">Search Again</button>
+  <div class="input-group grow">{{ icon('search') }}<input class="input" type="search" name="q" value="{{ search.searchText }}" required minlength="3" aria-label="Search Soulseek"></div>
+  <button class="btn" data-variant="outline">Search again</button>
 </form>
 <form method="get" class="bar">
-  <span class="muted">Filter:</span>
-  <select name="fmt" onchange="this.form.submit()">
-    <option value="">any format</option>
-    {% for f in ['lossless', 'flac', 'mp3', 'm4a', 'opus', 'ogg'] %}<option value="{{ f }}" {% if fmt == f %}selected{% endif %}>{{ f }}</option>{% endfor %}
+  <select class="input auto" data-size="sm" name="fmt" onchange="this.form.submit()" aria-label="Format">
+    <option value="">Any format</option>
+    {% for f in ['lossless', 'flac', 'mp3', 'm4a', 'opus', 'ogg'] %}<option value="{{ f }}" {% if fmt == f %}selected{% endif %}>{{ f|upper if f != 'lossless' else 'Lossless' }}</option>{% endfor %}
   </select>
-  <label><input type="checkbox" name="free" value="1" {% if free %}checked{% endif %} onchange="this.form.submit()"> free upload slot only</label>
+  <label class="checkbox-item"><input class="checkbox" type="checkbox" name="free" value="1" {% if free %}checked{% endif %} onchange="this.form.submit()">Free upload slot only</label>
 </form>
 {% include "soulseek/_results.html" %}
 </div>

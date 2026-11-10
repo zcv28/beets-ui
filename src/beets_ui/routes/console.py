@@ -38,6 +38,7 @@ def console_page(request: Request, cmd: str = ""):
         suggestions=SUGGESTIONS,
         recent=request.app.state.state.jobs(limit=20, kind="console"),
         plugins=beets_ctx.plugin_names(),
+        console_busy=request.app.state.console.running,
     )
 
 

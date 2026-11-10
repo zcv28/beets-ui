@@ -1,34 +1,34 @@
 {% extends "base.html" %}
+{% from "partials/macros.html" import alert %}
 {% block title %}Romanized names{% endblock %}
 {% block content %}
 {% set tab = 'artists' %}{% include "library/_tabs.html" %}
-<div class="nc-tabpanel">
-<h2>Romanized names</h2>
+<div class="tab-content prose">
 <p>Album, artist and track names become romanized (what Jellyfin shows), and the original names are kept in <code>album_original</code>, <code>albumartist_original</code>, <code>title_original</code> and <code>artist_original</code>. They are written to the files as custom tags, shown under the romanized names here, and searching the library finds either.</p>
 <ul>
   <li><strong>VocaDB, UtaiteDB, TouhouDB:</strong> their Romaji names. Names without a romanization on the site stay as they are.</li>
   <li><strong>MusicBrainz:</strong> the release's Latin-script pseudo-release ("transliterated tracklisting"), when there is one.</li>
   <li><strong>Artists</strong> still in their own script, on albums from any source (also as-is imports): the artist's Latin name on MusicBrainz, its English alias or its sort name ("ヨルシカ" → "Yorushika"). The artist is found by its MusicBrainz ID, or by an exact name search that matches exactly one artist.</li>
-  <li>Names nobody has romanized stay as they are. To fix one artist by hand, tick it on the <a href="/library/artists">Artists</a> page and type the new name.</li>
+  <li>Names nobody has romanized stay as they are. To fix one artist by hand, select it on the <a href="/library/artists">Artists</a> page and type the new name.</li>
 </ul>
-<p class="{{ 'ok-box' if enabled else 'wip' }}">{% if enabled %}New imports are romanized (<code>BEETSUI_ROMANIZE=true</code>).{% else %}New imports keep the source's names. Set <code>BEETSUI_ROMANIZE=true</code> to romanize them on import too.{% endif %}</p>
+{% if enabled %}{% call alert('ok') %}New imports are romanized (<code>BEETSUI_ROMANIZE=true</code>).{% endcall %}{% else %}{% call alert('info') %}New imports keep the source's names. Set <code>BEETSUI_ROMANIZE=true</code> to romanize them on import too.{% endcall %}{% endif %}
 
-<h3>Your library</h3>
+<h2>Your library</h2>
 <dl class="kv">
-  {% for s in status.sources %}<dt>{{ s.name }}</dt><dd>{{ s.albums }} album{{ 's' if s.albums != 1 }}{% if not s.supported %} <span class="muted">(not supported)</span>{% endif %}</dd>{% endfor %}
+  {% for s in status.sources %}<dt>{{ 'Unknown source' if s.name == 'unknown' else s.name }}</dt><dd>{{ s.albums }} album{{ 's' if s.albums != 1 }}{% if not s.supported %} <span class="hint">(not supported)</span>{% endif %}</dd>{% endfor %}
   <dt>Already romanized</dt><dd>{{ status.romanized }} of {{ status.supported }} supported album{{ 's' if status.supported != 1 }}</dd>
 </dl>
 
 <form method="post" action="/library/romanize">
   <div class="bar">
-    <label><input type="checkbox" name="only_new" value="1" checked> only albums that still have non-Latin names</label>
-    <label><input type="checkbox" name="write" value="1" checked> write tags</label>
-    <label title="Folder names follow your path format, so they change to the romanized names. Jellyfin sees moved files as new (play counts and favourites do not follow).">
-      <input type="checkbox" name="move" value="1" checked> rename folders and files</label>
+    <label class="checkbox-item"><input class="checkbox" type="checkbox" name="only_new" value="1" checked>Only albums that still have non-Latin names</label>
+    <label class="checkbox-item"><input class="checkbox" type="checkbox" name="write" value="1" checked>Write tags</label>
+    <label class="checkbox-item" title="Folder names follow your path format, so they change to the romanized names. Jellyfin sees moved files as new (play counts and favourites do not follow)."><input class="checkbox" type="checkbox" name="move" value="1" checked>Rename folders and files</label>
     <span class="spacer"></span>
-    <button class="nc-btn nc-btn--sm nc-btn--accent" {% if not status.supported %}disabled{% endif %}>Romanize Library</button>
+    <button class="btn" data-size="sm" {% if not status.supported %}disabled aria-describedby="romanize-why"{% endif %}>Romanize library</button>
   </div>
+  {% if not status.supported %}<p class="hint" id="romanize-why">Nothing to romanize: no album in the library comes from VocaDB, UtaiteDB, TouhouDB or MusicBrainz.</p>{% endif %}
 </form>
-<p class="muted"><small>One or two lookups per album, so a large library takes a while; the job log shows progress and the result can be undone from the job page. After <code>vdbsync</code>, <code>tdbsync</code> or <code>mbsync</code> in the console, run this again: those commands write the source's names back. (The album page's mbsync button does that by itself.)</small></p>
+<p class="hint">One or two lookups per album, so a large library takes a while; the job log shows progress and the result can be undone from the job page. After <code>vdbsync</code>, <code>tdbsync</code> or <code>mbsync</code> in the console, run this again: those commands write the source's names back. (The album page's mbsync button does that by itself.)</p>
 </div>
 {% endblock %}

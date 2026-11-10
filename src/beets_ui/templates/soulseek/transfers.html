@@ -2,8 +2,8 @@
 {% block title %}Downloads{% endblock %}
 {% block content %}
 {% set tab = 'transfers' %}{% include "soulseek/_tabs.html" %}
-<div class="nc-tabpanel">
-<div class="bar right"><form class="inline" method="post" action="/soulseek/transfers/clear"><button class="nc-btn nc-btn--sm">Clear Finished</button></form></div>
+<div class="tab-content">
+<div class="bar right"><form class="inline" method="post" action="/soulseek/transfers/clear"><button class="btn" data-variant="outline" data-size="sm">Clear finished</button></form></div>
 <div hx-get="/soulseek/transfers/table" hx-trigger="every 3s" hx-swap="innerHTML">{% include "soulseek/_transfers.html" %}</div>
 </div>
 {% endblock %}

@@ -1,4 +1,4 @@
-<nav class="nc-tabs" aria-label="Artwork views">
-  <a class="nc-tab" href="/artwork" {% if tab == 'covers' %}aria-current="page"{% endif %}>Album Covers</a>
-  <a class="nc-tab" href="/artwork/artists" {% if tab == 'artists' %}aria-current="page"{% endif %}>Artist Pictures</a>
+<nav class="tab-list" data-variant="line" aria-label="Artwork views">
+  <a class="tab-trigger" href="/artwork" {% if tab == 'covers' %}aria-current="page"{% endif %}>Album covers</a>
+  <a class="tab-trigger" href="/artwork/artists" {% if tab == 'artists' %}aria-current="page"{% endif %}>Artist pictures</a>
 </nav>

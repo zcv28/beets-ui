@@ -38,8 +38,15 @@ def _list(name: str, default: str) -> list[str]:
     return [p.strip() for p in raw.split(",") if p.strip()]
 
 
-THEMES = ("graphite", "slate", "mahogany", "phosphor")
+THEMES = ("auto", "light", "dark")
+# Themes of the earlier niki.moe classic UI; all of them were dark.
+OLD_THEMES = ("graphite", "slate", "mahogany", "phosphor")
 LYRICS_ROMAJI = ("below", "inline", "only", "off")
+
+
+def _theme(value: str) -> str:
+    return "dark" if value in OLD_THEMES else value
+
 
 DEFAULT_COVER_SOURCES = (
     "coverartarchive,fanarttv,theaudiodb,deezer,itunes,discogs,vocadb,touhoudb,utaitedb"
@@ -81,7 +88,7 @@ class Settings:
     discogs_token: str = ""
     auto_import: int = 0
     romanize: bool = False
-    theme: str = "graphite"
+    theme: str = "auto"
     jellyfin_url: str = ""
     jellyfin_api_key: str = ""
     jellyfin_user: str = ""
@@ -132,7 +139,7 @@ class Settings:
             discogs_token=_str("DISCOGS_TOKEN"),
             auto_import=min(100, max(0, _int("BEETSUI_AUTO_IMPORT", 0))),
             romanize=_bool("BEETSUI_ROMANIZE", False),
-            theme=_str("BEETSUI_THEME", "graphite").lower() or "graphite",
+            theme=_theme(_str("BEETSUI_THEME", "auto").lower() or "auto"),
             jellyfin_url=_str("JELLYFIN_URL").rstrip("/"),
             jellyfin_api_key=_str("JELLYFIN_API_KEY"),
             jellyfin_user=_str("JELLYFIN_USER"),

@@ -1,52 +1,50 @@
 {% extends "base.html" %}
+{% from "partials/macros.html" import alert %}
 {% block title %}Listening{% endblock %}
+{% block status %}{% if synced %}Synced {{ synced.at|ts }}{% endif %}{% endblock %}
 {% macro album_row(a, extra) -%}
-<tr><td><a href="/library/album/{{ a.id }}">{{ a.album or '(untitled)' }}</a><br><small class="muted">{{ a.albumartist }}{% if a.year %} · {{ a.year }}{% endif %}</small></td><td class="num nowrap">{{ extra }}</td></tr>
+<tr class="table-row"><td class="table-cell"><div class="table-cell-title"><a href="/library/album/{{ a.id }}">{{ a.album or '(untitled)' }}</a><span class="hint">{{ a.albumartist }}{% if a.year %} · {{ a.year }}{% endif %}</span></div></td><td class="table-cell num">{{ extra }}</td></tr>
 {%- endmacro %}
 {% block content %}
 {% set tab = 'listening' %}{% include "insights/_tabs.html" %}
-<div class="nc-tabpanel">
+<div class="tab-content">
 {% if not enabled %}
-<div class="msg">
-  <p class="callout-title">Jellyfin isn't connected</p>
-  <p>Listening stats come from Jellyfin's play counts. Set <code>JELLYFIN_URL</code> (for example <code>http://jellyfin:8096</code>) and <code>JELLYFIN_API_KEY</code> (Jellyfin: Dashboard → API Keys). With several Jellyfin users, also set <code>JELLYFIN_USER</code>.</p>
-</div>
+{% call alert('info', "Jellyfin isn't connected") %}Listening stats come from Jellyfin's play counts. Set <code>JELLYFIN_URL</code> (for example <code>http://jellyfin:8096</code>) and <code>JELLYFIN_API_KEY</code> (Jellyfin: Dashboard → API Keys). With several Jellyfin users, also set <code>JELLYFIN_USER</code>.{% endcall %}
 {% elif not synced %}
-<div class="wip">Reading play counts from Jellyfin for the first time. Reload the page when the job is done.{% if last_job %} <a href="/jobs/{{ last_job.id }}">Job #{{ last_job.id }}</a>{% if last_job.status == 'failed' %}: {{ last_job.error }}{% endif %}{% endif %}</div>
+{% call alert('wip') %}Reading play counts from Jellyfin for the first time. Reload the page when the job is done.{% if last_job %} <a href="/jobs/{{ last_job.id }}">Job #{{ last_job.id }}</a>{% if last_job.status == 'failed' %}: {{ last_job.error }}{% endif %}{% endif %}{% endcall %}
 {% else %}
-{% if last_job and last_job.status == 'failed' %}<div class="warn">The last sync failed: {{ last_job.error }} <a href="/jobs/{{ last_job.id }}">Job #{{ last_job.id }}</a></div>{% endif %}
-<div class="bar">
-  <span class="nc-lcd">{{ data.albums_played }}/{{ data.albums }} albums played</span>
-  <span class="nc-hint">{{ data.plays }} plays · {{ '%.0f'|format(data.hours) }} hours · {{ data.tracks_played }} of {{ data.tracks }} tracks played{% if data.favorites %} · {{ data.favorites }} favourite tracks{% endif %}</span>
+{% if last_job and last_job.status == 'failed' %}{% call alert('warn') %}The last sync failed: {{ last_job.error }} <a href="/jobs/{{ last_job.id }}">Job #{{ last_job.id }}</a>{% endcall %}{% endif %}
+<div class="toolbar">
+  <span class="stat"><span class="mono">{{ '{:,}'.format(data.albums_played) }}/{{ '{:,}'.format(data.albums) }}</span> albums played</span>
+  <span class="hint">{{ '{:,}'.format(data.plays) }} plays · {{ '{:,.0f}'.format(data.hours) }} hours · {{ '{:,}'.format(data.tracks_played) }} of {{ '{:,}'.format(data.tracks) }} tracks played{% if data.favorites %} · {{ data.favorites }} favourite tracks{% endif %}</span>
   <span class="spacer"></span>
-  <a class="nc-btn nc-btn--sm nc-btn--accent" href="/insights/listening/random" title="Opens a random album you haven't played yet">Random Unplayed Album</a>
-  <form class="inline" method="post" action="/insights/listening/sync"><button class="nc-btn nc-btn--sm">Sync Now</button></form>
+  <a class="btn" data-size="sm" href="/insights/listening/random" title="Opens a random album you haven't played yet">Random unplayed album</a>
+  <form class="inline" method="post" action="/insights/listening/sync"><button class="btn" data-variant="outline" data-size="sm">Sync now</button></form>
 </div>
-<p class="nc-hint">Play counts of {{ synced.user }} from Jellyfin, read {{ synced.at|ts }}: {{ synced.matched }} of {{ synced.total }} Jellyfin tracks matched the library.{% if synced.unmatched %} <span title="{{ synced.examples|join('\n') }}">{{ synced.unmatched }} didn't</span> (tracks outside the beets library, or paths that differ).{% endif %} Jellyfin keeps all-time totals, so these are all-time stats.</p>
+<p class="hint">Play counts of {{ synced.user }} from Jellyfin, read {{ synced.at|ts }}: {{ synced.matched }} of {{ synced.total }} Jellyfin tracks matched the library.{% if synced.unmatched %} <span title="{{ synced.examples|join('\n') }}">{{ synced.unmatched }} didn't</span> (tracks outside the beets library, or paths that differ).{% endif %} Jellyfin keeps all-time totals, so these are all-time stats.</p>
 
-<div class="nc-grid">
-  <section class="nc-c6">
-    <h2>Never Played <span class="nc-hint">{{ data.never_count }}, oldest first</span></h2>
-    {% if data.never %}<div class="nc-tablewrap"><table class="nc-table"><tbody>{% for a in data.never %}{{ album_row(a, a.added|ts) }}{% endfor %}</tbody></table></div>{% else %}<p class="muted">You've played every album.</p>{% endif %}
+<div class="columns">
+  <section>
+    <h2>Never played <span class="hint">{{ data.never_count }}, oldest first</span></h2>
+    {% if data.never %}<div class="table-container" data-density="compact"><table class="table"><tbody>{% for a in data.never %}{{ album_row(a, a.added|ts) }}{% endfor %}</tbody></table></div>{% else %}<p class="hint">You've played every album.</p>{% endif %}
   </section>
-  <section class="nc-c6">
-    <h2>Not Played in a Year <span class="nc-hint">{{ data.stale_count }}</span></h2>
-    {% if data.stale %}<div class="nc-tablewrap"><table class="nc-table"><tbody>{% for a in data.stale %}{{ album_row(a, a.last|ts) }}{% endfor %}</tbody></table></div>{% else %}<p class="muted">Nothing here.</p>{% endif %}
+  <section>
+    <h2>Not played in a year <span class="hint">{{ data.stale_count }}</span></h2>
+    {% if data.stale %}<div class="table-container" data-density="compact"><table class="table"><tbody>{% for a in data.stale %}{{ album_row(a, a.last|ts) }}{% endfor %}</tbody></table></div>{% else %}<p class="hint">Nothing here.</p>{% endif %}
   </section>
-  <section class="nc-c6">
-    <h2>Most Played Albums</h2>
-    {% if data.top_albums %}<div class="nc-tablewrap"><table class="nc-table"><tbody>{% for a in data.top_albums %}{{ album_row(a, a.plays ~ ' plays') }}{% endfor %}</tbody></table></div>{% else %}<p class="muted">No plays yet.</p>{% endif %}
+  <section>
+    <h2>Most played albums</h2>
+    {% if data.top_albums %}<div class="table-container" data-density="compact"><table class="table"><tbody>{% for a in data.top_albums %}{{ album_row(a, a.plays ~ ' plays') }}{% endfor %}</tbody></table></div>{% else %}<p class="hint">No plays yet.</p>{% endif %}
   </section>
-  <section class="nc-c6">
-    <h2>Most Played Artists</h2>
-    {% if data.top_artists %}<div class="nc-tablewrap"><table class="nc-table"><tbody>{% for a in data.top_artists %}<tr><td><a href="/library?q={{ ('albumartist:' ~ a.name|term)|q }}">{{ a.name }}</a></td><td class="num nowrap">{{ a.plays }} plays</td></tr>{% endfor %}</tbody></table></div>{% else %}<p class="muted">No plays yet.</p>{% endif %}
+  <section>
+    <h2>Most played artists</h2>
+    {% if data.top_artists %}<div class="table-container" data-density="compact"><table class="table"><tbody>{% for a in data.top_artists %}<tr class="table-row"><td class="table-cell"><a href="/library?q={{ ('albumartist:' ~ a.name|term)|q }}">{{ a.name }}</a></td><td class="table-cell num">{{ a.plays }} plays</td></tr>{% endfor %}</tbody></table></div>{% else %}<p class="hint">No plays yet.</p>{% endif %}
   </section>
-  <section class="nc-c12">
-    <h2>Most Played Tracks</h2>
-    {% if data.top_tracks %}<div class="nc-tablewrap"><table class="nc-table"><tbody>{% for t in data.top_tracks %}<tr><td><a href="/library/item/{{ t.id }}">{{ t.title }}</a><br><small class="muted">{{ t.artist }}</small></td><td class="num nowrap">{{ t.plays }} plays</td></tr>{% endfor %}</tbody></table></div>{% else %}<p class="muted">No plays yet.</p>{% endif %}
+  <section class="span-all">
+    <h2>Most played tracks</h2>
+    {% if data.top_tracks %}<div class="table-container" data-density="compact"><table class="table"><tbody>{% for t in data.top_tracks %}<tr class="table-row"><td class="table-cell"><div class="table-cell-title"><a href="/library/item/{{ t.id }}">{{ t.title }}</a><span class="hint">{{ t.artist }}</span></div></td><td class="table-cell num">{{ t.plays }} plays</td></tr>{% endfor %}</tbody></table></div>{% else %}<p class="hint">No plays yet.</p>{% endif %}
   </section>
 </div>
 {% endif %}
 </div>
 {% endblock %}
-{% block status %}{% if synced %}Synced {{ synced.at|ts }}{% else %}&nbsp;{% endif %}{% endblock %}

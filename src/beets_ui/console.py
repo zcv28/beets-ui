@@ -55,6 +55,11 @@ class Console:
     def submit_argv(self, argv: list[str], user: str | None = None) -> int:
         return self.jobs.submit("console", "beet " + shlex.join(argv), {"argv": argv}, user)
 
+    @property
+    def running(self) -> bool:
+        with self._lock:
+            return bool(self._proc and self._proc.poll() is None)
+
     def kill(self) -> bool:
         with self._lock:
             if self._proc and self._proc.poll() is None:

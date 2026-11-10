@@ -1,0 +1,1 @@
+<a id="jobs-mobile" class="jobs-mobile" href="/jobs"{% if oob %} hx-swap-oob="true"{% endif %}>{% if running or pending %}<span class="status" data-status="info">{% if running %}{{ running }} running{% else %}{{ pending }} queued{% endif %}</span>{% endif %}</a>
