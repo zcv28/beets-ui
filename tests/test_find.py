@@ -318,6 +318,7 @@ def test_retry_requeues_and_drops_old_entries(slsk):
         headers={"HX-Request": "true"},
     )
     assert json.loads(r.headers["HX-Trigger"])["toast"]["title"] == "Retrying Album (2020)"
+    assert r.headers["content-length"] == str(len(r.content)) and len(r.content) > 0
     assert fake.enqueued == [("alice", [f"{FOLDER}\\02.flac"])]
     assert fake.cancelled == [("2", True)]
 

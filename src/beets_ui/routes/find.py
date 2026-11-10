@@ -312,7 +312,9 @@ def _downloads_done(request: Request, message, ok: bool = True):
     resp = partial(request, "inbox/_downloads.html", downloads=incoming(request.app))
     if message:
         title, text = message
-        resp.headers.update(toast(title, text, "success" if ok else "destructive").headers)
+        resp.headers["HX-Trigger"] = toast(title, text, "success" if ok else "destructive").headers[
+            "HX-Trigger"
+        ]
     return resp
 
 
