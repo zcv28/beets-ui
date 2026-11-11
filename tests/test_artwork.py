@@ -200,3 +200,53 @@ def test_invalid_image_rejected(artwork):
 
     with pytest.raises(ArtworkError):
         validate_image(b"<html>not an image</html>")
+
+
+def test_artist_overview_matches_artist_info(env, fake_source, artwork):
+    """The artist pictures page looks every artist up in bulk; same answers as one by one."""
+    _import(env, "a", "Circle A", "First", fake_source)
+    _import(env, "b", "Circle A", "Second", fake_source)
+    _import(env, "c", "Circle B", "Only", fake_source)
+    _import(env, "d", "Circle C", "Solo", fake_source)
+    artwork.save_artist_image("Circle B", png_bytes())
+    # A guest track inside Circle C's folder: it is no longer Circle C's alone.
+    guest = next(i for i in beets_ctx.lib().items() if i.albumartist == "Circle C")
+    guest.albumartist = "Guest"
+    guest.store()
+    overview = {a["name"]: a for a in artwork.artist_overview()}
+    assert list(overview) == ["Circle A", "Circle B", "Circle C"]
+    for name, row in overview.items():
+        info = artwork.artist_info(name)
+        assert row["albums"] == len(info["albums"])
+        assert (row["folder"], row["reason"], row["image"], row["mbid"]) == (
+            info["folder"],
+            info["reason"],
+            info["image"],
+            info["mbid"],
+        )
+    assert overview["Circle A"]["folder"] == beets_ctx.library_dir().resolve() / "Circle A"
+    assert overview["Circle B"]["image"] is not None
+    assert overview["Circle C"]["folder"] is None
+    assert "other artists" in overview["Circle C"]["reason"]
+
+
+def test_embedded_art_is_remembered_across_restarts(env, fake_source, artwork, monkeypatch):
+    """The covers page reads every album's embedded art once, not after every restart."""
+    from mediafile import Image, MediaFile
+
+    from beets_ui.artwork.service import Artwork
+
+    folder = make_album(env["inbox"] / "emb", artist="Emb", album="Edded")
+    for f in folder.iterdir():
+        mf = MediaFile(str(f))
+        mf.images = [Image(data=png_bytes(700, 700))]
+        mf.save()
+    key = importer.preview_folder(str(folder))[0]["key"]
+    importer.apply_folder(str(folder), {key: {"action": "asis"}})
+    album = beets_ctx.lib().albums()[0]
+    first = artwork.first_item_paths()
+    assert artwork.cover_status(album, first_path=first[album.id])["size"] == (700, 700)
+
+    again = Artwork(artwork.settings, artwork.jobs)  # same state database, empty memory
+    monkeypatch.setattr("mediafile.MediaFile.__init__", lambda *a, **k: pytest.fail("reread"))
+    assert again.cover_status(album, first_path=first[album.id])["size"] == (700, 700)

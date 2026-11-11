@@ -385,23 +385,24 @@ def downloads_retry(
 def downloads_another(
     request: Request, username: str = Form(...), folder: str = Form(...), name: str = Form("")
 ):
-    """Stop downloading from this uploader: the same folder from someone else, or choose."""
+    """Stop waiting on this uploader: the same folder from the next one who has it.
+
+    The download engine does the looking (searching again if nobody in the first
+    search has it), so this answers at once; the current download keeps going until then.
+    """
     _source(request)
     acq = getattr(request.app.state, "acquirer", None)
-    new_key, f = acq.another(username, folder) if acq else ("", None)
-    if new_key:
-        flash(request, f"{name or 'It'} now comes from {new_key.split('|', 1)[0]}.", "ok")
-        return redirect("/get/coming")
-    flash(
+    name = name or posixpath.basename(folder.replace("\\", "/")) or folder
+    if acq is None:
+        return _downloads_done(request, (f"Can't look for another copy of {name}", ""), ok=False)
+    acq.another(username, folder, name)
+    return _downloads_done(
         request,
-        f"Nobody else in the search has exactly this folder. Choose another copy of {name}."
-        if f
-        else f"Search for another copy of {name}.",
-        "wip",
+        (
+            f"Looking for another copy of {name}",
+            f"It switches to the next uploader with this folder. Until then {username} keeps going.",
+        ),
     )
-    if f and f.get("search_id"):
-        return redirect(f"/get/find/s/{f['search_id']}")
-    return redirect(f"/get/find?q={quote(name, safe='')}")
 
 
 @router.post("/downloads/clear")

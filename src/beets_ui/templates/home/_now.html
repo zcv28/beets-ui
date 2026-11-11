@@ -12,6 +12,7 @@
         {% if n.detail %}<p class="hint">{{ n.detail }}</p>{% endif %}
       </div>
       <a class="btn" data-variant="outline" data-size="sm" href="{{ n.href }}" aria-label="{{ n.action }}: {{ n.title }}">{{ n.action }}</a>
+      {% if n.dismiss %}<form class="inline" method="post" action="{{ n.dismiss }}" hx-post="{{ n.dismiss }}" hx-target="closest li" hx-swap="delete"><input type="hidden" name="back" value="/"><button class="btn" data-variant="ghost" data-size="icon-sm" aria-label="Dismiss: {{ n.title }}" title="Dismiss">{{ icon('x') }}</button></form>{% endif %}
     </li>
     {% endfor %}
   </ul>

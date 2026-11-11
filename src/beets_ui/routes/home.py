@@ -107,7 +107,7 @@ def _now(app) -> dict:
                 }
             )
     since = time.time() - RECENT_FAILURES
-    for j in state.jobs(30):
+    for j in state.jobs(30, dismissed=False):
         if j["status"] == "failed" and (j["finished_at"] or 0) > since and j["kind"] != "preview":
             needs.append(
                 {
@@ -116,6 +116,7 @@ def _now(app) -> dict:
                     "detail": (j["error"] or "")[:140],
                     "href": f"/jobs/{j['id']}",
                     "action": "Open",
+                    "dismiss": f"/jobs/{j['id']}/dismiss",
                 }
             )
     coming = [w for w in requests if w["status"] in COMING]

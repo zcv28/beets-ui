@@ -2,10 +2,11 @@ from __future__ import annotations
 
 import time
 
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, Form, HTTPException, Request
+from fastapi.responses import HTMLResponse
 
 from ..history import UNDOABLE
-from ..web import flash, partial, redirect, render, user
+from ..web import flash, is_fragment, partial, redirect, render, toast, user
 
 router = APIRouter(prefix="/jobs")
 
@@ -25,16 +26,45 @@ def _trim(log: str) -> tuple[str, bool]:
     return log[-MAX_LOG:], True
 
 
+def _list(request: Request, dismissed: bool) -> dict:
+    state = request.app.state.state
+    return {
+        "jobs": state.jobs(limit=100, dismissed=dismissed),
+        "dismissed": dismissed,
+        "hidden": 0 if dismissed else state.dismissed_jobs(),
+    }
+
+
 @router.get("")
-def jobs_page(request: Request):
-    return render(request, "jobs.html", nav="jobs", jobs=request.app.state.state.jobs(limit=100))
+def jobs_page(request: Request, dismissed: bool = False):
+    return render(request, "jobs.html", nav="jobs", **_list(request, dismissed))
 
 
 @router.get("/table")
-def jobs_table(request: Request):
-    return partial(
-        request, "partials/jobs_table.html", jobs=request.app.state.state.jobs(limit=100)
+def jobs_table(request: Request, dismissed: bool = False):
+    return partial(request, "partials/jobs_table.html", **_list(request, dismissed))
+
+
+def _back(back: str, fallback: str) -> str:
+    return back if back.startswith("/") and not back.startswith("//") else fallback
+
+
+@router.post("/dismiss")
+def jobs_dismiss_all(request: Request):
+    """Dismiss every finished job: the list starts clean, the jobs stay (logs, undo)."""
+    n = request.app.state.state.dismiss_jobs()
+    flash(
+        request,
+        f"Dismissed {n} finished job{'s' if n != 1 else ''}." if n else "Nothing to dismiss.",
     )
+    return redirect("/jobs")
+
+
+@router.post("/restore")
+def jobs_restore_all(request: Request):
+    n = request.app.state.state.restore_jobs()
+    flash(request, f"{n} job{'s are' if n != 1 else ' is'} back in the list.")
+    return redirect("/jobs")
 
 
 # Finished jobs worth a pop-up: lookups run all the time, so only failed ones.
@@ -118,6 +148,33 @@ def job_log(request: Request, job_id: int):
     if job["status"] not in ("queued", "running"):
         resp.headers["HX-Refresh"] = "true"
     return resp
+
+
+@router.post("/{job_id}/dismiss")
+def job_dismiss(request: Request, job_id: int, back: str = Form("")):
+    """Hide a finished job, failed or not, from the jobs list and Home."""
+    job = _job_or_404(request, job_id)
+    state = request.app.state.state
+    if job["status"] in ("queued", "running"):
+        if is_fragment(request):
+            return toast("A job can be dismissed once it has finished", kind="destructive")
+        flash(request, "A job can be dismissed once it has finished.", "wip")
+        return redirect(_back(back, f"/jobs/{job_id}"))
+    state.dismiss_jobs([job_id])
+    if is_fragment(request):
+        undo = {"url": f"/jobs/{job_id}/restore", "vals": {}}
+        return toast(f"Dismissed {job['title']}", undo=undo)
+    flash(request, "Dismissed: it no longer shows in the jobs list or on Home.")
+    return redirect(_back(back, f"/jobs/{job_id}"))
+
+
+@router.post("/{job_id}/restore")
+def job_restore(request: Request, job_id: int, back: str = Form("")):
+    _job_or_404(request, job_id)
+    request.app.state.state.restore_jobs([job_id])
+    if is_fragment(request):
+        return HTMLResponse("")  # the lists refresh themselves
+    return redirect(_back(back, f"/jobs/{job_id}"))
 
 
 @router.post("/{job_id}/cancel")

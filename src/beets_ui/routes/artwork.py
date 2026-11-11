@@ -53,24 +53,35 @@ def covers(request: Request, filter: str = "missing", q: str = "", page: int = 1
     except Exception as e:  # noqa: BLE001
         flash(request, f"Bad query: {e}", "warn")
         albums = []
-    rows = []
-    for a in albums:
-        st = aw.cover_status(a)
-        if filter == "missing" and (st["has"] or st["embedded"]):
-            continue
-        if filter == "nofile" and st["has"]:
-            continue  # no cover file, with or without embedded art
-        if filter == "low" and (st["has"] or st["embedded"]) and not st["low"]:
-            continue  # "low" shows missing and low-resolution covers
-        rows.append((a, st))
     per = 60
     page = max(1, page)
-    total = len(rows)
+    first = aw.first_item_paths()
+
+    def status(a):
+        return aw.cover_status(a, first_path=first.get(a.id, b""))
+
+    if filter == "all":
+        # Nothing to filter on: only this page's covers are looked at.
+        total = len(albums)
+        rows = [(a, status(a)) for a in albums[(page - 1) * per : page * per]]
+    else:
+        rows = []
+        for a in albums:
+            st = status(a)
+            if filter == "missing" and (st["has"] or st["embedded"]):
+                continue
+            if filter == "nofile" and st["has"]:
+                continue  # no cover file, with or without embedded art
+            if filter == "low" and (st["has"] or st["embedded"]) and not st["low"]:
+                continue  # "low" shows missing and low-resolution covers
+            rows.append((a, st))
+        total = len(rows)
+        rows = rows[(page - 1) * per : page * per]
     return render(
         request,
         "artwork/covers.html",
         nav="artwork",
-        rows=rows[(page - 1) * per : page * per],
+        rows=rows,
         total=total,
         page=page,
         more=total > page * per,
@@ -160,11 +171,10 @@ def artists(request: Request, filter: str = "missing", q: str = ""):
     aw = request.app.state.artwork
     results = request.app.state.state.artist_art()
     rows = []
-    for a in aw.artists():
-        if q and q.casefold() not in a["name"].casefold():
+    for info in aw.artist_overview():
+        if q and q.casefold() not in info["name"].casefold():
             continue
-        info = aw.artist_info(a["name"])
-        info["auto"] = results.get(a["name"])
+        info["auto"] = results.get(info["name"])
         status = (info["auto"] or {}).get("status")
         if filter == "missing" and (info["image"] or info["folder"] is None):
             continue

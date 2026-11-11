@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import bisect
 import hashlib
 import io
 import logging
@@ -26,6 +27,14 @@ from .sources import (
     make_client,
     strict_name,
 )
+
+try:  # beets stores paths relative to the library directory since 2.14
+    from beets.dbcore.pathutils import expand_path_from_db
+except ImportError:  # pragma: no cover
+
+    def expand_path_from_db(path: bytes) -> bytes:
+        return path
+
 
 log = logging.getLogger("beets_ui.artwork")
 
@@ -97,7 +106,9 @@ class Artwork:
         self.settings = settings
         self.jobs = jobs
         self.state = jobs.state
-        self._embedded_cache: dict[tuple[str, int], bool] = {}
+        # Loaded from the state database on first use.
+        self._embedded_cache: dict[tuple[str, int], tuple[int, int] | None] | None = None
+        self._size_cache: dict[tuple[str, int], tuple[int, int] | None] = {}
         self.client = make_client(transport)
         keys = {
             "fanarttv": settings.fanarttv_api_key,
@@ -184,23 +195,37 @@ class Artwork:
                 return p
         return None
 
-    def embedded_size(self, album: Any) -> tuple[int, int] | None:
+    def first_item_paths(self) -> dict[int, bytes]:
+        """Each album's first track, in one query (``album.items()`` is one query each)."""
+        with beets_ctx.lib().transaction() as tx:
+            rows = tx.query(
+                "SELECT album_id, path, MIN(id) FROM items "
+                "WHERE album_id IS NOT NULL GROUP BY album_id"
+            )
+        return {r[0]: expand_path_from_db(r[1]) for r in rows}
+
+    def embedded_size(self, album: Any, first_path: bytes | None = None) -> tuple[int, int] | None:
         """Size of the art embedded in the album's first track, cached by mtime.
 
         Returns None without embedded art, (0, 0) when the size is unreadable.
+        ``first_path`` saves looking the track up (``b""``: the album has no tracks).
         """
         from mediafile import MediaFile
         from PIL import Image
 
-        items = list(album.items())
-        if not items:
+        if first_path is None:
+            items = list(album.items())
+            first_path = items[0].path if items else b""
+        if not first_path:
             return None
-        path = os.fsdecode(items[0].path)
+        path = os.fsdecode(first_path)
         try:
             mtime = os.stat(path).st_mtime_ns
         except OSError:
             return None
         key = (path, mtime)
+        if self._embedded_cache is None:
+            self._embedded_cache = self.state.embedded_art()
         if key not in self._embedded_cache:
             size: tuple[int, int] | None = None
             try:
@@ -212,6 +237,7 @@ class Artwork:
             except Exception:  # noqa: BLE001 - unreadable file or image
                 pass
             self._embedded_cache[key] = size
+            self.state.set_embedded_art(path, mtime, size)
         return self._embedded_cache[key]
 
     def has_embedded(self, album: Any) -> bool:
@@ -233,17 +259,30 @@ class Artwork:
         except Exception:  # noqa: BLE001
             return False
 
-    def cover_status(self, album: Any, check_embedded: bool = True) -> dict[str, Any]:
+    def _cover_size(self, path: Path) -> tuple[int, int] | None:
+        """A cover file's size, cached by mtime: the covers page reads every one."""
+        try:
+            key = (str(path), path.stat().st_mtime_ns)
+        except OSError:
+            return None
+        if key not in self._size_cache:
+            self._size_cache[key] = image_size(path)
+        return self._size_cache[key]
+
+    def cover_status(
+        self, album: Any, check_embedded: bool = True, first_path: bytes | None = None
+    ) -> dict[str, Any]:
         """``has``: a cover file exists; ``embedded``: art only inside the files.
 
         ``size`` is the cover file's size, or the embedded image's size.
+        ``first_path``: the album's first track, when already known (see first_item_paths).
         """
         p = self.cover_path(album)
         if p is not None:
-            size = image_size(p)
+            size = self._cover_size(p)
             low = bool(size and min(size) < self.settings.min_cover_px)
             return {"has": True, "embedded": False, "size": size, "low": low}
-        esize = self.embedded_size(album) if check_embedded else None
+        esize = self.embedded_size(album, first_path) if check_embedded else None
         if esize is None:
             return {"has": False, "embedded": False, "size": None, "low": True}
         known = esize if any(esize) else None
@@ -305,7 +344,7 @@ class Artwork:
             Path(tmp).unlink(missing_ok=True)
         if embed and album.artpath:
             self.embed(album)
-        self._embedded_cache.clear()
+        self._embedded_cache = None  # embedding changed the files: their mtimes tell
         return Path(os.fsdecode(album.artpath)) if album.artpath else None
 
     def embed(self, album: Any) -> None:
@@ -338,12 +377,7 @@ class Artwork:
             (a.mb_albumartistid.split(";")[0].strip() for a in albums if a.mb_albumartistid), ""
         )
         folder, reason = self.artist_folder(name, albums)
-        image = None
-        if folder:
-            for fn in self.settings.artist_image_names:
-                if (folder / fn).is_file():
-                    image = folder / fn
-                    break
+        image = self._artist_image(folder)
         return {
             "name": name,
             "albums": albums,
@@ -357,25 +391,69 @@ class Artwork:
         """Find the folder that holds only this album artist's albums."""
         if not albums:
             return None, "no albums"
-        root = beets_ctx.library_dir().resolve()
-        dirs = [Path(os.fsdecode(a.item_dir())).resolve() for a in albums if a.items()]
-        if not dirs:
-            return None, "no files"
-        common = Path(os.path.commonpath([str(d) for d in dirs]))
-        if common in dirs:
-            # One album, or albums nested inside each other: go one level up.
-            common = common.parent
-        try:
-            rel = common.relative_to(root)
-        except ValueError:
-            return None, "albums are outside the library directory"
-        if str(rel) in ("", "."):
-            return None, "albums are not grouped in a per-artist folder"
+        dirs = [os.fsdecode(a.item_dir()) for a in albums if a.items()]
         lib = beets_ctx.lib()
-        for item in lib.items(PathQuery("path", os.fsencode(str(common)))):
-            if (item.albumartist or item.artist) != name:
-                return None, f"folder {rel} also contains other artists"
-        return common, ""
+
+        def owners(folder: str):
+            for item in lib.items(PathQuery("path", os.fsencode(folder))):
+                yield item.albumartist or item.artist
+
+        return _artist_folder(name, dirs, owners, beets_ctx.library_dir().resolve())
+
+    def artist_overview(self) -> list[dict[str, Any]]:
+        """``artist_info`` for every album artist, from three queries in all.
+
+        ``albums`` is a count here, not the albums. The artist pictures page and
+        the fill job need every artist, and per-artist queries took seconds.
+        """
+        lib = beets_ctx.lib()
+        with lib.transaction() as tx:
+            album_artist = dict(tx.query("SELECT id, albumartist FROM albums"))
+            items = tx.query("SELECT id, album_id, path, albumartist, artist FROM items")
+        first: dict[int, tuple[int, str]] = {}  # album id -> (first item id, its folder)
+        paths: list[tuple[str, str]] = []  # (item path, who it belongs to), sorted
+        for item_id, album_id, path, albumartist, artist in items:
+            p = os.path.normpath(os.fsdecode(expand_path_from_db(path)))
+            paths.append((p, albumartist or artist))
+            if album_id is not None and (album_id not in first or item_id < first[album_id][0]):
+                first[album_id] = (item_id, os.path.dirname(p))
+        paths.sort()
+        keys = [p for p, _ in paths]
+        dirs: dict[str, list[str]] = {}
+        for album_id, (_, folder) in first.items():
+            dirs.setdefault(album_artist.get(album_id) or "", []).append(folder)
+
+        def owners(folder: str):
+            # Everything under the folder sorts together, right after "folder/".
+            prefix = os.path.join(folder, "")
+            i = bisect.bisect_left(keys, prefix)
+            while i < len(keys) and keys[i].startswith(prefix):
+                yield paths[i][1]
+                i += 1
+
+        root = beets_ctx.library_dir().resolve()
+        out = []
+        for a in self.artists():
+            name = a["name"]
+            folder, reason = _artist_folder(name, dirs.get(name, []), owners, root)
+            out.append(
+                {
+                    "name": name,
+                    "albums": a["albums"],
+                    "mbid": a["mbid"],
+                    "folder": folder,
+                    "reason": reason,
+                    "image": self._artist_image(folder),
+                }
+            )
+        return out
+
+    def _artist_image(self, folder: Path | None) -> Path | None:
+        if folder:
+            for fn in self.settings.artist_image_names:
+                if (folder / fn).is_file():
+                    return folder / fn
+        return None
 
     def save_artist_image(self, name: str, data: bytes) -> list[Path]:
         ext, _ = validate_image(data)
@@ -443,11 +521,12 @@ class Artwork:
                 "so art embedded in the files counts as a complete cover."
             )
         lib = beets_ctx.lib()
+        first = self.first_item_paths()
         done = extracted = failed = 0
         for album in lib.albums():
             label = f"{album.albumartist} - {album.album}"
             try:
-                st = self.cover_status(album)
+                st = self.cover_status(album, first_path=first.get(album.id, b""))
                 complete = st["has"] or st["embedded"]
                 if complete and not (include_low and st["low"]):
                     if st["embedded"] and not st["has"] and extract:
@@ -529,9 +608,8 @@ class Artwork:
         retry = bool(ctx.params.get("retry"))
         previous = self.state.artist_art()
         counts = {"id": 0, "name": 0, "ambiguous": 0, "notfound": 0, "nofolder": 0, "kept": 0}
-        for a in self.artists():
-            name = a["name"]
-            info = self.artist_info(name)
+        for info in self.artist_overview():
+            name = info["name"]
             if info["folder"] is None:
                 counts["nofolder"] += 1
                 self.state.set_artist_art(name, "nofolder", note=info["reason"])
@@ -568,6 +646,30 @@ class Artwork:
             "{notfound} not found, {nofolder} without an artist folder, {kept} already had "
             "a picture".format(**counts)
         )
+
+
+def _artist_folder(name: str, dirs: list[str], owners: Any, root: Path) -> tuple[Path | None, str]:
+    """The folder holding this album artist's albums (``dirs``) and nothing else.
+
+    ``owners(folder)`` yields who each track under the folder belongs to.
+    """
+    if not dirs:
+        return None, "no files"
+    dirs = [os.path.normpath(d) for d in dirs]
+    common = os.path.commonpath(dirs)
+    if common in dirs:
+        # One album, or albums nested inside each other: go one level up.
+        common = os.path.dirname(common)
+    folder = Path(common).resolve()
+    try:
+        rel = folder.relative_to(root)
+    except ValueError:
+        return None, "albums are outside the library directory"
+    if str(rel) in ("", "."):
+        return None, "albums are not grouped in a per-artist folder"
+    if any(who != name for who in owners(common)):
+        return None, f"folder {rel} also contains other artists"
+    return folder, ""
 
 
 def _to_jpeg(data: bytes) -> bytes:
