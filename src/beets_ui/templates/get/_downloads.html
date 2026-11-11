@@ -16,7 +16,7 @@
         <ol class="file-list">{% for f in r.files %}<li class="hint"><span{{ f.name|lang }}>{{ f.name }}</span> · {% if f.kind == 'done' %}Done{% elif f.kind == 'active' %}{{ f.percent }}%{% elif f.kind == 'failed' %}{{ f.failure }}{% else %}Queued{% if f.place %}, place {{ f.place }}{% endif %}{% endif %}</li>{% endfor %}</ol>
       </details>
       <p class="hint">From {{ r.origin }}</p>
-      {% if r.fetch and r.fetch.stuck %}<p class="hint stuck">{{ r.fetch.stuck[:1]|upper }}{{ r.fetch.stuck[1:] }}, and nobody else in the search has exactly this folder.</p>
+      {% if r.fetch and r.fetch.stuck %}<p class="hint stuck">{{ r.fetch.stuck[:1]|upper }}{{ r.fetch.stuck[1:] }}, and nobody else has exactly this folder, even after searching again.{% if r.fetch.search_id %} <a href="/get/find/s/{{ r.fetch.search_id }}">Choose another copy</a>{% endif %}</p>
       {% elif r.fetch and r.fetch.note %}<p class="hint">{{ r.fetch.note }}</p>{% endif %}
     </td>
     <td class="table-cell nowrap">{{ status(r.state, r.label) }}</td>
@@ -26,9 +26,9 @@
     </td>
     <td class="table-cell num hide-sm">{{ r.size|size }}</td>
     <td class="table-cell num col-actions">
-      <form class="inline" method="post" action="/get/downloads/another">
+      <form class="inline" method="post" action="/get/downloads/another" hx-post="/get/downloads/another" hx-target="#downloads" hx-swap="innerHTML">
         <input type="hidden" name="username" value="{{ r.origin }}"><input type="hidden" name="folder" value="{{ r.folder }}"><input type="hidden" name="name" value="{{ r.folder_name }}">
-        <button class="btn" data-variant="{{ 'default' if r.fetch and r.fetch.stuck else 'outline' }}" data-size="sm" title="Stop waiting on {{ r.origin }}: the same folder from someone else, or choose another copy">Try another copy</button>
+        <button class="btn" data-variant="{{ 'default' if r.fetch and r.fetch.stuck else 'outline' }}" data-size="sm" title="Stop waiting on {{ r.origin }}: get the same folder from the next uploader who has it">Try another copy</button>
       </form>
       {% if r.state in ('queued', 'downloading') %}
       <form class="inline" method="post" action="/get/downloads/cancel" hx-post="/get/downloads/cancel" hx-target="#downloads" hx-swap="innerHTML" data-confirm="Stop downloading {{ r.folder_name }}? Files that already finished stay in the inbox." data-confirm-button="Cancel download">

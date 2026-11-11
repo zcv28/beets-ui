@@ -1,5 +1,13 @@
-{% from "partials/macros.html" import empty, status %}{% if jobs %}<div class="table-container"><table class="table">
-  <thead><tr><th class="table-head num">#</th><th class="table-head">Job</th><th class="table-head">Status</th><th class="table-head hide-sm">By</th><th class="table-head hide-sm">Queued</th><th class="table-head num hide-sm">Took</th></tr></thead>
+{% from "partials/macros.html" import empty, icon, status %}
+{% set finished = jobs|rejectattr('status', 'in', ['queued', 'running'])|list %}
+{% if finished or hidden %}<div class="bar">
+  {% if hidden %}<a class="hint" href="/jobs?dismissed=true">{{ hidden }} dismissed</a>{% endif %}
+  <span class="spacer"></span>
+  {% if dismissed %}<form class="inline" method="post" action="/jobs/restore"><button class="btn" data-variant="outline" data-size="sm">Restore all</button></form>
+  {% elif finished %}<form class="inline" method="post" action="/jobs/dismiss" data-confirm="Dismiss every finished job, failed ones too? They stop showing here and on Home; their logs and undo stay under Dismissed." data-confirm-button="Dismiss finished" data-confirm-kind="default"><button class="btn" data-variant="ghost" data-size="sm">Dismiss finished</button></form>{% endif %}
+</div>{% endif %}
+{% if jobs %}<div class="table-container"><table class="table">
+  <thead><tr><th class="table-head num">#</th><th class="table-head">Job</th><th class="table-head">Status</th><th class="table-head hide-sm">By</th><th class="table-head hide-sm">Queued</th><th class="table-head num hide-sm">Took</th><th class="table-head num"><span class="sr-only">Actions</span></th></tr></thead>
   <tbody>
   {% for j in jobs %}
   <tr class="table-row">
@@ -9,8 +17,13 @@
     <td class="table-cell hide-sm hint">{{ j.user or '' }}</td>
     <td class="table-cell hide-sm nowrap mono">{{ j.created_at|ts }}</td>
     <td class="table-cell hide-sm num">{% if j.finished_at and j.started_at %}{{ (j.finished_at - j.started_at)|duration }}{% endif %}</td>
+    <td class="table-cell num col-actions">{% if j.status not in ('queued', 'running') %}
+      {% if dismissed %}<form class="inline" method="post" action="/jobs/{{ j.id }}/restore" hx-post="/jobs/{{ j.id }}/restore" hx-target="closest tr" hx-swap="delete"><input type="hidden" name="back" value="/jobs?dismissed=true"><button class="btn" data-variant="outline" data-size="sm" title="Show it in the jobs list again">Restore</button></form>
+      {% else %}<form class="inline" method="post" action="/jobs/{{ j.id }}/dismiss" hx-post="/jobs/{{ j.id }}/dismiss" hx-target="closest tr" hx-swap="delete"><input type="hidden" name="back" value="/jobs"><button class="btn" data-variant="ghost" data-size="icon-sm" aria-label="Dismiss job #{{ j.id }}" title="Dismiss: hide it here and on Home">{{ icon('x') }}</button></form>{% endif %}
+    {% endif %}</td>
   </tr>
   {% endfor %}
   </tbody>
 </table></div>
-{% else %}{% call empty() %}No jobs yet. Imports, lookups and library changes show up here while they run.{% endcall %}{% endif %}
+{% elif dismissed %}{% call empty() %}No dismissed jobs.{% endcall %}
+{% else %}{% call empty() %}{% if hidden %}No jobs to show: every finished one was dismissed.{% else %}No jobs yet. Imports, lookups and library changes show up here while they run.{% endif %}{% endcall %}{% endif %}

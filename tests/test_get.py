@@ -670,7 +670,7 @@ def test_a_stuck_download_from_find_switches_to_the_same_folder(app, engine, env
     assert f["note"] == "Switched to bob: alice rejected it"
 
 
-def test_a_stuck_download_with_no_twin_waits_for_you(app, engine, client):
+def test_a_stuck_download_with_no_twin_searches_again_then_waits_for_you(app, engine, client):
     acq, src = engine
     state = app.state.state
     first = offer("alice", "Test Album [FLAC]")
@@ -678,15 +678,72 @@ def test_a_stuck_download_with_no_twin_waits_for_you(app, engine, client):
     src.offered = [offer("carol", "Test Album (2020)")]
     src.rows = [transfer(first, "failed")]
     acq.tick()
+    # Nobody in the first search has this folder: search again, by its name.
     f = state.meta(acquire.FETCHES_KEY)[f"alice|{first['folder']}"]
-    assert f["stuck"] == "failed from alice"
-    # Try another copy: nobody has this folder, so the search results open.
+    assert src.searched == ["Test Album [FLAC]"] and not f.get("stuck")
+    assert f["note"] == "Looking for another uploader: failed from alice"
+    acq.tick()
+    f = state.meta(acquire.FETCHES_KEY)[f"alice|{first['folder']}"]
+    assert f["stuck"] == "failed from alice" and len(src.searched) == 1
+    from beets_ui.sources import Watcher
+
+    app.state.source_watch = Watcher(src)
+    app.state.source_watch.poll()
+    page = client.get("/get/coming").text
+    assert "even after searching again" in page and 'href="/get/find/s/s1"' in page
+    # Try another copy once stuck: it searches again, and bob answers this time.
     r = client.post(
         "/get/downloads/another",
         data={"username": "alice", "folder": first["folder"], "name": "Test Album [FLAC]"},
         follow_redirects=False,
     )
-    assert r.headers["location"] == "/get/find/s/s9"
+    assert r.headers["location"] == "/get/coming"
+    acq.tick()
+    assert len(src.searched) == 2
+    src.offered = [offer("bob", "Test Album [FLAC]")]
+    acq.tick()
+    assert src.fetched == [("bob", 3)]
+    f = state.meta(acquire.FETCHES_KEY)[f"bob|{offer('bob', 'Test Album [FLAC]')['folder']}"]
+    assert f["note"] == "Switched to bob: you skipped alice"
+
+
+def test_try_another_copy_answers_in_place_and_switches_in_the_background(app, engine, client):
+    acq, src = engine
+    state = app.state.state
+    first = offer("alice", "Test Album [FLAC]")
+    acquire.remember_fetch(state, "alice", first["folder"], "Test Album [FLAC]", "s9", "", 3)
+    src.offered = [offer("bob", "Test Album [FLAC]")]
+    src.rows = [stuck_row(first, "downloading")]
+    r = client.post(
+        "/get/downloads/another",
+        data={"username": "alice", "folder": first["folder"], "name": "Test Album [FLAC]"},
+        headers={"HX-Request": "true"},
+    )
+    assert r.status_code == 200 and "location" not in r.headers
+    toast = json.loads(r.headers["HX-Trigger"])["toast"]
+    assert toast["title"] == "Looking for another copy of Test Album [FLAC]"
+    assert "alice keeps going" in toast["text"]
+    assert src.fetched == [] and src.cancelled == []  # nothing waits on the uploaders
+    acq.tick()
+    assert src.fetched == [("bob", 3)]
+    assert src.cancelled == [("alice", ["f1"], True)]
+
+
+def test_try_another_copy_of_a_download_it_knows_nothing_about(app, engine, client):
+    """Started outside Find (or forgotten): it searches by the folder's name."""
+    acq, src = engine
+    first = offer("alice", "Test Album [FLAC]")
+    src.rows = [stuck_row(first, "downloading")]
+    client.post(
+        "/get/downloads/another",
+        data={"username": "alice", "folder": first["folder"], "name": "Test Album [FLAC]"},
+        headers={"HX-Request": "true"},
+    )
+    acq.tick()
+    assert src.searched == ["Test Album [FLAC]"]
+    src.offered = [offer("alice", "Test Album [FLAC]"), offer("dave", "Test Album [FLAC]")]
+    acq.tick()
+    assert src.fetched == [("dave", 3)]  # not alice again
 
 
 def test_moving_up_the_queue_counts_as_progress(app, engine):

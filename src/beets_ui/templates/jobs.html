@@ -1,6 +1,14 @@
 {% extends "base.html" %}
-{% block title %}Jobs{% endblock %}
-{% block status %}Every change to the library runs here, one at a time.{% endblock %}
+{% from "partials/macros.html" import back %}
+{% block title %}{{ 'Dismissed jobs' if dismissed else 'Jobs' }}{% endblock %}
+{% block status %}{{ 'Hidden from the jobs list and Home. Their logs and undo stay here.' if dismissed else 'Every change to the library runs here, one at a time.' }}{% endblock %}
+{% block header %}{% if dismissed %}
+<header class="page-header">
+  {{ back('/jobs', 'Jobs') }}
+  <h1>Dismissed jobs</h1>
+  <p class="page-description">{{ self.status() }}</p>
+</header>
+{% else %}{{ super() }}{% endif %}{% endblock %}
 {% block content %}
-<div hx-get="/jobs/table" hx-trigger="refresh, every 60s [!document.hidden]" hx-swap="innerHTML" data-refresh="jobs">{% include "partials/jobs_table.html" %}</div>
+<div hx-get="/jobs/table{{ '?dismissed=true' if dismissed }}" hx-trigger="refresh, every 60s [!document.hidden]" hx-swap="innerHTML" data-refresh="jobs">{% include "partials/jobs_table.html" %}</div>
 {% endblock %}

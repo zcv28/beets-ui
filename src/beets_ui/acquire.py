@@ -250,6 +250,10 @@ class Acquirer:
         self.interval = interval
         self._client: discography.Client | None = None
         self._lock = threading.Lock()
+        # Downloads from Find you asked another copy of, until the loop gets to them:
+        # "origin|folder" -> folder name. (The loop may hold _lock for a while.)
+        self._skips: dict[str, str] = {}
+        self._skips_lock = threading.Lock()
         self._stop = threading.Event()
         self._wake = threading.Event()
         self._settled = 0.0  # when requests were last checked against the library
@@ -347,14 +351,22 @@ class Acquirer:
 
     def _watch_fetches(self) -> None:
         """Downloads started by hand: switch to the same folder from someone else when the
-        uploader rejects it or stalls; otherwise mark it stuck for you to choose."""
+        uploader rejects it or stalls, or you ask for another copy. Nobody else has it, even
+        after searching again: mark it stuck for you to choose."""
         fetches = self.state.meta(FETCHES_KEY) or {}
+        with self._skips_lock:
+            skips, self._skips = self._skips, {}
+        for key, name in skips.items():
+            origin = key.split("|", 1)[0]
+            f = fetches.setdefault(key, new_fetch(name, "", name, 0))
+            # Asking again after it got stuck searches again.
+            f.update(skip=f"you skipped {origin}", stuck="", searching="", researched=0)
         if not fetches:
             return
         rows = {f"{r['origin']}|{r['folder']}": r for r in self.transfers()}
         requested = {f"{w['origin']}|{w['remote_folder']}" for w in self.state.wanted_list(DRIVEN)}
         now = time.time()
-        changed = False
+        changed = bool(skips)
         for key, f in list(fetches.items()):
             row = rows.get(key)
             if row is None or row["state"] in ("done", "cancelled") or key in requested:
@@ -363,9 +375,20 @@ class Acquirer:
                     del fetches[key]
                     changed = True
                 continue
-            if f.get("stuck"):
+            if f.get("searching"):
+                # Searched again for other uploaders: once answers are in, look at them.
+                try:
+                    running = self.source.search_info(f["search_id"])["running"]
+                except SourceError:
+                    running = False
+                if running:
+                    continue
+                reason = f.pop("searching")
+            elif f.get("skip"):
+                reason = f.pop("skip")
+            elif f.get("stuck"):
                 continue
-            if row["state"] == "failed":
+            elif row["state"] == "failed":
                 label = row["label"][:1].lower() + row["label"][1:]
                 reason = f"{label} from {row['origin']}"
             elif moved(row, f.get("progress_bytes", 0), f.get("progress_place")):
@@ -390,23 +413,13 @@ class Acquirer:
         if changed:
             self.state.set_meta(FETCHES_KEY, fetches)
 
-    def another(self, origin: str, folder: str) -> tuple[str, dict[str, Any] | None]:
-        """You asked for another copy of a download from Find: (new key or "", its record)."""
-        with self._lock:
-            fetches = self.state.meta(FETCHES_KEY) or {}
-            key = f"{origin}|{folder}"
-            f = fetches.get(key)
-            row = next(
-                (r for r in self.transfers() if r["origin"] == origin and r["folder"] == folder),
-                None,
-            )
-            if f is None or row is None:
-                return "", f
-            new_key = self._switch(f, row, f"you skipped {origin}")
-            if new_key:
-                fetches[new_key] = fetches.pop(key)
-            self.state.set_meta(FETCHES_KEY, fetches)
-            return new_key, f
+    def another(self, origin: str, folder: str, folder_name: str) -> None:
+        """You asked for another copy of a download from Find. The loop switches to the
+        next uploader with the same folder (searching again if need be); until then the
+        current one keeps going."""
+        with self._skips_lock:
+            self._skips[f"{origin}|{folder}"] = folder_name
+        self.wake()
 
     def _switch(self, f: dict[str, Any], row: dict[str, Any], reason: str) -> str:
         """Fetch the rest of the same folder from another uploader. Its key, or "" if
@@ -453,7 +466,25 @@ class Acquirer:
             )
             log.info("download %s: switched to %s (%s)", f["folder_name"], o["origin"], reason)
             return f"{o['origin']}|{o['folder']}"
-        f.update(stuck=reason, tried=sorted(tried))
+        f["tried"] = sorted(tried)
+        if (f.get("researched") or 0) < MAX_RESEARCH:
+            # Nobody in this search: ask again, other uploaders may answer now.
+            text = f.get("text") or f["folder_name"]
+            try:
+                search_id = self.source.search(text, wait=SEARCH_WAIT)
+            except SourceError as e:
+                log.info("searching again for %s: %s", f["folder_name"], e)
+                f.update(stuck=reason, note="")
+                return ""
+            f.update(
+                search_id=search_id,
+                searching=reason,
+                researched=(f.get("researched") or 0) + 1,
+                note=f"Looking for another uploader: {reason}",
+                stuck="",
+            )
+            return ""
+        f.update(stuck=reason, note="")
         return ""
 
     def _run(self) -> None:
@@ -789,8 +820,14 @@ def remember_fetch(
 ) -> None:
     """A download started from Find: enough to find the same folder elsewhere if it stalls."""
     fetches = state.meta(FETCHES_KEY) or {}
+    fetches[f"{origin}|{folder}"] = new_fetch(folder_name, search_id, text, tracks)
+    state.set_meta(FETCHES_KEY, fetches)
+
+
+def new_fetch(folder_name: str, search_id: str, text: str, tracks: int) -> dict[str, Any]:
+    """What is kept about a download from Find (``tracks`` 0: unknown)."""
     now = time.time()
-    fetches[f"{origin}|{folder}"] = {
+    return {
         "folder_name": folder_name,
         "search_id": search_id,
         "text": text,
@@ -800,7 +837,6 @@ def remember_fetch(
         "progress_at": now,
         "tried": [],
     }
-    state.set_meta(FETCHES_KEY, fetches)
 
 
 # -------------------------------------------------------------- inbox hooks

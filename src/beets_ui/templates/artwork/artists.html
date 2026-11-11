@@ -36,7 +36,7 @@
   <a class="tile" href="/artwork/artist?name={{ a.name|q }}">
     <img loading="lazy" src="/artwork/artist/image?name={{ a.name|q }}" alt="">
     <span class="tile-title" title="{{ a.name }}">{{ a.name }}</span>
-    <span class="tile-sub">{{ a.albums|length }} album{{ 's' if a.albums|length != 1 }}</span>
+    <span class="tile-sub">{{ a.albums }} album{{ 's' if a.albums != 1 }}</span>
     {% if a.folder is none %}<span class="tile-sub"><span class="status" data-status="destructive" title="{{ a.reason }}">No folder</span></span>
     {% elif a.auto and a.auto.status == 'name' %}<span class="tile-sub"><span class="status" data-status="warning" title="Matched by name on {{ a.auto.source }}">Check match</span></span>
     {% elif a.auto and a.auto.status == 'ambiguous' and not a.image %}<span class="tile-sub"><span class="status" data-status="warning" title="{{ a.auto.note }}">Ambiguous</span></span>

@@ -79,6 +79,14 @@ CREATE TABLE IF NOT EXISTS artist_art (
     note TEXT NOT NULL DEFAULT '',
     updated_at REAL NOT NULL
 );
+-- Art embedded in an album's first track (width NULL: none), so the covers page
+-- doesn't open every file again after a restart.
+CREATE TABLE IF NOT EXISTS embedded_art (
+    path TEXT PRIMARY KEY,
+    mtime INTEGER NOT NULL,
+    width INTEGER,
+    height INTEGER
+);
 CREATE TABLE IF NOT EXISTS artist_aliases (
     alias TEXT PRIMARY KEY,
     name TEXT NOT NULL,
@@ -134,6 +142,11 @@ FOLDER_MIGRATIONS = (
     ("wanted_id", "INTEGER"),
 )
 
+JOB_MIGRATIONS = (
+    # Hidden from the jobs list and Home once you dismiss it (kept, with its log and undo).
+    ("dismissed_at", "REAL"),
+)
+
 WANTED_MIGRATIONS = (
     # Bytes received from the current copy, and when they last grew (stall detection).
     ("progress_bytes", "INTEGER NOT NULL DEFAULT 0"),
@@ -162,6 +175,10 @@ class State:
             for name, definition in FOLDER_MIGRATIONS:
                 if name not in cols:
                     self._conn.execute(f"ALTER TABLE folders ADD COLUMN {name} {definition}")
+            cols = {r[1] for r in self._conn.execute("PRAGMA table_info(jobs)")}
+            for name, definition in JOB_MIGRATIONS:
+                if name not in cols:
+                    self._conn.execute(f"ALTER TABLE jobs ADD COLUMN {name} {definition}")
             cols = {r[1] for r in self._conn.execute("PRAGMA table_info(wanted)")}
             for name, definition in WANTED_MIGRATIONS:
                 if name not in cols:
@@ -314,26 +331,59 @@ class State:
         d["params"] = json.loads(d["params"])
         return d
 
-    def jobs(self, limit: int = 100, kind: str | None = None) -> list[dict[str, Any]]:
+    def jobs(
+        self, limit: int = 100, kind: str | None = None, dismissed: bool | None = None
+    ) -> list[dict[str, Any]]:
+        """The latest jobs. ``dismissed``: only those you dismissed (True), only the
+        others (False), or all of them (None)."""
+        where, args = [], []
         if kind:
-            rows = self._exec(
-                "SELECT id, kind, title, status, error, created_at, started_at, finished_at, user "
-                "FROM jobs WHERE kind=? ORDER BY id DESC LIMIT ?",
-                (kind, limit),
-            )
-        else:
-            rows = self._exec(
-                "SELECT id, kind, title, status, error, created_at, started_at, finished_at, user "
-                "FROM jobs ORDER BY id DESC LIMIT ?",
-                (limit,),
-            )
+            where.append("kind=?")
+            args.append(kind)
+        if dismissed is not None:
+            where.append(f"dismissed_at IS {'NOT ' if dismissed else ''}NULL")
+        rows = self._exec(
+            "SELECT id, kind, title, status, error, created_at, started_at, finished_at, user, "
+            "dismissed_at FROM jobs"
+            + (f" WHERE {' AND '.join(where)}" if where else "")
+            + " ORDER BY id DESC LIMIT ?",
+            (*args, limit),
+        )
         return [dict(r) for r in rows.fetchall()]
 
+    def dismissed_jobs(self) -> int:
+        return self._exec("SELECT COUNT(*) FROM jobs WHERE dismissed_at IS NOT NULL").fetchone()[0]
+
+    def dismiss_jobs(self, ids: list[int] | None = None) -> int:
+        """Hide finished jobs (these, or every one) from the jobs list and Home."""
+        sql = (
+            "UPDATE jobs SET dismissed_at=? WHERE dismissed_at IS NULL "
+            "AND status NOT IN ('queued', 'running')"
+        )
+        args: tuple = (time.time(),)
+        if ids is not None:
+            if not ids:
+                return 0
+            sql += f" AND id IN ({','.join('?' * len(ids))})"
+            args += tuple(ids)
+        return self._exec(sql, args).rowcount
+
+    def restore_jobs(self, ids: list[int] | None = None) -> int:
+        """Show dismissed jobs again (these, or every one)."""
+        sql = "UPDATE jobs SET dismissed_at=NULL WHERE dismissed_at IS NOT NULL"
+        args: tuple = ()
+        if ids is not None:
+            if not ids:
+                return 0
+            sql += f" AND id IN ({','.join('?' * len(ids))})"
+            args = tuple(ids)
+        return self._exec(sql, args).rowcount
+
     def jobs_version(self) -> str:
-        """Changes whenever a job is added, starts or finishes."""
+        """Changes whenever a job is added, starts, finishes, is dismissed or restored."""
         row = self._exec(
             "SELECT MAX(id), SUM(status IN ('queued', 'running')), MAX(started_at), "
-            "MAX(finished_at) FROM jobs"
+            "MAX(finished_at), COUNT(dismissed_at), MAX(dismissed_at) FROM jobs"
         ).fetchone()
         return ":".join(str(v) for v in tuple(row))
 
@@ -375,6 +425,19 @@ class State:
             "source=excluded.source, url=excluded.url, note=excluded.note, "
             "updated_at=excluded.updated_at",
             (name, status, source, url, note[:500], time.time()),
+        )
+
+    # ------------------------------------------------------------ embedded art
+
+    def embedded_art(self) -> dict[tuple[str, int], tuple[int, int] | None]:
+        rows = self._exec("SELECT path, mtime, width, height FROM embedded_art").fetchall()
+        return {(r[0], r[1]): None if r[2] is None else (r[2], r[3]) for r in rows}
+
+    def set_embedded_art(self, path: str, mtime: int, size: tuple[int, int] | None) -> None:
+        w, h = size if size is not None else (None, None)
+        self._exec(
+            "INSERT OR REPLACE INTO embedded_art (path, mtime, width, height) VALUES (?,?,?,?)",
+            (path, mtime, w, h),
         )
 
     # ---------------------------------------------------------- artist aliases
