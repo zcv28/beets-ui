@@ -20,6 +20,7 @@
 </form>{% endif %}</span>
 {% call row_menu(key ~ '-' ~ a.id, 'More for ' ~ a.title) %}
   {% if sources_enabled %}{% set q = a.artist ~ ' ' ~ a.title %}<a class="menu-item" href="/get/find?q={{ q|q }}&amp;artist={{ a.artist|q }}&amp;album={{ a.title|q }}{{ '&amp;w=' ~ a.wanted.id if a.wanted }}">Find by hand<span class="hint"{{ q|lang }}>{{ q }}</span></a>{% endif %}
+  <a class="menu-item" href="/get/artist/of/musicbrainz/{{ a.id }}">Everything by the artist<span class="hint"{{ a.artist|lang }}>Get all or some of {{ a.artist }}'s releases</span></a>
   <a class="menu-item" href="https://musicbrainz.org/release-group/{{ a.id }}" target="_blank" rel="noopener noreferrer">Open in MusicBrainz<span class="hint">Tracklist, releases and links</span></a>
   <form method="post" action="/get/discover/dismiss" hx-post="/get/discover/dismiss" hx-target="closest tr" hx-swap="delete">
     <input type="hidden" name="id" value="{{ a.id }}"><input type="hidden" name="label" value="{{ a.artist }} – {{ a.title }}"><input type="hidden" name="back" value="{{ here }}">
@@ -52,8 +53,8 @@
   <tr class="table-row">
     <td class="table-cell cover-col">{{ cover(release_cover('musicbrainz', r.id)) }}</td>
     <td class="table-cell col-main">
-      <span class="strong"{{ r.title|lang }}>{{ r.title }}</span>
-      <p class="hint"{{ r.artist|lang }}>{{ r.artist }}</p>
+      <a class="strong" href="/get/release/musicbrainz/{{ r.id }}"{{ r.title|lang }}>{{ r.title }}</a>
+      <p class="hint"><a href="/get/artist/of/musicbrainz/{{ r.id }}" title="Every release by {{ r.artist }}"{{ r.artist|lang }}>{{ r.artist }}</a></p>
       <p class="hint show-sm"><span class="mono">{{ r.date or '?' }}</span> · {{ r.type }}{% if r.secondary %} · {{ r.secondary }}{% endif %}</p>
     </td>
     <td class="table-cell hide-sm nowrap mono">{{ r.date or '?' }}</td>
@@ -120,8 +121,8 @@
     <tr class="table-row">
       <td class="table-cell cover-col">{{ cover(release_cover('musicbrainz', a.id)) }}</td>
       <td class="table-cell col-main">
-        <span class="strong"{{ a.title|lang }}>{{ a.title }}</span>
-        <p class="hint"><span{{ a.artist|lang }}>{{ a.artist }}</span>{% if a.year %} · <span class="mono">{{ a.year }}</span>{% endif %}</p>
+        <a class="strong" href="/get/release/musicbrainz/{{ a.id }}"{{ a.title|lang }}>{{ a.title }}</a>
+        <p class="hint"><a href="/get/artist/of/musicbrainz/{{ a.id }}" title="Every release by {{ a.artist }}"{{ a.artist|lang }}>{{ a.artist }}</a>{% if a.year %} · <span class="mono">{{ a.year }}</span>{% endif %}</p>
       </td>
       <td class="table-cell hide-sm">
         <p class="hint">{% for t in a.tracks[:2] %}<span{{ t.title|lang }}>{{ t.title }}</span>{% if t.artist and t.artist != a.artist %} <span{{ t.artist|lang }}>({{ t.artist }})</span>{% endif %}{% if not loop.last %}, {% endif %}{% endfor %}{% if a.tracks|length > 2 %} and {{ a.tracks|length - 2 }} more{% endif %}</p>

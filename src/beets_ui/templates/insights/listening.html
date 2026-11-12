@@ -1,6 +1,7 @@
 {% extends "base.html" %}
 {% from "partials/macros.html" import alert %}
 {% block title %}Listening{% endblock %}
+{% block section %}Insights{% endblock %}
 {% block status %}{% if synced %}Synced {{ synced.at|ts }}{% endif %}{% endblock %}
 {% macro album_row(a, extra) -%}
 <tr class="table-row"><td class="table-cell"><div class="table-cell-title"><a href="/library/album/{{ a.id }}">{{ a.album or '(untitled)' }}</a><span class="hint">{{ a.albumartist }}{% if a.year %} · {{ a.year }}{% endif %}</span></div></td><td class="table-cell num">{{ extra }}</td></tr>

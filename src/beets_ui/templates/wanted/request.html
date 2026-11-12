@@ -23,13 +23,13 @@
 <div class="ask" data-boxed data-tone="{{ {'choosing': 'warning', 'failed': 'destructive'}.get(w.status, '') }}">
   <p class="ask-title">{% if w.status == 'cancelled' %}You stopped getting it{% else %}{{ w.status_text or wanted_label(w)[1] }}{% endif %}</p>
   {# The title says what happened; this says only how each way on works. #}
-  <p class="hint">{% if w.status == 'choosing' and w.offers %}Pick a copy below, or search again: it{% else %}Search again{% endif %} starts over and skips copies that already failed. A copy you download under Find by hand comes back to this request; Import by hand takes the files from the inbox.</p>
+  <p class="hint">{% if w.status == 'choosing' and w.offers %}Pick a copy below, or search again: it{% elif w.status == 'choosing' %}The copies it found are no longer listed. Search again{% else %}Search again{% endif %} starts over and skips copies that already failed. A copy you download under Find by hand comes back to this request; Import by hand takes the files from the inbox.</p>
   <div class="bar tight">
     <form class="inline" method="post" action="/wanted/{{ w.id }}/retry"><button class="btn" data-variant="{{ 'outline' if w.offers and w.status == 'choosing' else 'default' }}" data-size="sm">Search again</button></form>
     {% if sources_enabled %}<a class="btn" data-variant="outline" data-size="sm" href="{{ find_url }}">Find by hand</a>{% endif %}
     <a class="btn" data-variant="ghost" data-size="sm" href="/inbox">Import by hand</a>
     <span class="spacer"></span>
-    {% if w.status == 'choosing' %}<form class="inline" method="post" action="/wanted/{{ w.id }}/cancel" data-confirm="Stop getting {{ w.album }}?{% if w.status == 'downloading' %} Its download stops too.{% elif w.status in ('arrived', 'review') %} What it downloaded stays in the inbox as a folder like any other.{% endif %}" data-confirm-button="Stop getting it"><button class="btn" data-variant="ghost" data-size="sm">Cancel</button></form>{% else %}<form class="inline" method="post" action="/wanted/{{ w.id }}/remove"><button class="btn" data-variant="ghost" data-size="sm">Remove from the list</button></form>{% endif %}
+    {% if w.status == 'choosing' %}<form class="inline" method="post" action="/wanted/{{ w.id }}/cancel" data-confirm="Stop getting {{ w.album }}?" data-confirm-button="Stop getting it"><button class="btn" data-variant="ghost" data-size="sm">Cancel</button></form>{% else %}<form class="inline" method="post" action="/wanted/{{ w.id }}/remove"><button class="btn" data-variant="ghost" data-size="sm">Remove from the list</button></form>{% endif %}
   </div>
 </div>
 {% else %}
@@ -74,7 +74,8 @@
 <section>
 <h2>What was tried</h2>
 {% if w.history %}{{ history_list(w.history) }}
-{% else %}<p class="hint">Nothing yet: it waits its turn to search.</p>{% endif %}
+{% elif w.status == 'queued' %}<p class="hint">Nothing yet: it waits its turn to search.</p>
+{% else %}<p class="hint">Nothing was recorded for it.</p>{% endif %}
 </section>
 <section>
 <h2>Searches</h2>

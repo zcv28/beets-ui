@@ -77,11 +77,13 @@ def _now(app) -> dict:
             continue
         if it["kind"] == "request":
             w = it["w"]
-            title = (
-                f"Pick a copy of {w['album']}"
-                if w["status"] == "choosing"
-                else f"Couldn't get {w['album']}"
-            )
+            if w["status"] == "choosing" and w["offers"]:
+                title = f"Pick a copy of {w['album']}"
+            elif w["status"] == "choosing":
+                # Its copies are gone: what is left to do is search again.
+                title = f"Search again for {w['album']}"
+            else:
+                title = f"Couldn't get {w['album']}"
             href, action = f"/wanted/{w['id']}", "Open"
         else:
             title = (
@@ -141,14 +143,14 @@ def _care(lib, state) -> list[dict]:
 
     if no_cover:
         rows.append(("No cover file", no_cover, albums(no_cover), "/library/covers?filter=nofile"))
-    for key, label in (
-        ("lossy", "Lossy"),
-        ("bitrate", "Low bitrate"),
-        ("incomplete", "Incomplete"),
-    ):
-        if counts.get(key):
-            n = counts[key]
-            rows.append((label, n, albums(n), f"/insights/upgrades?reason={key}"))
+    # A low bitrate is always lossy too: one row, with how many of them are low.
+    if counts.get("lossy"):
+        n, low = counts["lossy"], counts.get("bitrate") or 0
+        unit = albums(n) + (f", {low} at a low bitrate" if low else "")
+        rows.append(("Lossy", n, unit, "/insights/upgrades?reason=lossy"))
+    if counts.get("incomplete"):
+        n = counts["incomplete"]
+        rows.append(("Incomplete", n, albums(n), "/insights/upgrades?reason=incomplete"))
     if tracks:
         rows.append(
             ("Synced lyrics", f"{round(100 * synced / tracks)}%", "of tracks", "/insights/lyrics")

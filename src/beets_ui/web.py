@@ -191,9 +191,13 @@ def theme_of(request: Request) -> str:
     return value if value in ("light", "dark") else ""
 
 
-def flash(request: Request, message: str, kind: str = "msg") -> None:
+def flash(
+    request: Request, message: str, kind: str = "msg", undo: dict[str, Any] | None = None
+) -> None:
+    """A message for the next page. ``undo`` ({"url", "vals"}) adds an Undo button that
+    posts ``vals`` to ``url``."""
     msgs = request.session.get("flash", [])
-    msgs.append([kind, message])
+    msgs.append([kind, message, undo])
     request.session["flash"] = msgs[-5:]
 
 
@@ -212,12 +216,14 @@ def render(request: Request, name: str, status_code: int = 200, **ctx: Any):
         "pending": app.state.jobs.pending(),
         "since": time.time(),
         "theme": theme_of(request),
+        "today": time.strftime("%Y-%m-%d"),
     }
     return templates.TemplateResponse(request, name, {**base, **ctx}, status_code=status_code)
 
 
 def partial(request: Request, name: str, **ctx: Any):
-    return templates.TemplateResponse(request, name, {"request": request, **ctx})
+    base = {"request": request, "today": time.strftime("%Y-%m-%d")}
+    return templates.TemplateResponse(request, name, {**base, **ctx})
 
 
 def redirect(url: str) -> RedirectResponse:

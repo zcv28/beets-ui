@@ -11,7 +11,16 @@
 </details>
 {%- endmacro %}
 
-{% macro row(it) %}
+{# The artist's other releases: those coming in (this list, narrowed to them), and every
+   release of theirs (their page in the catalogue, for a release asked for from one). #}
+{% macro artist_links(it) -%}
+{% if it.artist and it.same_artist > 1 and not artist %}<a class="btn" data-variant="link" data-size="sm" href="/get/coming?artist={{ it.artist|q }}"{{ it.artist|lang }}>All {{ it.same_artist }} by {{ it.artist }} coming in</a>{% endif %}
+{% if it.kind == 'request' and it.w.kind == 'missing' and it.w.release_id %}<a class="btn" data-variant="link" data-size="sm" href="/get/artist/of/{{ it.w.source }}/{{ it.w.release_id }}"{{ it.artist|lang }}>Everything by {{ it.artist or 'the artist' }}</a>{% endif %}
+{%- endmacro %}
+
+{% macro row(it, lead=False) %}
+{# Only the first row that needs you gets a filled button: one primary per list. #}
+{% set pv = 'default' if lead else 'outline' %}
 {% set t = it.w.transfer if it.kind == 'request' else it.r %}
 <div class="release-row{% if it.primary %} has-quick{% endif %}">
 <details class="release" id="c-{{ it.key }}">
@@ -34,14 +43,13 @@
     <div class="ask">
       <p class="hint">{% if w.status == 'choosing' %}It found {{ w.offers|length }} cop{{ 'ies' if w.offers|length != 1 else 'y' }} but wasn't sure of any, so nothing was downloaded. {% endif %}Search again starts over and skips copies that already failed. Or find it yourself, or put the files in the inbox and import them there: either way this closes once the album is in your library.</p>
       <div class="bar tight">
-        {% if it.primary %}{{ primary_action(it.primary, 'default', 'show-sm') }}{% endif %}
         {% if w.status == 'choosing' and w.offers %}<form class="inline" method="post" action="/wanted/{{ w.id }}/retry" hx-post="/wanted/{{ w.id }}/retry" hx-swap="none"><button class="btn" data-variant="outline" data-size="sm">Search again</button></form>{% endif %}
         {% if sources_enabled %}<a class="btn" data-variant="outline" data-size="sm" href="{{ find_url }}">Find by hand</a>{% endif %}
         <a class="btn" data-variant="ghost" data-size="sm" href="/inbox">Import by hand</a>
       </div>
     </div>
     {% elif w.status == 'review' %}
-    <div class="ask"><div class="bar tight">{% if it.primary %}{{ primary_action(it.primary, 'default', 'show-sm') }}{% endif %}<span class="hint">It waits in the inbox like any other folder; it is imported against the release you asked for.</span></div></div>
+    <div class="ask"><div class="bar tight"><span class="hint">It waits in the inbox like any other folder; it is imported against the release you asked for.</span></div></div>
     {% elif w.status == 'arrived' %}
     <p class="release-line">Downloaded. It is looked up as soon as its folder shows in the inbox.</p>
     {% elif wanted_detail(w) %}
@@ -54,6 +62,7 @@
     {% if w.history %}{{ history_list(w.history, 4) }}{% endif %}
     <div class="bar tight release-actions">
       <a class="btn" data-variant="link" data-size="sm" href="/wanted/{{ w.id }}">Full history{{ icon('arrow-right') }}</a>
+      {{ artist_links(it) }}
       <span class="spacer"></span>
       {% if w.status == 'downloading' %}<form class="inline" method="post" action="/wanted/{{ w.id }}/skip" hx-post="/wanted/{{ w.id }}/skip" hx-swap="none"><button class="btn" data-variant="outline" data-size="sm">Get it from someone else</button></form>{% endif %}
       {% if w.status in ('queued', 'searching', 'choosing', 'downloading', 'arrived', 'review') %}
@@ -65,11 +74,12 @@
   {% else %}
     {% set r = it.r %}
     {% if r.fetch and r.fetch.stuck %}
-    <div class="ask"><p class="hint">Nobody else has exactly this folder, even after searching again. Pick a different copy from the search, or keep waiting.</p>{% if it.primary %}<div class="bar tight">{{ primary_action(it.primary, 'default', 'show-sm') }}</div>{% endif %}</div>
+    <div class="ask"><p class="hint">Nobody else has exactly this folder, even after searching again. Pick a different copy from the search, or keep waiting.</p></div>
     {% elif r.fetch and r.fetch.note %}<p class="release-line">{{ r.fetch.note }}</p>{% endif %}
     <p class="hint">{{ transfer_line(r) }}</p>
     {{ files(it.key, r) }}
     <div class="bar tight release-actions">
+      {{ artist_links(it) }}
       <span class="spacer"></span>
       <form class="inline" method="post" action="/get/downloads/another" hx-post="/get/downloads/another" hx-target="#coming-list" hx-swap="innerHTML">
         <input type="hidden" name="username" value="{{ r.origin }}"><input type="hidden" name="folder" value="{{ r.folder }}"><input type="hidden" name="name" value="{{ r.folder_name }}">
@@ -97,10 +107,21 @@
   {% endif %}
   </div>
 </details>
-{% if it.primary %}<div class="release-quick">{{ primary_action(it.primary) }}</div>{% endif %}
+{% if it.primary %}<div class="release-quick">{{ primary_action(it.primary, pv) }}</div>{% endif %}
 </div>
 {% endmacro %}
 
+{# One artist's releases, picked here or from a row. #}
+{% if artists|length > 1 or artist %}
+<form class="toolbar coming-filter" method="get" action="/get/coming" data-autosubmit>
+  <select class="input auto" data-size="sm" name="artist" aria-label="Show releases by">
+    <option value="">Every artist · {{ everything }}</option>
+    {% for name, n in artists %}<option value="{{ name }}" {% if name|lower == artist|lower %}selected{% endif %}>{{ name }} · {{ n }}</option>{% endfor %}
+  </select>
+  <noscript><button class="btn" data-variant="outline" data-size="sm">Show</button></noscript>
+  {% if artist %}<a class="btn" data-variant="ghost" data-size="sm" href="/get/coming">Show every artist</a>{% endif %}
+</form>
+{% endif %}
 {% set needs = items|selectattr('group', 'equalto', 'needs')|list %}
 {% set moving = items|rejectattr('group', 'equalto', 'needs')|list %}
 {% set failed = needs|selectattr('kind', 'equalto', 'download')|selectattr('tone', 'equalto', 'destructive')|list %}
@@ -116,7 +137,7 @@
       {% if failed %}<form class="inline" method="post" action="/get/downloads/clear" hx-post="/get/downloads/clear" hx-target="#coming-list" hx-swap="innerHTML"><button class="btn" data-variant="ghost" data-size="sm">Clear failed downloads</button></form>{% endif %}
     </span>
   </div>
-  <div class="release-list">{% for it in needs %}{{ row(it) }}{% endfor %}</div>
+  <div class="release-list">{% for it in needs %}{{ row(it, loop.first) }}{% endfor %}</div>
 </section>
 {% endif %}
 {% if moving %}
@@ -125,6 +146,8 @@
   <div class="release-list">{% for it in moving %}{{ row(it) }}{% endfor %}</div>
 </section>
 {% endif %}
-{% if not items %}
+{% if not items and artist %}
+{% call empty() %}Nothing by {{ artist }} is coming in now. <a href="/get/coming">Show every artist</a>{% endcall %}
+{% elif not items %}
 {% call empty() %}Nothing is coming in. Get an album from <a href="/get/missing">Missing</a> or <a href="/get/discover">Discover</a>, or search for one under <a href="/get/find">Find</a>. Finished downloads wait in the <a href="/inbox">inbox</a> for review.{% endcall %}
 {% endif %}

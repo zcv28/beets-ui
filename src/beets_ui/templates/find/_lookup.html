@@ -1,0 +1,78 @@
+{% from "partials/macros.html" import alert, cover, empty, icon, row_menu %}
+{% from "get/_catalog.html" import artist_links, get_slot with context %}
+{# One part of Find's results: artists, releases or tracks from a catalogue, best match first. #}
+{% set back = '/get/find?q=' ~ q|q ~ '&src=' ~ src %}
+<div class="lookup" id="lookup-{{ kind }}">
+{% if error %}
+{% call alert('warn', "Couldn't search " ~ source_name) %}{{ error }}. It may be busy; search again in a moment.{% endcall %}
+{% elif not found %}
+<p class="hint">{{ {'artists': 'No artist', 'releases': 'No release', 'tracks': 'No track'}[kind] }} on {{ source_name }} matches “{{ q }}”.</p>
+{% elif kind == 'artists' %}
+<div class="table-container" data-density="compact"><table class="table stack-sm lookup-table">
+  <thead><tr><th class="table-head">Artist</th><th class="table-head"><span class="sr-only">In the library</span></th></tr></thead>
+  <tbody>
+  {% for a in found %}
+  <tr class="table-row">
+    <td class="table-cell col-main">
+      <a class="strong" href="/get/artist/{{ a.source }}/{{ a.id }}?name={{ a.name|q }}"{{ a.name|lang }}>{{ a.name }}</a>{% if a.original %}<span class="original"{{ a.original|lang }}>{{ a.original }}</span>{% endif %}
+      {% if a.detail %}<p class="hint">{{ a.detail }}</p>{% endif %}
+    </td>
+    <td class="table-cell col-actions">{% if a.library %}<a class="status" data-status="success" href="/library/artist?name={{ a.library|q }}">In your library</a>{% endif %}</td>
+  </tr>
+  {% endfor %}
+  </tbody>
+</table></div>
+<p class="hint">An artist opens into every release of theirs, to get all of them or the ones you tick.</p>
+{% elif kind == 'releases' %}
+<div class="table-container" data-density="compact"><table class="table stack-sm missing-table">
+  <thead><tr><th class="table-head cover-col"><span class="sr-only">Cover</span></th><th class="table-head">Release</th><th class="table-head hide-sm">Released</th><th class="table-head hide-sm">Type</th><th class="table-head"><span class="sr-only">Actions</span></th></tr></thead>
+  <tbody>
+  {% for r in found %}
+  <tr class="table-row">
+    <td class="table-cell cover-col">{{ cover(release_cover(r.source, r.id)) }}</td>
+    <td class="table-cell col-main">
+      <a class="strong" href="/get/release/{{ r.source }}/{{ r.id }}"{{ r.title|lang }}>{{ r.title }}</a>{% if r.original %}<span class="original"{{ r.original|lang }}>{{ r.original }}</span>{% endif %}
+      <p class="hint">{{ artist_links(r) }}{% if r.catalog %} · <span class="mono">{{ r.catalog }}</span>{% endif %}</p>
+      <p class="hint show-sm"><span class="mono">{{ r.date or '?' }}</span> · {{ r.type }}</p>
+    </td>
+    <td class="table-cell hide-sm nowrap mono">{{ r.date or '?' }}</td>
+    <td class="table-cell hide-sm hint">{{ r.type }}</td>
+    <td class="table-cell col-actions"><span class="row-actions">{{ get_slot(r, r.owned, r.w, back) }}</span></td>
+  </tr>
+  {% endfor %}
+  </tbody>
+</table></div>
+{% if found|selectattr('owned', 'equalto', 'maybe')|list %}<p class="hint">Maybe yours: an album in your library has the same title in another edition or by another credit, or the artist has one from the same year under its other name. Check before getting it.</p>{% endif %}
+{% else %}
+<div class="table-container" data-density="compact"><table class="table stack-sm missing-table lookup-tracks">
+  <thead><tr><th class="table-head cover-col"><span class="sr-only">Cover</span></th><th class="table-head">Track</th><th class="table-head hide-sm">From</th><th class="table-head hide-sm num">Length</th><th class="table-head"><span class="sr-only">Actions</span></th></tr></thead>
+  <tbody>
+  {% for t in found %}
+  {% set rel = t.release %}
+  {% set hand_q = (t.artist ~ ' ' ~ t.title)|trim %}
+  <tr class="table-row">
+    <td class="table-cell cover-col">{{ cover(release_cover(rel.source, rel.id) if rel else None) }}</td>
+    <td class="table-cell col-main">
+      <span class="strong"{{ t.title|lang }}>{{ t.title }}</span>{% if t.original %}<span class="original"{{ t.original|lang }}>{{ t.original }}</span>{% endif %}
+      <p class="hint">{{ artist_links(t) }}</p>
+      {% if rel %}<p class="hint show-sm">From <a href="/get/release/{{ rel.source }}/{{ rel.id }}"{{ rel.title|lang }}>{{ rel.title }}</a></p>{% endif %}
+    </td>
+    <td class="table-cell hide-sm">{% if rel %}<a href="/get/release/{{ rel.source }}/{{ rel.id }}"{{ rel.title|lang }}>{{ rel.title }}</a><p class="hint">{{ rel.type }}{% if rel.date %} · <span class="mono">{{ rel.date[:4] }}</span>{% endif %}</p>{% else %}<span class="hint">On no release</span>{% endif %}</td>
+    <td class="table-cell hide-sm num mono">{% if t.length %}{{ '%d:%02d'|format(t.length // 60, t.length % 60) }}{% endif %}</td>
+    <td class="table-cell col-actions"><span class="row-actions">
+      {# A track on its artist's own release: get that album. On a compilation (or someone
+         else's album) that would bring much more, so finding the track leads. #}
+      {% if rel and not t.elsewhere %}{{ get_slot(rel, t.owned, t.w, back, label='Get the album') }}
+      {% elif sources_enabled %}<a class="btn" data-variant="outline" data-size="xs" href="/get/find?by=hand&amp;q={{ hand_q|q }}" aria-label="Find {{ t.title }} by hand">Find the track</a>{% endif %}
+      {% call row_menu('t-' ~ (t.source ~ t.id)|uid, 'More for ' ~ t.title) %}
+        {% if rel %}<a class="menu-item" href="/get/release/{{ rel.source }}/{{ rel.id }}">Open the release<span class="hint"{{ rel.title|lang }}>{{ rel.title }}{% if t.elsewhere %}, a {{ 'compilation' if rel.kind == 'compilation' else 'release by ' ~ rel.artist }}{% endif %}</span></a>{% endif %}
+        {% if sources_enabled and not t.elsewhere %}<a class="menu-item" href="/get/find?by=hand&amp;q={{ hand_q|q }}">Find the track by hand<span class="hint"{{ hand_q|lang }}>{{ hand_q }}</span></a>{% endif %}
+      {% endcall %}
+    </span></td>
+  </tr>
+  {% endfor %}
+  </tbody>
+</table></div>
+<p class="hint">Get the album takes the whole release a track is on. A track from a compilation is found by hand, so you download just the track.</p>
+{% endif %}
+</div>

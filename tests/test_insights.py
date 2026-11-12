@@ -162,7 +162,7 @@ def test_upgrades_lists_lossy_low_bitrate_and_incomplete(app, client, env):
     assert r.status_code == 200 and r.text == ""
     balanced(client.get("/insights/upgrades").text)
     page = client.get("/insights/upgrades?reason=incomplete")
-    assert "Nothing to upgrade" in page.text and "1 dismissed" in page.text
+    assert "Nothing to upgrade" in page.text and "1 kept as it is" in page.text
     client.post("/insights/upgrades/restore")
     assert "Short" in client.get("/insights/upgrades?reason=incomplete").text
 

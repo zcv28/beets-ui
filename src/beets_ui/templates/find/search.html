@@ -5,7 +5,7 @@
 {% block content %}
 {% set tab = 'find' %}{% include "get/_tabs.html" %}
 <div class="tab-content">
-{% if release %}<p class="hint for-line">For <a href="{{ '/wanted/' ~ release.w.id if release.w else '/get/find' }}"{{ release.album|lang }}>{{ release.album }}</a>{% if release.artist %} by <span{{ release.artist|lang }}>{{ release.artist }}</span>{% endif %}{% if release.w %} · a copy you download goes to its request{% endif %}</p>{% endif %}
+{% if release %}<p class="hint for-line">For <a href="{{ '/wanted/' ~ release.w.id if release.w else '/get/find?by=hand' }}"{{ release.album|lang }}>{{ release.album }}</a>{% if release.artist %} by <span{{ release.artist|lang }}>{{ release.artist }}</span>{% endif %}{% if release.w %} · a copy you download goes to its request{% endif %}</p>{% endif %}
 <form method="post" action="/get/find/search" class="bar">
   {% if release %}<input type="hidden" name="artist" value="{{ release.artist }}"><input type="hidden" name="album" value="{{ release.album }}">{% if release.w %}<input type="hidden" name="w" value="{{ release.w.id }}">{% endif %}{% endif %}
   <div class="input-group grow">{{ icon('search') }}<input class="input" type="search" name="q" value="{{ search.text }}" required minlength="3" aria-label="Find music"></div>

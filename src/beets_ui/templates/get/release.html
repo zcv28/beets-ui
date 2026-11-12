@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% from "partials/macros.html" import back, cover, icon %}
+{% from "get/_catalog.html" import artist_links, get_slot with context %}
+{% block title %}{{ rel.title }}{% endblock %}
+{% block header %}{% endblock %}
+{% block content %}
+{# A release as the catalogue knows it, owned or not: its tracklist, and Get. #}
+{% set here = request.url.path %}
+{{ back(back_url, back_label) }}
+<div class="album-head head-compact">
+  <div class="art">{% set src = release_cover(rel.source, rel.id) %}{% if src %}<img class="art-img" src="{{ src }}" alt="Cover of {{ rel.title }}">{% else %}{{ cover(None, 'art-img cover') }}{% endif %}</div>
+  <div class="meta">
+    <h1{{ rel.title|lang }}>{{ rel.title }}{% if rel.original %}<span class="original"{{ rel.original|lang }}>{{ rel.original }}</span>{% endif %}</h1>
+    <p class="subtitle">{{ artist_links(rel) }}{% if rel.date %} · <span class="mono">{{ rel.date }}</span>{% endif %}</p>
+    <p class="album-facts">{{ rel.type or 'Release' }}{% if rel.catalog %} · <span class="mono">{{ rel.catalog }}</span>{% endif %} · from {{ source_name }}</p>
+    <div class="bar">
+      {{ get_slot(rel, owned, w, here, size='sm', variant='default') }}
+      {% if sources_enabled and owned != 'yours' %}{% set hand_q = ((rel.artists[0].name if rel.artists else rel.artist) ~ ' ' ~ rel.title)|trim %}
+      <a class="btn" data-variant="outline" data-size="sm" href="/get/find?q={{ hand_q|q }}&amp;artist={{ (rel.artists[0].name if rel.artists else rel.artist)|q }}&amp;album={{ rel.title|q }}{{ '&amp;w=' ~ w.id if w }}" title="Search the download source for it yourself">Find by hand</a>{% endif %}
+      {% for a in rel.artists[:2] %}<a class="btn" data-variant="outline" data-size="sm" href="/get/artist/{{ rel.source }}/{{ a.id }}?name={{ a.name|q }}"{{ a.name|lang }}>Everything by {{ a.name }}</a>{% endfor %}
+      <a class="btn" data-variant="ghost" data-size="sm" href="{{ rel.url }}" target="_blank" rel="noopener noreferrer">Open in {{ source_name }}{{ icon('external') }}</a>
+    </div>
+  </div>
+</div>
+
+<h2>Tracks</h2>
+<div hx-get="{{ here }}/tracks" hx-trigger="load" hx-swap="outerHTML" aria-live="polite"><p class="hint"><span class="loading">Looking up the tracklist</span></p></div>
+{% endblock %}

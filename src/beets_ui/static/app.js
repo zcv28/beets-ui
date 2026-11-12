@@ -369,6 +369,32 @@ document.addEventListener("change", (e) => {
   button.disabled = on.length === 0;
 });
 
+// --------------------------------------------------- pick releases to get
+// A form with data-pick takes the tick boxes that name it (form="its id"), wherever they
+// sit in the page; a box with data-pick-all="its id" ticks them all, and the form's
+// [data-pick-count] button counts the ticks.
+document.addEventListener("change", (e) => {
+  const t = e.target;
+  // getAttribute, not form.id: a control named "id" in the form shadows that property.
+  const id = t.dataset.pickAll || (t.form && t.form.hasAttribute("data-pick") ? t.form.getAttribute("id") : "");
+  if (!id) return;
+  const form = document.getElementById(id);
+  if (!form) return;
+  const boxes = [...document.querySelectorAll(`input[type=checkbox][form="${id}"]`)];
+  if (t.dataset.pickAll) boxes.forEach((b) => { b.checked = t.checked; });
+  const n = boxes.filter((b) => b.checked).length;
+  const all = document.querySelector(`[data-pick-all="${id}"]`);
+  if (all) { all.checked = n > 0 && n === boxes.length; all.indeterminate = n > 0 && n < boxes.length; }
+  const button = form.querySelector("[data-pick-count]");
+  if (button) {
+    button.disabled = n === 0;
+    // data-pick-label says it with the count ("Get better copies of {n}").
+    if (!button.dataset.idle) button.dataset.idle = button.textContent;
+    const label = button.dataset.pickLabel || "Get {n} selected";
+    button.textContent = n ? label.replace("{n}", n) : button.dataset.idle;
+  }
+});
+
 // ----------------------------------------------- polled lists keep open rows
 // A refreshed region marked data-keep-open re-opens the details that were open before the
 // swap, and gives focus back to the row it was in (its summary) so the keyboard keeps its place.

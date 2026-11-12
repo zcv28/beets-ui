@@ -6,7 +6,7 @@ import contextlib
 
 from fastapi import APIRouter, Form, HTTPException, Request
 
-from .. import acquire, beets_ctx, discography, discover
+from .. import acquire, beets_ctx, catalog, discography, discover
 from ..sources import SourceError
 from ..web import flash, is_fragment, partial, redirect, render, toast
 
@@ -36,6 +36,20 @@ def _chip(request: Request, w: dict, title: str, text: str = ""):
     resp = partial(request, "wanted/_chip.html", w=w)
     resp.headers["HX-Trigger"] = toast(title, text).headers["HX-Trigger"]
     return resp
+
+
+def _got_many(request: Request, made: list[int], text: str, none: str) -> None:
+    """After a Get for several releases: what started, with Undo for the new requests
+    (while they still wait to search), or why nothing did."""
+    if not made:
+        flash(request, none, "ok")
+        return
+    undo = {"url": "/wanted/undo", "vals": {"ids": ",".join(str(i) for i in made)}}
+    flash(request, text + " Follow them under Coming in; two searches run at a time.", "ok", undo)
+
+
+def _new(results: list[tuple[int, bool]]) -> list[int]:
+    return [wid for wid, created in results if created]
 
 
 def _gap_row(request: Request, source: str, artist_id: str, kinds: tuple[str, ...]) -> dict:
@@ -82,13 +96,16 @@ def get_artist(
     acq = _engine(request)
     picked = tuple(k for k in kinds if k in discography.KINDS) or discography.DEFAULT_KINDS
     row = _gap_row(request, source, artist_id, picked)
-    new = sum(acquire.from_gap(request.app.state.state, row, rel)[1] for rel in row["missing"])
+    state = request.app.state.state
+    made = _new([acquire.from_gap(state, row, rel) for rel in row["missing"]])
     acq.wake()
-    if new:
-        msg = f"Getting {new} album{'s' if new != 1 else ''} by {row['artist']}. Follow them under Coming in; two searches run at a time."
-    else:
-        msg = f"Every missing album by {row['artist']} is already being got."
-    flash(request, msg, "ok")
+    n = len(made)
+    _got_many(
+        request,
+        made,
+        f"Getting {n} album{'s' if n != 1 else ''} by {row['artist']}.",
+        f"Every missing album by {row['artist']} is already being got.",
+    )
     return redirect(_back(back, "/get/missing"))
 
 
@@ -131,7 +148,7 @@ def get_discovered_all(
     albums = {"released": data["released"], "suggested": data["albums"]}.get(section)
     if albums is None:
         raise HTTPException(400, "unknown list")
-    new = 0
+    results = []
     for a in albums:
         if a["wanted"]:
             continue
@@ -142,18 +159,159 @@ def get_discovered_all(
             "original": "",
             "date": a.get("date") or a.get("year") or "",
         }
-        new += acquire.from_gap(state, row, rel)[1]
+        results.append(acquire.from_gap(state, row, rel))
     acq.wake()
     what = "new release" if section == "released" else "suggested album"
-    if new:
-        flash(
-            request,
-            f"Getting {new} {what}{'s' if new != 1 else ''}. Follow them under Coming in; two searches run at a time.",
-            "ok",
-        )
-    else:
-        flash(request, f"Every {what} here is already being got.", "ok")
+    made = _new(results)
+    n = len(made)
+    _got_many(
+        request,
+        made,
+        f"Getting {n} {what}{'s' if n != 1 else ''}.",
+        f"Every {what} here is already being got.",
+    )
     return redirect(_back(back, "/get/discover"))
+
+
+@router.post("/catalog")
+def get_catalogued(
+    request: Request,
+    source: str = Form(...),
+    release_id: str = Form(...),
+    back: str = Form("/get/find"),
+):
+    """Get a release found in a catalogue (Find, a release's page)."""
+    acq = _engine(request)
+    if source not in catalog.SOURCES or not catalog.valid(source, release_id):
+        raise HTTPException(404, "unknown release")
+    try:
+        rel = request.app.state.catalog.release(source, release_id)
+    except catalog.CatalogError as e:
+        if is_fragment(request):
+            return toast("Couldn't look that release up", str(e), "destructive")
+        flash(request, f"Couldn't look that release up: {e}.", "warn")
+        return redirect(_back(back, "/get/find"))
+    wid, created = acquire.from_gap(request.app.state.state, catalog.request_row(rel), rel)
+    acq.wake()
+    w = request.app.state.state.wanted(wid)
+    title = f"Getting {rel['title']}" if created else f"Already getting {rel['title']}"
+    if is_fragment(request):
+        return _chip(request, w, title, "Follow it under Coming in.")
+    flash(request, f"{title}. Follow it under Coming in.", "ok")
+    return redirect(_back(back, "/get/find"))
+
+
+@router.post("/catalog-artist")
+def get_catalogued_artist(
+    request: Request,
+    source: str = Form(...),
+    artist_id: str = Form(...),
+    name: str = Form(""),
+    id: list[str] = Form([]),
+    all: str = Form(""),
+    kinds: list[str] = Form([]),
+    back: str = Form(""),
+):
+    """Get some of an artist's releases (the ticked ones), or all of them of the kinds shown
+    that the library lacks and nothing is getting yet."""
+    from .catalog import artist_releases
+
+    acq = _engine(request)
+    if source not in catalog.SOURCES or not catalog.valid(source, artist_id):
+        raise HTTPException(404, "unknown artist")
+    back = _back(back, f"/get/artist/{source}/{artist_id}")
+    picked = tuple(k for k in kinds if k in discography.KINDS) or discography.DEFAULT_KINDS
+    try:
+        data = artist_releases(
+            request, source, artist_id, name, picked if all else discography.KINDS
+        )
+    except catalog.CatalogError as e:
+        flash(request, f"Couldn't look up their releases: {e}.", "warn")
+        return redirect(back)
+    if all:
+        chosen = data["gettable"]
+    else:
+        # Ticked by hand: anything not surely yours, "maybe yours" included.
+        ticked = set(id)
+        chosen = [
+            r
+            for r in data["rows"]
+            if r["id"] in ticked
+            and r["owned"] != discography.YOURS
+            and not r["upcoming"]
+            and (not r["w"] or r["w"]["status"] == "failed")
+        ]
+    if not chosen:
+        flash(request, "Tick at least one release that isn't in the library or on its way.", "wip")
+        return redirect(back)
+    state = request.app.state.state
+    name = name or (state.discography(source, artist_id) or {}).get("artist") or ""
+    row = {"source": source, "artist": name or chosen[0]["artists"], "artist_original": ""}
+    made = _new([acquire.from_gap(state, row, rel) for rel in chosen])
+    acq.wake()
+    who = f" by {name}" if name else ""
+    n = len(made)
+    _got_many(
+        request,
+        made,
+        f"Getting {n} release{'s' if n != 1 else ''}{who}.",
+        f"Those releases{who} are already being got.",
+    )
+    return redirect(back)
+
+
+@router.post("/undo")
+def undo(request: Request, ids: str = Form(""), back: str = Form("")):
+    """Take back requests just made in one go: those still waiting to search go; any
+    that started already stay, and say so."""
+    state = request.app.state.state
+    gone = started = 0
+    for part in ids.split(","):
+        w = state.wanted(int(part)) if part.strip().isdigit() else None
+        if w is None:
+            continue
+        if w["status"] == "queued":
+            state.delete_wanted(w["id"])
+            gone += 1
+        elif w["status"] in acquire.OPEN:
+            started += 1
+    text = f"Took back {gone} request{'s' if gone != 1 else ''}."
+    if started:
+        text += (
+            f" {started} had started already; cancel {'them' if started != 1 else 'it'}"
+            " under Coming in if you don't want them."
+        )
+    flash(request, text, "ok" if not started else "wip")
+    referer = request.headers.get("referer") or ""
+    path = "/" + referer.split("/", 3)[3] if referer.count("/") >= 3 else ""
+    return redirect(_back(back or path, "/get/coming"))
+
+
+@router.post("/albums")
+def get_better_copies(request: Request, album_id: list[int] = Form([]), back: str = Form("")):
+    """Get better copies of the albums ticked on Upgrades."""
+    acq = _engine(request)
+    lib = beets_ctx.lib()
+    state = request.app.state.state
+    results = []
+    for aid in album_id:
+        album = lib.get_album(aid)
+        if album is not None:
+            results.append(acquire.from_album(state, album))
+    acq.wake()
+    back = _back(back, "/insights/upgrades")
+    if not results:
+        flash(request, "Tick at least one album.", "wip")
+        return redirect(back)
+    made = _new(results)
+    n = len(made)
+    _got_many(
+        request,
+        made,
+        f"Getting better copies of {n} album{'s' if n != 1 else ''}. Each replaces the album it is for.",
+        "Better copies of those albums are already being got.",
+    )
+    return redirect(back)
 
 
 @router.post("/album/{album_id}")

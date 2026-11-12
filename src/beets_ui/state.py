@@ -571,6 +571,16 @@ class State:
             out.append(d)
         return out
 
+    def discography(self, source: str, artist_id: str) -> dict[str, Any] | None:
+        r = self._exec(
+            "SELECT * FROM discography WHERE source=? AND artist_id=?", (source, artist_id)
+        ).fetchone()
+        if r is None:
+            return None
+        d = dict(r)
+        d["releases"] = json.loads(d["releases"] or "[]")
+        return d
+
     def set_discography(
         self, source: str, artist_id: str, artist: str, releases: list[dict], error: str = ""
     ) -> None:

@@ -19,11 +19,13 @@
 <p class="bar caught-up">{{ icon('check') }}Nothing is waiting for review.</p>
 {% endif %}
 <div class="toolbar">
+  {% if status or summary|length + (1 if imported else 0) > 1 %}
   <nav class="toggles" aria-label="Inbox filters">
     <a class="toggle" data-variant="outline" href="/inbox" {% if not status %}aria-current="page"{% endif %}>All</a>
     {% for st, n in summary|dictsort %}<a class="toggle" data-variant="outline" href="/inbox?status={{ st }}" {% if status == st %}aria-current="page"{% endif %}>{{ labels.get(st, st) }} · {{ n }}</a>{% endfor %}
     {% if imported %}<a class="toggle" data-variant="outline" href="/inbox?status=inlib" {% if status == 'inlib' %}aria-current="page"{% endif %}>In library · {{ imported }}</a>{% endif %}
   </nav>
+  {% endif %}
   <span class="spacer"></span>
   <div class="toolbar-actions">
   {% if not (unlooked and not settings.auto_preview and not to_review.next) %}<form class="inline" method="post" action="/inbox/preview-all"><button class="btn" data-variant="outline" data-size="sm">Look up new</button></form>{% endif %}

@@ -1,38 +1,58 @@
 {% extends "base.html" %}
-{% from "partials/macros.html" import empty %}
+{% from "partials/macros.html" import empty, row_menu %}
 {% block title %}Upgrades{% endblock %}
+{% block section %}Insights{% endblock %}
 {% block status %}{{ rows|length }} album{{ 's' if rows|length != 1 }}{% endblock %}
 {% block content %}
 {% set tab = 'upgrades' %}{% include "insights/_tabs.html" %}
 {% set here = request.url.path ~ ('?' ~ request.url.query if request.url.query else '') %}
 <div class="tab-content">
-<p class="lead">Albums worth replacing with a better copy. Lossy means MP3, AAC, Vorbis, Opus or WMA; low bitrate is under 192 kbps (96 kbps for Opus); incomplete means fewer tracks than the track or disc totals say. Missing and small covers are under <a href="/library/covers?filter=low">Library › Covers</a> (under {{ min_px }}px).</p>
+<p class="lead">Albums worth replacing with a better copy.</p>
+<details class="about">
+  <summary>What counts</summary>
+  <p class="hint">Lossy means MP3, AAC, Vorbis, Opus or WMA; low bitrate is under 192 kbps (96 kbps for Opus); incomplete means fewer tracks than the track or disc totals say. Missing and small covers (under {{ min_px }}px) are under <a href="/library/covers?filter=low">Library › Covers</a>.</p>
+</details>
 <nav class="toggles" aria-label="Upgrade reasons">
   <a class="toggle" data-variant="outline" href="/insights/upgrades" {% if not reason %}aria-current="page"{% endif %}>All</a>
   {% for k, label in reasons.items() %}<a class="toggle" data-variant="outline" href="/insights/upgrades?reason={{ k }}" {% if reason == k %}aria-current="page"{% endif %}>{{ label }} · {{ counts[k] }}</a>{% endfor %}
 </nav>
 {% if rows %}
-<div class="table-container"><table class="table stack-sm">
-  <thead><tr><th class="table-head">Album</th><th class="table-head">Why</th><th class="table-head"><span class="sr-only">Actions</span></th></tr></thead>
+{# Rows that can be asked for: no request for a better copy under way. #}
+{% set open_rows = [] %}{% for a in rows %}{% set w = wanted.get(a.id) %}{% if not (w and w.status not in ('cancelled', 'done')) %}{% set _ = open_rows.append(a) %}{% endif %}{% endfor %}
+{% if get_enabled and open_rows %}
+<form class="bar tight pick-bar" id="pick-upgrades" method="post" action="/wanted/albums" data-pick data-confirm="Get better copies of the albums you ticked? Each is searched, downloaded and imported, and replaces the album it is for; anything it isn't sure of waits for you." data-confirm-button="Get better copies" data-confirm-kind="default">
+  <input type="hidden" name="back" value="{{ here }}">
+  <button class="btn" data-size="sm" data-pick-count data-pick-label="Get better copies of {n}" disabled>Get better copies</button>
+  <span class="hint">Tick the albums to replace. Each one is searched, downloaded and imported, two at a time.</span>
+</form>
+{% endif %}
+<div class="table-container"><table class="table stack-sm upgrades-table">
+  <thead><tr>
+    <th class="table-head pick">{% if get_enabled and open_rows %}<input class="checkbox" type="checkbox" data-pick-all="pick-upgrades" aria-label="Select every album">{% else %}<span class="sr-only">Pick</span>{% endif %}</th>
+    <th class="table-head">Album</th><th class="table-head">Why</th><th class="table-head"><span class="sr-only">Actions</span></th>
+  </tr></thead>
   <tbody>
   {% for a in rows %}
   {% set q = a.albumartist ~ ' ' ~ a.album %}
+  {% set shown, details = [], [] %}
+  {% for k, d in a.issues.items() if not reason or k == reason %}{% set _ = shown.append(k) %}{% if d and d not in details %}{% set _ = details.append(d) %}{% endif %}{% endfor %}
+  {% set w = wanted.get(a.id) %}
+  {% set asked = w and w.status not in ('cancelled', 'done') %}
   <tr class="table-row">
-    <td class="table-cell col-main"><div class="table-cell-title"><a class="strong" href="/library/album/{{ a.id }}"{{ a.album|lang }}>{{ a.album or '(untitled)' }}</a><span class="hint">{{ a.albumartist }}{% if a.year %} · {{ a.year }}{% endif %} · {{ a.tracks }} track{{ 's' if a.tracks != 1 }}</span></div></td>
-    <td class="table-cell">{% for k, detail in a.issues.items() if not reason or k == reason %}
-      <div class="issue">
-        <span class="badge" data-status="warning">{{ reasons[k] }}</span> <span class="hint">{{ detail }}</span>
-        <form class="inline" method="post" action="/insights/upgrades/dismiss" hx-post="/insights/upgrades/dismiss" hx-target="closest .issue" hx-swap="delete">
-          <input type="hidden" name="album_id" value="{{ a.id }}"><input type="hidden" name="reason" value="{{ k }}"><input type="hidden" name="label" value="{{ q }}"><input type="hidden" name="back" value="{{ here }}">
-          <button class="btn" data-variant="ghost" data-size="xs" title="This is the best copy there is: stop listing it for this reason" aria-label="Dismiss {{ reasons[k]|lower }} for {{ a.album }}">Dismiss</button>
+    <td class="table-cell pick">{% if get_enabled and not asked %}<input class="checkbox" type="checkbox" name="album_id" value="{{ a.id }}" form="pick-upgrades" aria-label="Pick {{ a.album }}">{% endif %}</td>
+    <td class="table-cell col-main"><div class="table-cell-title"><a class="strong" href="/library/album/{{ a.id }}"{{ a.album|lang }}>{{ a.album or '(untitled)' }}</a><span class="hint"><span{{ a.albumartist|lang }}>{{ a.albumartist }}</span>{% if a.year %} · {{ a.year }}{% endif %} · {{ a.tracks }} track{{ 's' if a.tracks != 1 }}</span></div></td>
+    {# The reasons once, then what the files are: "MP3 128 kbps" said once, not per reason. #}
+    <td class="table-cell"><span class="status" data-status="warning">{% for k in shown %}{{ reasons[k] if loop.first else reasons[k]|lower }}{{ ', ' if not loop.last }}{% endfor %}</span>{% if details %}<p class="hint">{{ details|join(' · ') }}</p>{% endif %}</td>
+    <td class="table-cell col-actions"><span class="row-actions">
+      {% if get_enabled %}<span class="get-slot">{% if asked %}{% include "wanted/_chip.html" %}{% else %}<form class="inline" method="post" action="/wanted/album/{{ a.id }}" hx-post="/wanted/album/{{ a.id }}" hx-target="closest .get-slot" hx-swap="innerHTML"><input type="hidden" name="back" value="{{ here }}"><button class="btn" data-variant="outline" data-size="xs" aria-label="Get a better copy of {{ a.album }}">Get a better copy</button></form>{% endif %}</span>{% endif %}
+      {% call row_menu('u-' ~ a.id, 'More for ' ~ a.album) %}
+        {% if sources_enabled %}<a class="menu-item" href="/get/find?by=hand&amp;q={{ q|q }}">Find another copy by hand<span class="hint"{{ q|lang }}>{{ q }}</span></a>{% endif %}
+        <form method="post" action="/insights/upgrades/dismiss" hx-post="/insights/upgrades/dismiss" hx-target="closest tr" hx-swap="delete">
+          <input type="hidden" name="album_id" value="{{ a.id }}"><input type="hidden" name="reason" value="{{ shown|join(',') }}"><input type="hidden" name="label" value="{{ q }}"><input type="hidden" name="back" value="{{ here }}">
+          <button class="menu-item">Keep this copy<span class="hint">It's the best there is: stop listing it{{ ' for these reasons' if shown|length > 1 }}</span></button>
         </form>
-      </div>
-    {% endfor %}</td>
-    <td class="table-cell nowrap col-actions">
-      {% set w = wanted.get(a.id) %}
-      {% if get_enabled %}<span class="get-slot">{% if w and w.status not in ('cancelled', 'done') %}{% include "wanted/_chip.html" %}{% else %}<form class="inline" method="post" action="/wanted/album/{{ a.id }}" hx-post="/wanted/album/{{ a.id }}" hx-target="closest .get-slot" hx-swap="innerHTML"><input type="hidden" name="back" value="{{ here }}"><button class="btn" data-size="sm" title="Search, download and import a better copy; it replaces this one">Get a better copy</button></form>{% endif %}</span>{% endif %}
-      {% if sources_enabled %}<a class="btn" data-variant="outline" data-size="sm" href="/get/find?q={{ q|q }}" title="Find another copy of {{ q }} by hand">Find</a>{% endif %}
-    </td>
+      {% endcall %}
+    </span></td>
   </tr>
   {% endfor %}
   </tbody>
@@ -42,8 +62,8 @@
 {% endif %}
 {% if dismissed %}
 <form class="bar right" method="post" action="/insights/upgrades/restore">
-  <span class="hint">{{ dismissed }} dismissed</span>
-  <button class="btn" data-variant="outline" data-size="sm">List dismissed again</button>
+  <span class="hint">{{ dismissed }} kept as {{ "it is" if dismissed == 1 else "they are" }}</span>
+  <button class="btn" data-variant="outline" data-size="sm">List them again</button>
 </form>
 {% endif %}
 </div>

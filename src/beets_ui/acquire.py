@@ -134,6 +134,16 @@ def from_gap(state: State, row: dict[str, Any], rel: dict[str, Any]) -> tuple[in
     old = state.wanted_for_release(row["source"], rel["id"])
     if old and old["status"] in OPEN and old["status"] != "failed":
         return old["id"], False
+    # The same album asked for already, from another catalogue or under the other name.
+    artists = {discography.norm(row["artist"]), discography.norm(row.get("artist_original") or "")}
+    albums = {discography.norm(rel["title"]), discography.norm(rel.get("original") or "")}
+    for w in state.wanted_list(tuple(s for s in OPEN if s != "failed")):
+        if w["kind"] != "missing":
+            continue
+        theirs = {discography.norm(w["artist"]), discography.norm(w["artist_original"] or "")}
+        named = {discography.norm(w["album"]), discography.norm(w["album_original"] or "")}
+        if (artists & theirs) - {""} and (albums & named) - {""}:
+            return w["id"], False
     wid = state.add_wanted(
         kind="missing",
         artist=row["artist"],

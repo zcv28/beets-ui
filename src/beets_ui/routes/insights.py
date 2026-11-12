@@ -53,7 +53,10 @@ def upgrades_dismiss(
     label: str = Form(""),
     back: str = Form(""),
 ):
-    request.app.state.state.dismiss("upgrade", upgrades.dismiss_key(album_id, reason), label)
+    # One reason, or several separated by commas ("Keep this copy" on every reason shown).
+    for r in reason.split(","):
+        if r in upgrades.REASONS:
+            request.app.state.state.dismiss("upgrade", upgrades.dismiss_key(album_id, r), label)
     undo = {"url": "/insights/upgrades/restore", "vals": {"album_id": album_id, "reason": reason}}
     done = toast(f"Dismissed {label}" if label else "Dismissed", undo=undo)
     return _done(request, back, "/insights/upgrades", done)
@@ -64,7 +67,8 @@ def upgrades_restore(request: Request, album_id: int = Form(0), reason: str = Fo
     """List one dismissed album again (the pop-up's Undo), or all of them."""
     state = request.app.state.state
     if album_id and reason:
-        state.undismiss("upgrade", upgrades.dismiss_key(album_id, reason))
+        for r in reason.split(","):
+            state.undismiss("upgrade", upgrades.dismiss_key(album_id, r))
         return _done(request, "", "/insights/upgrades")
     for key in state.dismissed("upgrade"):
         state.undismiss("upgrade", key)

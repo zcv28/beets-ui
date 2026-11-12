@@ -571,7 +571,7 @@
   /* A request's state is a link to its page. */
   a.wanted-state { color: inherit; text-decoration: none; }
   a.wanted-state:hover { text-decoration: underline; text-underline-offset: 4px; }
-  .get-slot { display: inline-flex; align-items: center; vertical-align: middle; }
+  .get-slot { display: inline-flex; align-items: center; gap: 0.5rem; vertical-align: middle; }
   /* A row's actions: Get (or where its request stands) and the row's menu, on one line
      at the row's right edge, whichever of the two is showing. */
   .row-actions { display: flex; align-items: center; justify-content: flex-end; gap: 0.375rem; white-space: nowrap; }
@@ -728,7 +728,9 @@
   @media (max-width: 767px) {
     .release > summary { grid-template-columns: 1rem 2.5rem minmax(0, 1fr); align-items: start; padding: 0.625rem 0.75rem; }
     .release-row.has-quick > .release > summary { padding-right: 0.75rem; }
-    .release-quick { display: none; }
+    /* The main action sits under the row, in line with its title, so a quick check
+       can act without opening it. */
+    .release-quick { position: static; height: auto; padding: 0 0.75rem 0.75rem 6rem; }
     .release > summary .release-chevron { margin-top: 0.75rem; }
     .release > summary .cover { grid-row: span 3; width: 2.5rem; height: 2.5rem; }
     .release-main, .release-state, .release-progress { grid-column: 3; }
@@ -836,4 +838,67 @@
   .menu-choice .menu-check { visibility: hidden; color: var(--foreground); }
   .menu-choice[aria-pressed="true"] { font-weight: 500; }
   .menu-choice[aria-pressed="true"] .menu-check { visibility: visible; }
+}
+
+/* ================================================= catalogue: artists, releases */
+@layer app {
+  /* An artist or release found in a catalogue: a smaller head than a library album's. */
+  .head-compact .art { width: 12rem; }
+  @media (max-width: 767px) { .head-compact .art { width: 9rem; } }
+  .head-compact .art .cover { width: 100%; height: auto; aspect-ratio: 1; }
+  .head-compact .art .cover-none .icon { width: 2.5rem; height: 2.5rem; }
+  .head-compact .get-slot .status { font-size: 0.875rem; }
+
+  /* An artist's releases: a tick box, then the columns of Get › Missing. */
+  .releases-table .cover-col { width: 4.5rem; }
+  .releases-table td.cover-col { padding-top: 0.375rem; padding-bottom: 0.375rem; }
+  .releases-table .col-main .original { display: block; }
+  .releases-table .is-owned .col-main > a { color: var(--muted-foreground); }
+  @media (min-width: 768px) {
+    .releases-table { table-layout: fixed; }
+    .releases-table th:first-child { width: 2.5rem; }
+    .releases-table th:nth-child(4) { width: 7.5rem; }
+    .releases-table th:nth-child(5) { width: 9rem; }
+    .releases-table th:last-child { width: 11rem; }
+    .lookup-tracks th:nth-child(3) { width: 30%; }
+    .lookup-tracks th:nth-child(4) { width: 5rem; }
+  }
+  @media (max-width: 767px) {
+    .releases-table .table-row { flex-wrap: wrap; align-items: flex-start; }
+    .releases-table td.pick { order: -1; padding: 0.25rem 0 0; }
+    .releases-table td.cover-col { width: auto; padding: 0; }
+    .releases-table .col-main { flex: 1 1 0; order: 0; min-width: 0; }
+    .releases-table .col-actions { flex-basis: 100%; display: flex; justify-content: flex-end; gap: 0.5rem; }
+  }
+  .pick-bar { margin-bottom: 0.75rem; }
+  .tracklist-table td.num:first-child, .tracklist-table th:first-child { width: 3rem; }
+  .tracklist-table th:last-child { width: 5rem; }
+
+  /* Coming in, narrowed to one artist. */
+  .coming-filter { margin: 0 0 1rem; }
+}
+
+/* ======================================================== consistency pass */
+@layer app {
+  /* Every section page's header keeps the same height, line under the heading or not,
+     so the tabs below never move when you switch between them. */
+  .page-header { min-height: 3.375rem; }
+  .page-header:has(> .back), .page-header:has(.request-head) { min-height: 0; }
+
+  /* Links in tables look like links. A row's bold name is its link (underlined on
+     hover); secondary links (an artist, the release a track is from) carry a quiet
+     underline, since nothing else tells them from plain text. */
+  .table a:not(.btn):not(.status):not(.strong):not(.menu-item) { text-decoration: underline; text-decoration-color: color-mix(in oklch, currentColor 35%, transparent); text-decoration-thickness: 1px; text-underline-offset: 0.2em; }
+  .table a:not(.btn):not(.status):not(.menu-item):hover { text-decoration: underline; text-decoration-color: currentColor; text-underline-offset: 0.2em; }
+
+  /* An unticked box needs 3:1 against the page, in both themes. */
+  .checkbox:not(:checked):not(:indeterminate) { border-color: color-mix(in oklch, var(--muted-foreground) 75%, var(--border)); }
+
+  /* Recently added: one row that scrolls sideways (every album still reachable by
+     keyboard), with the whole library a click away. */
+  .grid.recent { grid-template-columns: none; grid-auto-flow: column; grid-auto-columns: minmax(10rem, calc((100% - 4rem) / 5)); overflow-x: auto; overscroll-behavior-x: contain; scroll-snap-type: x proximity; scrollbar-width: thin; scrollbar-color: var(--border) transparent;
+    /* Room for a focused tile's ring, which the scroller would otherwise clip. */
+    padding: 4px 4px 0.5rem; margin-inline: -4px; scroll-padding-inline: 4px; }
+  .grid.recent > * { scroll-snap-align: start; }
+  @media (max-width: 767px) { .grid.recent { grid-auto-columns: 42%; } }
 }

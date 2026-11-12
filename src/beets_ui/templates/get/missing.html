@@ -4,7 +4,7 @@
 {% block header %}
 <header class="page-header">
   <h1>Get</h1>
-  <p class="page-description">{% if looked %}{{ missing }} release{{ 's' if missing != 1 }} missing · {% endif %}{{ looked }} of {{ artists }} artist{{ 's' if artists != 1 }} looked up</p>
+  {% if artists %}<p class="page-description">{% if looked %}{{ missing }} release{{ 's' if missing != 1 }} missing · {% endif %}{{ looked }} of {{ artists }} artist{{ 's' if artists != 1 }} looked up</p>{% endif %}
 </header>
 {% endblock %}
 {% block content %}
@@ -76,7 +76,7 @@
     {% if r.error %}{% set err = (r.error.splitlines() or [''])|first %}{% call alert('warn', 'The last lookup failed') %}<span title="{{ r.error }}">{{ err[:160].rstrip('.') }}{{ '…' if err|length > 160 }}</span>. The source may be down or rate-limiting; press Look up again in a while.{% endcall %}{% endif %}
     {% set gettable = r.missing|rejectattr('id', 'in', open_ids(wanted, r.source))|list %}
     {% if get_enabled and gettable %}
-    <form class="bar tight" method="post" action="/wanted/artist">
+    <form class="bar tight" method="post" action="/wanted/artist" data-confirm-kind="default" data-confirm="Get {{ gettable|length }} release{{ 's' if gettable|length != 1 }} by {{ r.artist }}? Each one is searched, downloaded and imported; anything it isn't sure of waits for you." data-confirm-button="Get {{ gettable|length }}">
       <input type="hidden" name="source" value="{{ r.source }}"><input type="hidden" name="artist_id" value="{{ r.artist_id }}"><input type="hidden" name="back" value="{{ here }}">
       {% for k in picked %}<input type="hidden" name="kinds" value="{{ k }}">{% endfor %}
       <button class="btn" data-size="sm">Get {{ gettable|length }} missing</button>
@@ -95,7 +95,7 @@
       <tr class="table-row">
         <td class="table-cell cover-col">{{ cover(release_cover(r.source, rel.id)) }}</td>
         <td class="table-cell col-main">
-          <a class="strong" href="{{ rel.url }}" target="_blank" rel="noopener noreferrer"{{ rel.title|lang }}>{{ rel.title }}</a>{% if rel.original and rel.original != rel.title %}<span class="original"{{ rel.original|lang }}>{{ rel.original }}</span>{% endif %}
+          <a class="strong" href="/get/release/{{ r.source }}/{{ rel.id }}"{{ rel.title|lang }}>{{ rel.title }}</a>{% if rel.original and rel.original != rel.title %}<span class="original"{{ rel.original|lang }}>{{ rel.original }}</span>{% endif %}
           {% if (rel.artists and rel.artists != r.artist) or rel.catalog %}<p class="hint">{% if rel.artists and rel.artists != r.artist %}<span{{ rel.artists|lang }}>{{ rel.artists }}</span>{% endif %}{% if rel.catalog %}{{ ' · ' if rel.artists and rel.artists != r.artist }}<span class="mono">{{ rel.catalog }}</span>{% endif %}</p>{% endif %}
           <p class="hint show-sm"><span class="mono">{{ rel.date or '?' }}</span> · {{ rel.type }}</p>
         </td>

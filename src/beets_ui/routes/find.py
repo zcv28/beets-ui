@@ -13,10 +13,11 @@ from urllib.parse import quote
 from fastapi import APIRouter, Form, HTTPException, Request
 from fastapi.responses import RedirectResponse
 
-from .. import acquire, discography, rank
+from .. import acquire, catalog, discography, rank
 from ..slskd import QUEUE_CHOICES, SEARCH_DEFAULTS, SPEED_CHOICES, WAIT_CHOICES
-from ..sources import Source, SourceError, coming
+from ..sources import Source, SourceError
 from ..web import flash, is_fragment, partial, redirect, render, toast, wanted_cover
+from .get import coming_view
 
 router = APIRouter(prefix="/get")
 legacy = APIRouter()
@@ -153,6 +154,15 @@ SHOWS = ("release", "other")
 # -------------------------------------------------------------------- find
 
 
+def _catalog_source(request: Request, src: str) -> str:
+    """Where Find looks releases up: the one asked for, else the last one used."""
+    if src in catalog.SOURCES:
+        request.session["catalog_src"] = src
+        return src
+    saved = request.session.get("catalog_src")
+    return saved if saved in catalog.SOURCES else "musicbrainz"
+
+
 @router.get("/find")
 def find_page(
     request: Request,
@@ -161,8 +171,23 @@ def find_page(
     album: str = "",
     w: int | None = None,
     show: str = "release",
+    by: str = "",
+    src: str = "",
 ):
+    """Find: releases looked up by artist, release or track name (the default), or files
+    searched for by hand at the download source ("Find by hand" on a release lands here)."""
     source = _source(request)
+    hand = by == "hand" or bool(artist or album or w) or "show" in request.query_params
+    if not hand:
+        return render(
+            request,
+            "find/index.html",
+            nav="get",
+            hand=False,
+            q=q.strip(),
+            src=_catalog_source(request, src),
+            catalog_sources=[(s, catalog.NAMES[s]) for s in catalog.SOURCES],
+        )
     error = None
     try:
         searches = source.searches()[:60]
@@ -178,6 +203,7 @@ def find_page(
         request,
         "find/index.html",
         nav="get",
+        hand=True,
         q=q,
         release=_release(request, artist, album, w),
         groups=[g for g in groups if g["loose"] == (show == "other")],
@@ -213,12 +239,12 @@ def search(
         request.session["slsk_opts"] = opts
     if len(q) < 3:
         flash(request, "Search text must be at least 3 characters.", "wip")
-        return redirect("/get/find")
+        return redirect("/get/find?by=hand")
     try:
         sid = _source(request).search(q, **opts)
     except SourceError as e:
         flash(request, str(e), "warn")
-        return redirect("/get/find")
+        return redirect("/get/find?by=hand")
     release = _release(request, artist, album, w)
     if release:
         wid = release["w"]["id"] if release["w"] else None
@@ -240,7 +266,7 @@ def search_page(request: Request, search_id: str, fmt: str = "", free: str = "")
         info, offers = _results(request, search_id, fmt, free)
     except SourceError as e:
         flash(request, str(e), "warn")
-        return redirect("/get/find")
+        return redirect("/get/find?by=hand")
     return render(
         request,
         "find/search.html",
@@ -289,7 +315,7 @@ def search_delete(request: Request, search_id: str):
         flash(request, str(e), "warn")
     if is_fragment(request):
         return toast("Search deleted")
-    return redirect("/get/find")
+    return redirect("/get/find?by=hand")
 
 
 @router.get("/find/s/{search_id}/folder")
@@ -424,7 +450,7 @@ def _downloads_done(request: Request, message, ok: bool = True):
             flash(request, message[0], "ok" if ok else "warn")
         return redirect("/get/coming")
     _refresh_status(request)
-    resp = partial(request, "get/_coming.html", items=coming(request.app))
+    resp = partial(request, "get/_coming.html", **coming_view(request))
     if message:
         title, text = message
         resp.headers["HX-Trigger"] = toast(title, text, "success" if ok else "destructive").headers[
@@ -435,7 +461,7 @@ def _downloads_done(request: Request, message, ok: bool = True):
 
 @router.get("/downloads")
 def downloads(request: Request):
-    return partial(request, "get/_coming.html", items=coming(request.app))
+    return partial(request, "get/_coming.html", **coming_view(request))
 
 
 @router.post("/downloads/cancel")

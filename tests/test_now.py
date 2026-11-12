@@ -225,7 +225,8 @@ def test_a_folder_still_downloading_is_not_up_for_review(client, app, engine, en
     home = client.get("/").text
     assert "to review" not in home and "not looked up" not in home
     page = client.get("/inbox").text
-    assert "Downloading · 1" in page and "Not looked up" not in page
+    # One kind of folder only: no filter to choose, the row says it.
+    assert "Downloading" in page and "Not looked up" not in page
     assert "Still downloading" in client.get("/inbox/folder?f=Half%20an%20album").text
 
     # Looked up all the same, it is neither imported on its own nor queued for review.
@@ -450,7 +451,7 @@ def test_find_lists_searches_for_a_release_first(client, app, engine):
     src.searches = searches
     found[:] = [("s2", "lofi beats"), ("s1", "yorushika elma")]
     state.log_search("s1", "yorushika elma", "Yorushika", "Elma", wid)
-    page = client.get("/get/find").text
+    page = client.get("/get/find?by=hand").text
     assert 'aria-current="page">For a release · 1' in page
     assert "Elma" in page and "lofi beats" not in page
     page = client.get("/get/find?show=other").text
@@ -463,7 +464,7 @@ def test_find_lists_searches_for_a_release_first(client, app, engine):
     )
     # Only searches of the other kind: the page says so, with a way to them.
     found[:] = [("s2", "lofi beats")]
-    page = client.get("/get/find").text
+    page = client.get("/get/find?by=hand").text
     assert "No searches for a release yet." in page and "Show the 1 other search" in page
 
 

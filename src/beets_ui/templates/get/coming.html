@@ -5,6 +5,6 @@
 {% set tab = 'coming' %}{% include "get/_tabs.html" %}
 <div class="tab-content">
 {# Refreshes itself as requests and downloads move; open rows stay open. #}
-<section id="coming-list" aria-label="Coming in" hx-get="/get/coming/list" hx-trigger="refresh, every 30s [!document.hidden]" hx-swap="innerHTML" data-refresh="wanted downloads" data-keep-open>{% include "get/_coming.html" %}</section>
+<section id="coming-list" aria-label="Coming in" hx-get="/get/coming/list{{ '?artist=' ~ artist|q if artist }}" hx-trigger="refresh, every 30s [!document.hidden]" hx-swap="innerHTML" data-refresh="wanted downloads" data-keep-open>{% include "get/_coming.html" %}</section>
 </div>
 {% endblock %}

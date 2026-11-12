@@ -1,0 +1,26 @@
+{# Bits shared by Find's results and the artist and release pages.
+   Import with context: {% from "get/_catalog.html" import artist_links, get_slot with context %} #}
+
+{# Who a release or track is by, each artist linking to their page. #}
+{% macro artist_links(r) -%}
+{% if r.artists|length == 1 %}<a href="/get/artist/{{ r.source }}/{{ r.artists[0].id }}?name={{ r.artists[0].name|q }}"{{ (r.artist or r.artists[0].name)|lang }}>{{ r.artist or r.artists[0].name }}</a>
+{%- elif r.artists %}{% for a in r.artists %}<a href="/get/artist/{{ r.source }}/{{ a.id }}?name={{ a.name|q }}"{{ a.name|lang }}>{{ a.name }}</a>{{ ', ' if not loop.last }}{% endfor %}
+{%- else %}<span{{ r.artist|lang }}>{{ r.artist }}</span>{% endif %}
+{%- endmacro %}
+
+{# Get a release, or where it stands: in the library ("yours"), asked for, or not out yet.
+   "maybe": something in the library looks like it, so Get stays but says so first. #}
+{% macro get_slot(rel, owned, w, back, size='xs', variant='outline', label='Get') -%}
+<span class="get-slot">
+{%- if owned == 'yours' %}<span class="status" data-status="success">In your library</span>
+{%- elif w %}{% include "wanted/_chip.html" %}
+{%- elif rel.date and rel.date > today %}<span class="hint">Not out yet</span>
+{%- else %}
+  {%- if owned == 'maybe' %}<span class="status" data-status="warning">Maybe yours</span>{% endif %}
+  {%- if get_enabled %}<form class="inline" method="post" action="/wanted/catalog" hx-post="/wanted/catalog" hx-target="closest .get-slot" hx-swap="innerHTML">
+  <input type="hidden" name="source" value="{{ rel.source }}"><input type="hidden" name="release_id" value="{{ rel.id }}"><input type="hidden" name="back" value="{{ back }}">
+  <button class="btn" data-variant="{{ variant }}" data-size="{{ size }}" aria-label="{{ label }}: {{ rel.title }}">{{ label }}</button>
+</form>{% endif %}
+{%- endif -%}
+</span>
+{%- endmacro %}
