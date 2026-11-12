@@ -19,7 +19,7 @@
             <p class="hint">{{ r.missing|length }} missing · {{ r.owned|length }} owned</p>
           </div>
           {% if get_enabled and r.gettable %}
-          <form class="inline" method="post" action="/wanted/artist">
+          <form class="inline" method="post" action="/wanted/artist" data-confirm-kind="default" data-confirm="Get {{ r.gettable }} release{{ 's' if r.gettable != 1 }} by {{ r.artist }}? Each one is searched, downloaded and imported; anything it isn't sure of waits for you." data-confirm-button="Get {{ r.gettable }}">
             <input type="hidden" name="source" value="{{ r.source }}"><input type="hidden" name="artist_id" value="{{ r.artist_id }}"><input type="hidden" name="back" value="/">
             <button class="btn" data-variant="outline" data-size="sm" title="Search, download and import them for you, two at a time">Get {{ r.gettable }}</button>
           </form>
@@ -56,6 +56,7 @@
 <section aria-labelledby="h-recent">
   <h2 id="h-recent">Recently added</h2>
   <div class="grid recent">{% set albums = recent %}{% include "library/_album_cards.html" %}</div>
+  <p class="more-link"><a href="/library?sort=added">All albums, newest first{{ icon('arrow-right') }}</a></p>
 </section>
 {% else %}
 {% call empty() %}Your library is empty. Folders you import from the inbox show up here.{% endcall %}

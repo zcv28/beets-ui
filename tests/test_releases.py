@@ -201,7 +201,7 @@ def test_find_groups_searches_by_release(client, app, src):
         ("Elma", 2),
     ]
     # Searches for a release show first; the ones for nothing in particular are a click away.
-    page = client.get("/get/find").text
+    page = client.get("/get/find?by=hand").text
     assert "searched 2 times" in page and "Garden" in page and "random words" not in page
     assert "For a release · 2" in page and "For nothing in particular · 1" in page
     other = client.get("/get/find?show=other").text
@@ -353,7 +353,8 @@ def test_needs_you_is_the_same_on_coming_in_and_home(client, app, src):
     # One main action per stopped row, beside it.
     assert needs.count('class="release-quick"') == 2 and ">Search again</button>" in needs
     home = client.get("/home/now").text
-    assert "Pick a copy of Pick Me" in home and "Couldn&#39;t get Lost One" in home
+    # Its copies are gone (no offers kept): searching again is what is left.
+    assert "Search again for Pick Me" in home and "Couldn&#39;t get Lost One" in home
     assert "In Review" in home.partition('id="h-coming"')[2]
 
 

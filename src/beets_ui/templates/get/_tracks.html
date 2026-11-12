@@ -1,0 +1,20 @@
+{% from "partials/macros.html" import alert %}
+{# A release's tracklist, loaded into its page. #}
+{% if error %}
+{% call alert('warn', "Couldn't look up the tracklist") %}{{ error }}. Reload the page in a moment.{% endcall %}
+{% else %}
+{% set total = tracks|sum(attribute='length') %}
+<div class="table-container" data-density="compact"><table class="table tracklist-table">
+  <thead><tr><th class="table-head num">#</th><th class="table-head">Title</th><th class="table-head num">Length</th></tr></thead>
+  <tbody>
+  {% for t in tracks %}
+  <tr class="table-row">
+    <td class="table-cell num hint mono">{{ loop.index }}</td>
+    <td class="table-cell col-main"{{ t.title|lang }}>{{ t.title }}</td>
+    <td class="table-cell num mono">{% if t.length %}{{ '%d:%02d'|format(t.length // 60, t.length % 60) }}{% endif %}</td>
+  </tr>
+  {% endfor %}
+  </tbody>
+</table></div>
+<p class="hint">{{ tracks|length }} track{{ 's' if tracks|length != 1 }}{% if total %} · <span class="mono">{{ total|duration }}</span>{% endif %}</p>
+{% endif %}

@@ -1,12 +1,7 @@
 {% extends "base.html" %}
 {% from "partials/macros.html" import alert, cover, empty, icon, row_menu %}
 {% block title %}Discover{% endblock %}
-{% block header %}
-<header class="page-header">
-  <h1>Get</h1>
-  {% if enabled and data.synced %}<p class="page-description">From ListenBrainz for {{ data.user }} · read {{ data.synced|ts }}</p>{% endif %}
-</header>
-{% endblock %}
+{% block header %}{% include "get/_header.html" %}{% endblock %}
 {% block content %}
 {% set tab = 'discover' %}{% include "get/_tabs.html" %}
 {% set here = request.url.path ~ ('?' ~ request.url.query if request.url.query else '') %}
@@ -20,6 +15,7 @@
 </form>{% endif %}</span>
 {% call row_menu(key ~ '-' ~ a.id, 'More for ' ~ a.title) %}
   {% if sources_enabled %}{% set q = a.artist ~ ' ' ~ a.title %}<a class="menu-item" href="/get/find?q={{ q|q }}&amp;artist={{ a.artist|q }}&amp;album={{ a.title|q }}{{ '&amp;w=' ~ a.wanted.id if a.wanted }}">Find by hand<span class="hint"{{ q|lang }}>{{ q }}</span></a>{% endif %}
+  <a class="menu-item" href="/get/artist/of/musicbrainz/{{ a.id }}">Everything by the artist<span class="hint"{{ a.artist|lang }}>Get all or some of {{ a.artist }}'s releases</span></a>
   <a class="menu-item" href="https://musicbrainz.org/release-group/{{ a.id }}" target="_blank" rel="noopener noreferrer">Open in MusicBrainz<span class="hint">Tracklist, releases and links</span></a>
   <form method="post" action="/get/discover/dismiss" hx-post="/get/discover/dismiss" hx-target="closest tr" hx-swap="delete">
     <input type="hidden" name="id" value="{{ a.id }}"><input type="hidden" name="label" value="{{ a.artist }} – {{ a.title }}"><input type="hidden" name="back" value="{{ here }}">
@@ -52,8 +48,8 @@
   <tr class="table-row">
     <td class="table-cell cover-col">{{ cover(release_cover('musicbrainz', r.id)) }}</td>
     <td class="table-cell col-main">
-      <span class="strong"{{ r.title|lang }}>{{ r.title }}</span>
-      <p class="hint"{{ r.artist|lang }}>{{ r.artist }}</p>
+      <a class="strong" href="/get/release/musicbrainz/{{ r.id }}"{{ r.title|lang }}>{{ r.title }}</a>
+      <p class="hint"><a href="/get/artist/of/musicbrainz/{{ r.id }}" title="Every release by {{ r.artist }}"{{ r.artist|lang }}>{{ r.artist }}</a></p>
       <p class="hint show-sm"><span class="mono">{{ r.date or '?' }}</span> · {{ r.type }}{% if r.secondary %} · {{ r.secondary }}{% endif %}</p>
     </td>
     <td class="table-cell hide-sm nowrap mono">{{ r.date or '?' }}</td>
@@ -82,7 +78,7 @@
 
 <form class="bar" method="post" action="/get/discover/sync">
   <button class="btn" data-variant="outline" data-size="sm" {% if busy %}disabled{% endif %}>{{ 'Read again' if data.synced else 'Read ListenBrainz' }}</button>
-  <span class="hint">Opening this page reads again when the last read is over 6 hours old.</span>
+  <span class="hint">{% if data.synced %}Read for {{ data.user }} {{ data.synced|ts }}. {% endif %}Opening this page reads again when the last read is over 6 hours old.</span>
 </form>
 
 {% if data.synced %}
@@ -120,8 +116,8 @@
     <tr class="table-row">
       <td class="table-cell cover-col">{{ cover(release_cover('musicbrainz', a.id)) }}</td>
       <td class="table-cell col-main">
-        <span class="strong"{{ a.title|lang }}>{{ a.title }}</span>
-        <p class="hint"><span{{ a.artist|lang }}>{{ a.artist }}</span>{% if a.year %} · <span class="mono">{{ a.year }}</span>{% endif %}</p>
+        <a class="strong" href="/get/release/musicbrainz/{{ a.id }}"{{ a.title|lang }}>{{ a.title }}</a>
+        <p class="hint"><a href="/get/artist/of/musicbrainz/{{ a.id }}" title="Every release by {{ a.artist }}"{{ a.artist|lang }}>{{ a.artist }}</a>{% if a.year %} · <span class="mono">{{ a.year }}</span>{% endif %}</p>
       </td>
       <td class="table-cell hide-sm">
         <p class="hint">{% for t in a.tracks[:2] %}<span{{ t.title|lang }}>{{ t.title }}</span>{% if t.artist and t.artist != a.artist %} <span{{ t.artist|lang }}>({{ t.artist }})</span>{% endif %}{% if not loop.last %}, {% endif %}{% endfor %}{% if a.tracks|length > 2 %} and {{ a.tracks|length - 2 }} more{% endif %}</p>

@@ -46,6 +46,15 @@ def test_needs_you_and_coming_in(app, client, env):
         album="Choose Me",
         status="choosing",
         status_text="No copy was clearly right",
+        offers=[{"origin": "bob", "folder": "x", "folder_name": "Choose Me", "tracks": 3}],
+    )
+    # Copies it found that are gone: what is left is to search again, not to pick.
+    state.add_wanted(
+        kind="missing",
+        artist="A",
+        album="Gone Copies",
+        status="choosing",
+        status_text="No copy was clearly right",
     )
     state.add_wanted(
         kind="missing",
@@ -64,6 +73,7 @@ def test_needs_you_and_coming_in(app, client, env):
     page = client.get("/").text
     assert "1 folder to review" in page and "/inbox/folder?f=Some%20rip" in page
     assert "Pick a copy of Choose Me" in page and "Couldn&#39;t get Never Found" in page
+    assert "Search again for Gone Copies" in page
     assert "On Its Way" in page and "Searching for A On Its Way" in page
     # The left column reloads on its own.
     now = client.get("/home/now").text

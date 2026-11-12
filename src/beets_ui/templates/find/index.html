@@ -1,10 +1,33 @@
 {% extends "base.html" %}
 {% from "partials/macros.html" import alert, cover, empty, icon, status, wanted_status %}
 {% block title %}Find{% endblock %}
-{% block header %}<header class="page-header"><h1>Get</h1></header>{% endblock %}
+{% block header %}{% include "get/_header.html" %}{% endblock %}
 {% block content %}
 {% set tab = 'find' %}{% include "get/_tabs.html" %}
 <div class="tab-content">
+{# Releases from the catalogues (the default), or files searched for by hand at the download source. #}
+<nav class="toggles" aria-label="Find">
+  <a class="toggle" data-variant="outline" href="/get/find" {% if not hand %}aria-current="page"{% endif %}>Artists and releases</a>
+  <a class="toggle" data-variant="outline" href="/get/find?by=hand" {% if hand %}aria-current="page"{% endif %}>Files by hand</a>
+</nav>
+{% if not hand %}
+<form method="get" action="/get/find" class="bar" role="search">
+  <div class="input-group grow">{{ icon('search') }}<input class="input" type="search" name="q" value="{{ q }}" placeholder="An artist, album or track" data-autofocus required minlength="2" aria-label="Artist, album or track"></div>
+  <select class="input auto" name="src" aria-label="Look up on">{% for s, label in catalog_sources %}<option value="{{ s }}" {% if s == src %}selected{% endif %}>{{ label }}</option>{% endfor %}</select>
+  <button class="btn" data-variant="outline">Search</button>
+</form>
+{% if q %}
+{% for kind, title in [('artists', 'Artists'), ('releases', 'Releases'), ('tracks', 'Tracks')] %}
+<section aria-labelledby="h-{{ kind }}">
+  <div class="section-head"><h2 id="h-{{ kind }}">{{ title }}</h2></div>
+  <div hx-get="/get/find/lookup?kind={{ kind }}&amp;q={{ q|q }}&amp;src={{ src }}" hx-trigger="load" hx-swap="outerHTML"><p class="hint"><span class="loading">Looking up {{ kind }}</span></p></div>
+</section>
+{% endfor %}
+{% else %}
+<p class="hint">Search a catalogue for an artist, an album or a track. An artist opens into every release of theirs, to get all of them or the ones you pick; a release opens into its tracklist. Get searches, downloads and imports it for you.</p>
+<p class="hint">To search the download source for files yourself, use <a href="/get/find?by=hand">Files by hand</a>.</p>
+{% endif %}
+{% else %}
 {# When the source is down, the alert above the tabs says so; this one is for other errors. #}
 {% if error and (not source_status or source_status.connected) %}{% call alert('warn', "Couldn't load recent searches") %}{{ error }}{% endcall %}{% endif %}
 {% set WAIT = {15: '15 seconds', 30: '30 seconds', 60: '1 minute', 120: '2 minutes'} %}
@@ -16,13 +39,13 @@
   <div class="for-release">
     {{ cover(wanted_cover(release.w) if release.w else None, 'cover cover-sm') }}
     <p>Finding <span class="strong"{{ release.album|lang }}>{{ release.album }}</span>{% if release.artist %} by <span{{ release.artist|lang }}>{{ release.artist }}</span>{% endif %}{% if release.w %}. A copy you download goes to its request and is imported against it.{% endif %}</p>
-    <a class="btn" data-variant="ghost" data-size="sm" href="/get/find{{ '?q=' ~ q|q if q }}" title="Search without tying it to this release">Search for anything</a>
+    <a class="btn" data-variant="ghost" data-size="sm" href="/get/find?by=hand{{ '&amp;q=' ~ q|q if q }}" title="Search without tying it to this release">Search for anything</a>
     <input type="hidden" name="artist" value="{{ release.artist }}"><input type="hidden" name="album" value="{{ release.album }}">{% if release.w %}<input type="hidden" name="w" value="{{ release.w.id }}">{% endif %}
   </div>
   {% endif %}
   <div class="bar">
     <div class="input-group grow">{{ icon('search') }}<input class="input" type="search" name="q" value="{{ q }}" placeholder="Artist album" data-autofocus required minlength="3" aria-label="Find music"></div>
-    <button class="btn">Search</button>
+    <button class="btn" data-variant="outline">Search</button>
   </div>
   <details class="search-options">
     <summary>Options <span class="hint">Wait {{ WAIT[opts.wait] }} · {{ QUEUE[opts.max_queue]|lower }} · {{ SPEED[opts.min_speed]|lower if not opts.min_speed else 'at least ' ~ SPEED[opts.min_speed] }}</span></summary>
@@ -91,6 +114,7 @@
 {% call empty() %}Every search so far was for a release. <a href="/get/find?show=release{{ keep }}">Show them</a>{% endcall %}
 {% elif not error %}
 {% call empty() %}No searches yet. Search for an artist and album above, or use Find by hand on a missing album.{% endcall %}
+{% endif %}
 {% endif %}
 </div>
 {% endblock %}

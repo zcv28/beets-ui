@@ -81,31 +81,98 @@ def norm(title: str) -> str:
 # ---------------------------------------------------------------- library
 
 
-def owned_index(lib: Any) -> dict[str, set]:
+# Bracketed parts of a title: "(Deluxe Edition)", "[Disc 1]", "【初回限定盤】".
+BRACKETS = re.compile(r"\s*[(\[{（【〔「][^)\]}）】〕」]*[)\]}）】〕」]")
+KANA_KANJI = re.compile(r"[぀-ヿ㐀-鿿가-힯]")
+
+
+def bare(title: str) -> str:
+    """A title without its bracketed parts, normalised."""
+    return norm(BRACKETS.sub("", title or "")) or norm(title)
+
+
+def written(title: str) -> bool:
+    """Whether a title is written in Japanese, Chinese or Korean (not romanized)."""
+    return bool(KANA_KANJI.search(title or ""))
+
+
+def owned_index(lib: Any) -> dict[str, Any]:
     """What the library has, to tell whether an album asked for is in it.
 
     "ids": release group IDs (MusicBrainz) and album IDs (VocaDB, TouhouDB,
     UtaiteDB and MusicBrainz releases); "pairs": (artist, album) names,
-    normalised, romanized and original.
+    normalised, romanized and original. For a looser guess ("maybe yours"), and to
+    say which album it suspects: "titles", every album title with and without its
+    bracketed parts, whoever it is by, to the album; "years", for (artist, year),
+    the albums of theirs from that year and whether each title is written in
+    Japanese (or similar), romanized, or both.
     """
     ids: set[str] = set()
     pairs: set[tuple[str, str]] = set()
+    titles: dict[str, dict[str, Any]] = {}
+    years: dict[tuple[str, str], list[dict[str, Any]]] = {}
     for a in lib.albums():
         for f in ("mb_releasegroupid", "mb_albumid"):
             if a.get(f):
                 ids.add(str(a[f]))
-        names = {norm(a.album), norm(a.get("album_original") or "")} - {""}
+        raw = [a.album or "", a.get("album_original") or ""]
+        names = {norm(t) for t in raw} - {""}
         artists = {norm(a.albumartist), norm(a.get("albumartist_original") or "")} - {""}
         pairs |= {(ar, n) for ar in artists for n in names}
-    return {"ids": ids, "pairs": pairs}
+        ref = {"id": a.id, "album": a.album or "", "year": a.year or ""}
+        for t in names | ({bare(t) for t in raw} - {""}):
+            titles.setdefault(t, ref)
+        if a.year:
+            mine = {**ref, "scripts": {written(t) for t in raw if t}}
+            for ar in artists:
+                years.setdefault((ar, str(a.year)), []).append(mine)
+    return {"ids": ids, "pairs": pairs, "titles": titles, "years": years}
 
 
-def is_owned(index: dict[str, set], ids: list[str], artists: list[str], albums: list[str]) -> bool:
+def is_owned(index: dict[str, Any], ids: list[str], artists: list[str], albums: list[str]) -> bool:
     if any(i and i in index["ids"] for i in ids):
         return True
     ars = {norm(x) for x in artists} - {""}
     als = {norm(x) for x in albums} - {""}
     return any((ar, al) in index["pairs"] for ar in ars for al in als)
+
+
+# How sure beets-ui is that a release is in the library.
+YOURS, MAYBE = "yours", "maybe"
+
+
+def match(
+    index: dict[str, Any], ids: list[str], artists: list[str], albums: list[str], date: str = ""
+) -> tuple[str, dict[str, Any] | None]:
+    """(ownership, the library album suspected): ("yours", None) by ID, or by artist
+    and title; ("maybe", album) for a looser match worth a look before getting it
+    again; ("", None) when it is not in the library.
+
+    Maybe: the title, without bracketed parts, is an album's in the library by
+    anyone (credited differently, or another edition); or the artist has an album
+    from the same year whose title is in the other script (エルマ next to Elma).
+    The album is {"id", "album", "year"}.
+    """
+    if is_owned(index, ids, artists, albums):
+        return YOURS, None
+    for t in sorted({norm(x) for x in albums} | {bare(x) for x in albums} - {""}):
+        if t in index["titles"]:
+            return MAYBE, index["titles"][t]
+    year = (date or "")[:4]
+    if year:
+        scripts = {written(x) for x in albums if x}
+        for ar in sorted({norm(x) for x in artists} - {""}):
+            for a in index["years"].get((ar, year)) or []:
+                if a["scripts"] - scripts:
+                    return MAYBE, {k: a[k] for k in ("id", "album", "year")}
+    return "", None
+
+
+def ownership(
+    index: dict[str, Any], ids: list[str], artists: list[str], albums: list[str], date: str = ""
+) -> str:
+    """ "yours", "maybe" or "" (see match)."""
+    return match(index, ids, artists, albums, date)[0]
 
 
 def source_key(album: Any) -> tuple[str, str] | None:

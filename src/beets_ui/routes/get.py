@@ -6,6 +6,9 @@ under the Inbox; their old addresses redirect here. The Inbox is for review.
 
 from __future__ import annotations
 
+from collections import Counter
+from urllib.parse import parse_qs, urlsplit
+
 from fastapi import APIRouter, Form, Query, Request
 from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse, Response
 
@@ -36,16 +39,48 @@ def index():
 # -------------------------------------------------------------- coming in
 
 
+def coming_view(request: Request) -> dict:
+    """What Coming in shows: everything, or one artist's releases (``?artist=``).
+
+    A list refreshed in place, or re-sent after an action in it, keeps the artist of
+    the page it is on. Each item gets ``same_artist``: how many coming in are theirs.
+    """
+    artist = request.query_params.get("artist", "")
+    if not artist and is_fragment(request):
+        here = urlsplit(request.headers.get("hx-current-url") or "")
+        if here.path == "/get/coming":
+            artist = (parse_qs(here.query).get("artist") or [""])[0]
+    items = coming(request.app)
+    names: dict[str, str] = {}
+    counts: Counter[str] = Counter()
+    for it in items:
+        key = discography.norm(it["artist"])
+        if key:
+            names.setdefault(key, it["artist"])
+            counts[key] += 1
+    for it in items:
+        it["same_artist"] = counts.get(discography.norm(it["artist"]), 0)
+    key = discography.norm(artist)
+    return {
+        "items": [i for i in items if discography.norm(i["artist"]) == key] if key else items,
+        "artist": artist if key else "",
+        "artists": sorted(
+            ((names[k], n) for k, n in counts.items()), key=lambda a: a[0].casefold()
+        ),
+        "everything": len(items),
+    }
+
+
 @router.get("/coming")
 def coming_page(request: Request):
-    return render(request, "get/coming.html", nav="get", items=coming(request.app))
+    return render(request, "get/coming.html", nav="get", **coming_view(request))
 
 
 @router.get("/requests")
 @router.get("/coming/list")
 def coming_list(request: Request):
     """The releases coming in, refreshed in place."""
-    return partial(request, "get/_coming.html", items=coming(request.app))
+    return partial(request, "get/_coming.html", **coming_view(request))
 
 
 @router.get("/cover/{source}/{release_id}")

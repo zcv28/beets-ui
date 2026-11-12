@@ -28,6 +28,7 @@ from . import artists as artists_svc
 from .acquire import Acquirer
 from .artwork.service import Artwork
 from .auth import RateLimiter
+from .catalog import Catalog
 from .console import Console
 from .inbox import Inbox
 from .jobs import JobQueue
@@ -138,6 +139,7 @@ def create_app(settings: Settings | None = None, background: bool = True) -> Fas
     app.state.acquirer = acquirer
     app.state.limiter = RateLimiter()
     app.state.release_covers = release_covers
+    app.state.catalog = Catalog(state)
 
     # Order matters: the session middleware must wrap the auth middleware.
     app.add_middleware(AuthMiddleware)
@@ -153,6 +155,7 @@ def create_app(settings: Settings | None = None, background: bool = True) -> Fas
 
     from .routes import artwork as r_artwork
     from .routes import auth as r_auth
+    from .routes import catalog as r_catalog
     from .routes import console as r_console
     from .routes import events as r_events
     from .routes import find as r_find
@@ -170,6 +173,7 @@ def create_app(settings: Settings | None = None, background: bool = True) -> Fas
         r_library,
         r_console,
         r_jobs,
+        r_catalog,
         r_find,
         r_get,
         r_artwork,

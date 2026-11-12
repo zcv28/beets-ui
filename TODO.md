@@ -8,7 +8,4 @@
 
 ## Now
 
-- **New release alerts.** Get → Discover lists ListenBrainz's fresh releases by
-  artists you listen to when you open it. Notifications, or getting them on their
-  own, wait until that list proves useful. ListenBrainz only knows releases in
-  MusicBrainz; VocaDB-only circles still show up only under Get → Missing.
+Nothing yet.

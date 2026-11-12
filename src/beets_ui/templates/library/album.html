@@ -17,7 +17,7 @@
     {% call alert('wip', 'A better copy may exist') %}{% for k, detail in issues.items() if not (k == 'lossy' and 'bitrate' in issues) %}{{ reasons[k] }}: {{ detail }}{{ '. ' if not loop.last else '.' }}{% endfor %}
       <div class="bar">
         {% if get_enabled %}<span class="get-slot">{% if wanted and wanted.status not in ('cancelled', 'done') %}{% set w = wanted %}{% include "wanted/_chip.html" %}{% else %}<form class="inline" method="post" action="/wanted/album/{{ album.id }}" hx-post="/wanted/album/{{ album.id }}" hx-target="closest .get-slot" hx-swap="innerHTML"><input type="hidden" name="back" value="/library/album/{{ album.id }}"><button class="btn" data-size="sm" title="Search, download and import a better copy; it replaces this one">Get a better copy</button></form>{% endif %}</span>{% endif %}
-        {% if sources_enabled %}<a class="btn" data-variant="outline" data-size="sm" href="/get/find?q={{ (album.albumartist ~ ' ' ~ album.album)|q }}">Find</a>{% endif %}
+        {% if sources_enabled %}<a class="btn" data-variant="outline" data-size="sm" href="/get/find?by=hand&amp;q={{ (album.albumartist ~ ' ' ~ album.album)|q }}">Find</a>{% endif %}
       </div>
     {% endcall %}
     {% endif %}

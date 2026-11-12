@@ -152,6 +152,7 @@ def artist_page(request: Request, name: str = ""):
         tracks=tracks,
         hours=seconds / 3600,
         gaps=gaps,
+        has_picture=request.app.state.artwork.artist_info(name)["image"] is not None,
         missing=[(r, rel) for r in gaps for rel in r["missing"]],
         upcoming=[(r, rel) for r in gaps for rel in r["upcoming"]],
         wanted={f"{w['source']}:{w['release_id']}": w for w in wanted if w["kind"] == "missing"},

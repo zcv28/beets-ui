@@ -334,13 +334,13 @@ def test_search_options_are_remembered(slsk):
     # "Search again" sends only the text: the saved options apply.
     c.post("/get/find/search", data={"q": "other album"})
     assert fake.searched[-1][1]["wait"] == 60
-    assert 'value="60" selected' in c.get("/get/find").text
+    assert 'value="60" selected' in c.get("/get/find?by=hand").text
 
 
 def test_stop_search_and_recent_list(slsk):
     c, fake, _ = slsk
     # A search for no release in particular is listed apart from the ones for a release.
-    assert "Delete search artist album" not in c.get("/get/find").text
+    assert "Delete search artist album" not in c.get("/get/find?by=hand").text
     page = c.get("/get/find?show=other")
     assert "Searching" in page.text and "Delete search artist album" in page.text
     c.post("/get/find/s/s1/stop")

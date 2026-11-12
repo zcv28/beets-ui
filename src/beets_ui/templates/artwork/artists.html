@@ -1,6 +1,7 @@
 {% extends "base.html" %}
 {% from "partials/macros.html" import empty, icon %}
 {% block title %}Artist pictures{% endblock %}
+{% block section %}Library{% endblock %}
 {% block status %}{{ '{:,}'.format(total) }} artist{{ 's' if total != 1 }}{% endblock %}
 {% block content %}
 {% set tab = 'pictures' %}{% include "library/_tabs.html" %}

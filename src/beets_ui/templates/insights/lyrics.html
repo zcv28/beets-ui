@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% block title %}Lyrics{% endblock %}
+{% block section %}Insights{% endblock %}
 {% block status %}{{ '{:,}'.format(cov.synced) }} of {{ '{:,}'.format(cov.tracks) }} tracks have synced lyrics{% endblock %}
 {% block content %}
 {% set tab = 'lyrics' %}{% include "insights/_tabs.html" %}

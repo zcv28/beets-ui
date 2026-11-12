@@ -58,15 +58,17 @@
       {% include "partials/jobs_mobile.html" %}
     </div>
     <main class="app-content" id="main" tabindex="-1">
-      {% if false %}{% block status %}{% endblock %}{% endif %}
+      {% if false %}{% block status %}{% endblock %}{% block section %}{% endblock %}{% endif %}
       {% block header %}
       {% set st = self.status()|trim %}
+      {# A page under a section's tabs is headed by the section; the tab names the page. #}
       <header class="page-header">
-        <h1>{{ self.title() }}</h1>
+        <h1>{{ self.section()|trim or self.title() }}</h1>
         {% if st %}<p class="page-description">{{ st }}</p>{% endif %}
       </header>
       {% endblock %}
-      {% for kind, text in flashes %}{% call alert(kind) %}{{ text }}{% endcall %}{% endfor %}
+      {% for f in flashes %}{% call alert(f[0]) %}{{ f[1] }}{% if f|length > 2 and f[2] %}
+        <form class="inline" method="post" action="{{ f[2].url }}">{% for k, v in f[2].vals.items() %}<input type="hidden" name="{{ k }}" value="{{ v }}">{% endfor %}<button class="btn" data-variant="link" data-size="sm">Undo</button></form>{% endif %}{% endcall %}{% endfor %}
       {% block content %}{% endblock %}
     </main>
   </div>

@@ -1,0 +1,7 @@
+{# Every Get tab is headed by the section and where getting stands right now, the same on
+   each tab: what stopped for you (a link to it) and what is on its way. #}
+{% set s = get_summary(request) %}
+<header class="page-header">
+  <h1>Get</h1>
+  <p class="page-description">{% if s.needs %}<a href="/get/coming">{{ s.needs }} need{{ 's' if s.needs == 1 }} you</a>{% endif %}{% if s.needs and s.moving %} · {% endif %}{% if s.moving %}{{ s.moving }} on {{ 'its' if s.moving == 1 else 'their' }} way{% endif %}{% if not s.needs and not s.moving %}Nothing is coming in{% endif %}</p>
+</header>

@@ -320,6 +320,29 @@ class State:
         self._exec("DELETE FROM wanted WHERE id=?", (wanted_id,))
         self.unlink_wanted(wanted_id)
 
+    REMOVED_KEY = "removed_wanted"
+
+    def remove_wanted(self, wanted_id: int) -> None:
+        """Delete a request, keeping a copy (the last 20) so Undo can bring it back."""
+        w = self.wanted(wanted_id)
+        if w is None:
+            return
+        kept = self.meta(self.REMOVED_KEY) or {}
+        kept.pop(str(wanted_id), None)
+        kept[str(wanted_id)] = w
+        self.set_meta(self.REMOVED_KEY, dict(list(kept.items())[-20:]))
+        self.delete_wanted(wanted_id)
+
+    def restore_wanted(self, wanted_id: int) -> bool:
+        """Bring back a request removed with remove_wanted (same ID, same history)."""
+        kept = self.meta(self.REMOVED_KEY) or {}
+        w = kept.pop(str(wanted_id), None)
+        if w is None or self.wanted(wanted_id) is not None:
+            return False
+        self.add_wanted(**w)
+        self.set_meta(self.REMOVED_KEY, kept)
+        return True
+
     # ---------------------------------------------------------------- searches
 
     def log_search(
@@ -570,6 +593,16 @@ class State:
             d["releases"] = json.loads(d["releases"] or "[]")
             out.append(d)
         return out
+
+    def discography(self, source: str, artist_id: str) -> dict[str, Any] | None:
+        r = self._exec(
+            "SELECT * FROM discography WHERE source=? AND artist_id=?", (source, artist_id)
+        ).fetchone()
+        if r is None:
+            return None
+        d = dict(r)
+        d["releases"] = json.loads(d["releases"] or "[]")
+        return d
 
     def set_discography(
         self, source: str, artist_id: str, artist: str, releases: list[dict], error: str = ""

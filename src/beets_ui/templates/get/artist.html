@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% from "partials/macros.html" import alert, back, icon %}
+{% block title %}{{ info.name or 'Artist' }}{% endblock %}
+{% block header %}{% endblock %}
+{% block content %}
+{# An artist as the catalogue knows them, owned or not: every release, to get all or some. #}
+{{ back(back_url, back_label) }}
+<div class="album-head head-compact">
+  {% if has_picture %}<div class="art"><img class="art-img artist-img" src="/artwork/artist/image?name={{ in_library|q }}&amp;size=300" alt="Picture of {{ info.name }}"></div>{% endif %}
+  <div class="meta">
+    <h1{{ info.name|lang }}>{{ info.name or 'Unknown artist' }}{% if info.original %}<span class="original"{{ info.original|lang }}>{{ info.original }}</span>{% endif %}</h1>
+    <p class="subtitle">{% if info.detail %}{{ info.detail }} · {% endif %}from {{ source_name }}</p>
+    <div class="bar">
+      {% if in_library %}<a class="btn" data-variant="outline" data-size="sm" href="/library/artist?name={{ in_library|q }}">Their albums in your library</a>{% endif %}
+      <a class="btn" data-variant="ghost" data-size="sm" href="{{ url }}" target="_blank" rel="noopener noreferrer">Open in {{ source_name }}{{ icon('external') }}</a>
+    </div>
+  </div>
+</div>
+{% if error %}{% call alert('warn', "Couldn't look this artist up") %}{{ error }}. {{ source_name }} may be busy; reload the page in a moment.{% endcall %}{% endif %}
+
+<div class="section-head"><h2>Releases</h2></div>
+<form class="toolbar" method="get" action="/get/artist/{{ source }}/{{ artist_id }}" data-autosubmit>
+  <input type="hidden" name="name" value="{{ info.name }}">
+  <span class="choice-row" role="group" aria-label="Release types">
+    {% for k in kinds %}<label class="checkbox-item"><input class="checkbox" type="checkbox" name="kinds" value="{{ k }}" {% if k in picked %}checked{% endif %}>{{ {'ep': 'EPs', 'other': 'Other'}.get(k, k|capitalize ~ 's') }}</label>{% endfor %}
+  </span>
+  <noscript><button class="btn" data-variant="outline" data-size="sm">Apply</button></noscript>
+</form>
+<div id="artist-releases" hx-get="/get/artist/{{ source }}/{{ artist_id }}/releases?name={{ info.name|q }}{% for k in picked %}&amp;kinds={{ k }}{% endfor %}" hx-trigger="load" hx-swap="innerHTML" aria-live="polite">
+  <p class="hint"><span class="loading">Looking up their releases on {{ source_name }}</span></p>
+</div>
+{% endblock %}
