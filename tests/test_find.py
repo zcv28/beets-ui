@@ -305,8 +305,9 @@ def test_retry_requeues_and_drops_old_entries(slsk):
     app.state.source_watch.poll()
     # Coming in lists the download that is still not done, with Retry.
     page = c.get("/get/coming")
-    assert 'id="downloads"' in page.text
-    assert "1 of 2 failed" in page.text and "Retry" in page.text
+    assert 'id="coming-list"' in page.text
+    assert "1 file failed from alice" in page.text
+    assert "Download the 1 failed file again" in page.text
     r = c.post(
         "/get/downloads/retry",
         data={
@@ -374,7 +375,7 @@ def test_finished_downloads_leave_the_list(slsk):
     c, fake, app = slsk
     fake.transfers = downloads(transfer("1", "01.flac", "Completed, Succeeded", done=100))
     app.state.source_watch.poll()
-    assert 'id="downloads"' in c.get("/get/coming").text
+    assert 'id="coming-list"' in c.get("/get/coming").text
     assert "Album (2020)" not in c.get("/get/downloads").text
 
 

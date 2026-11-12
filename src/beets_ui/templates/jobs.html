@@ -1,14 +1,42 @@
 {% extends "base.html" %}
-{% from "partials/macros.html" import back %}
-{% block title %}{{ 'Dismissed jobs' if dismissed else 'Jobs' }}{% endblock %}
-{% block status %}{{ 'Hidden from the jobs list and Home. Their logs and undo stay here.' if dismissed else 'Every change to the library runs here, one at a time.' }}{% endblock %}
-{% block header %}{% if dismissed %}
+{% from "partials/macros.html" import back, icon %}
+{% block title %}{% if job %}Job #{{ job.id }}{% elif dismissed %}Dismissed jobs{% else %}Jobs{% endif %}{% endblock %}
+{% block header %}
 <header class="page-header">
-  {{ back('/jobs', 'Jobs') }}
-  <h1>Dismissed jobs</h1>
-  <p class="page-description">{{ self.status() }}</p>
+  {% if dismissed %}{{ back('/jobs', 'Jobs') }}{% endif %}
+  <h1>{{ 'Dismissed jobs' if dismissed else 'Jobs' }}</h1>
+  <p class="page-description">{{ 'Hidden from the jobs list and Home. Their logs and undo stay here.' if dismissed else 'Every change to the library runs here, one at a time. Pick a job to read its log.' }}</p>
 </header>
-{% else %}{{ super() }}{% endif %}{% endblock %}
+{% endblock %}
 {% block content %}
-<div hx-get="/jobs/table{{ '?dismissed=true' if dismissed }}" hx-trigger="refresh, every 60s [!document.hidden]" hx-swap="innerHTML" data-refresh="jobs">{% include "partials/jobs_table.html" %}</div>
+{# The list on the left, the chosen job on the right; on a phone the chosen job comes first. #}
+<div class="jobs-split{% if job %} has-job{% endif %}">
+  <section class="jobs-list" aria-label="Jobs">
+    {% if not dismissed %}
+    <details class="console-drop" id="console"{% if console_open %} open{% endif %}>
+      <summary>{{ icon('terminal') }}Console <span class="hint">Run a <code>beet</code> command{% if console_busy %} · one is running{% endif %}</span></summary>
+      <div class="console-body">
+        <form method="post" action="/console" class="bar console-bar">
+          <span class="mono" aria-hidden="true">beet</span>
+          <input class="input grow" data-mono type="text" name="cmd" value="{{ cmd }}" placeholder="ls -a albumartist:Foo" {% if console_open %}data-autofocus {% endif %}autocomplete="off" autocapitalize="off" spellcheck="false" list="beet-commands" aria-label="beet command">
+          <datalist id="beet-commands">{% for c, desc in suggestions %}<option value="{{ c }}">{{ desc }}</option>{% endfor %}</datalist>
+          <button class="btn">Run</button>
+        </form>
+        {% if console_busy %}<form method="post" action="/console/kill" class="bar tight"><span class="status" data-status="info">A command is running</span><button class="btn" data-variant="outline" data-tone="destructive" data-size="sm">Interrupt it</button></form>{% endif %}
+        <p class="hint">Runs queued with the other jobs. Commands can't answer prompts, so use the non-interactive flags (<code>-y</code>, <code>-q</code>, …).</p>
+        <details class="sub">
+          <summary class="hint">Common commands</summary>
+          <ul class="command-list">{% for c, desc in suggestions %}<li><a class="mono" href="?console=1&amp;cmd={{ c|q }}#console">{{ c }}</a> <span class="hint">{{ desc }}</span></li>{% endfor %}</ul>
+        </details>
+        <p class="hint">Plugins: {{ plugins|join(', ') or 'none' }}</p>
+      </div>
+    </details>
+    {% endif %}
+    <div hx-get="/jobs/table?{{ 'dismissed=true&' if dismissed }}{{ 'sel=' ~ job.id if job }}" hx-trigger="refresh, every 60s [!document.hidden]" hx-swap="innerHTML" data-refresh="jobs">{% include "partials/jobs_table.html" %}</div>
+  </section>
+  <section class="job-pane" aria-label="{{ 'Job #' ~ job.id if job else 'Job' }}">
+    {% if job %}{% include "partials/job_pane.html" %}
+    {% else %}<div class="job-pane-empty"><p>{{ icon('activity') }}</p><p>Pick a job to read its log, undo it or run it again.</p></div>{% endif %}
+  </section>
+</div>
 {% endblock %}

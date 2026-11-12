@@ -63,11 +63,11 @@ def test_needs_you_and_coming_in(app, client, env):
     )
     page = client.get("/").text
     assert "1 folder to review" in page and "/inbox/folder?f=Some%20rip" in page
-    assert "Choose a copy of Choose Me" in page and "Couldn&#39;t get Never Found" in page
+    assert "Pick a copy of Choose Me" in page and "Couldn&#39;t get Never Found" in page
     assert "On Its Way" in page and "Searching for A On Its Way" in page
     # The left column reloads on its own.
     now = client.get("/home/now").text
-    assert "Choose a copy of Choose Me" in now and "<html" not in now
+    assert "Pick a copy of Choose Me" in now and "<html" not in now
 
 
 def test_missing_and_library_care(app, client, env):
@@ -97,6 +97,6 @@ def test_missing_and_library_care(app, client, env):
     page = client.get("/").text
     assert "2 releases by 1 artist" in page and "/library/artist?name=Test%20Artist" in page
     # Lossy 128 kbps test files, no cover file, no synced lyrics.
-    assert "/insights/upgrades?reason=lossy" in page and "/artwork?filter=nofile" in page
+    assert "/insights/upgrades?reason=lossy" in page and "/library/covers?filter=nofile" in page
     assert '>0%</span> <span class="hint">of tracks' in page
     assert "Recently added" in page and "Test Album" in page

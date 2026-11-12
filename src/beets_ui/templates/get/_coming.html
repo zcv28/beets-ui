@@ -1,0 +1,126 @@
+{% from "partials/macros.html" import cover, empty, history_list, icon, primary_action, status, wanted_status %}
+{# Everything on its way into the library, one row per release: first what stopped until
+   you act, then what is moving. A row opens into how it is being got. #}
+{% macro transfer_line(t) -%}
+{% if t.state == 'downloading' %}Downloading from <span class="strong">{{ t.origin }}</span>{% if t.speed %} at <span class="mono">{{ t.speed|size }}/s</span>{% endif %}{% elif t.state == 'queued' %}Queued at <span class="strong">{{ t.origin }}</span>{% if t.place %}, place {{ t.place }}{% endif %}{% else %}From <span class="strong">{{ t.origin }}</span>{% endif %}, <span class="mono">{{ t.size|size }}</span> in all.
+{%- endmacro %}
+
+{% macro files(key, t) -%}
+<details class="files" id="cf-{{ key }}"><summary class="hint"{{ t.folder_name|lang }}>{{ t.files|length }} file{{ 's' if t.files|length != 1 }} in {{ t.folder_name }}</summary>
+  <ol class="file-list">{% for f in t.files %}<li class="hint"><span{{ f.name|lang }}>{{ f.name }}</span>: {% if f.kind == 'done' %}done{% elif f.kind == 'active' %}{{ f.percent }}%{% elif f.kind == 'failed' %}{{ f.failure|lower }}{% else %}queued{% if f.place %}, place {{ f.place }}{% endif %}{% endif %}</li>{% endfor %}</ol>
+</details>
+{%- endmacro %}
+
+{% macro row(it) %}
+{% set t = it.w.transfer if it.kind == 'request' else it.r %}
+<div class="release-row{% if it.primary %} has-quick{% endif %}">
+<details class="release" id="c-{{ it.key }}">
+  <summary>
+    {{ icon('chevron', 'icon release-chevron') }}
+    {% if it.kind == 'request' %}{{ cover(wanted_cover(it.w)) }}{% else %}{{ cover(None) }}{% endif %}
+    <span class="release-main">
+      <span class="release-title"><span{{ it.title|lang }}>{{ it.title }}</span>{% if it.reason and it.artist %} <span class="release-artist"{{ it.artist|lang }}>{{ it.artist }}</span>{% endif %}</span>
+      {% if it.reason %}<span class="hint release-reason">{{ it.reason }}</span>
+      {% else %}<span class="hint">{% if it.artist %}<span{{ it.artist|lang }}>{{ it.artist }}</span>{% endif %}{% if it.kind == 'request' and it.w.kind == 'upgrade' %}{{ ', ' if it.artist }}a better copy{% elif it.kind == 'download' %}{{ ', ' if it.artist }}downloaded by hand{% endif %}</span>{% endif %}
+    </span>
+    <span class="release-progress">{% if t and t.state in ('downloading', 'queued') %}<span class="match"><span class="mono">{{ t.percent }}%</span><progress class="progress" value="{{ t.percent }}" max="100" aria-label="{{ it.title }} progress"></progress></span>{% endif %}</span>
+    <span class="release-state">{% if it.kind == 'request' %}{{ wanted_status(it.w) }}{% elif it.tone == 'warning' %}<span class="status" data-status="warning">Stuck</span>{% else %}{{ status(it.r.state, it.r.label) }}{% endif %}</span>
+  </summary>
+  <div class="release-body">
+  {% if it.kind == 'request' %}
+    {% set w = it.w %}
+    {% set find_url = '/get/find?q=' ~ (w.artist ~ ' ' ~ w.album)|q ~ '&artist=' ~ w.artist|q ~ '&album=' ~ w.album|q ~ '&w=' ~ w.id %}
+    {% if w.status in ('choosing', 'failed') %}
+    <div class="ask">
+      <p class="hint">{% if w.status == 'choosing' %}It found {{ w.offers|length }} cop{{ 'ies' if w.offers|length != 1 else 'y' }} but wasn't sure of any, so nothing was downloaded.{% else %}No copy turned up, or every copy it tried failed.{% endif %} Search again starts over and skips copies that already failed. Or find it yourself, or put the files in the inbox and import them there: either way this closes once the album is in your library.</p>
+      <div class="bar tight">
+        {% if it.primary %}{{ primary_action(it.primary, 'default', 'show-sm') }}{% endif %}
+        {% if w.status == 'choosing' and w.offers %}<form class="inline" method="post" action="/wanted/{{ w.id }}/retry" hx-post="/wanted/{{ w.id }}/retry" hx-swap="none"><button class="btn" data-variant="outline" data-size="sm">Search again</button></form>{% endif %}
+        {% if sources_enabled %}<a class="btn" data-variant="outline" data-size="sm" href="{{ find_url }}">Find by hand</a>{% endif %}
+        <a class="btn" data-variant="ghost" data-size="sm" href="/inbox">Import by hand</a>
+      </div>
+    </div>
+    {% elif w.status == 'review' %}
+    <div class="ask"><div class="bar tight">{% if it.primary %}{{ primary_action(it.primary, 'default', 'show-sm') }}{% endif %}<span class="hint">It waits in the inbox like any other folder; it is imported against the release you asked for.</span></div></div>
+    {% elif wanted_detail(w) %}
+    <p class="release-line">{{ wanted_detail(w) }}{% if w.error and w.status in ('queued', 'searching', 'downloading') %} <span class="hint">({{ w.error }})</span>{% endif %}</p>
+    {% endif %}
+    {% if t %}
+    <p class="hint">{{ transfer_line(t) }}{% if w.attempts > 1 %} This is copy {{ w.attempts }}.{% endif %}</p>
+    {{ files(it.key, t) }}
+    {% endif %}
+    {% if w.history %}{{ history_list(w.history, 4) }}{% endif %}
+    <div class="bar tight release-actions">
+      <a class="btn" data-variant="link" data-size="sm" href="/wanted/{{ w.id }}">Full history{{ icon('arrow-right') }}</a>
+      <span class="spacer"></span>
+      {% if w.status == 'downloading' %}<form class="inline" method="post" action="/wanted/{{ w.id }}/skip" hx-post="/wanted/{{ w.id }}/skip" hx-swap="none"><button class="btn" data-variant="outline" data-size="sm">Get it from someone else</button></form>{% endif %}
+      {% if w.status in ('queued', 'searching', 'choosing', 'downloading') %}
+      <form class="inline" method="post" action="/wanted/{{ w.id }}/cancel" hx-post="/wanted/{{ w.id }}/cancel" hx-swap="none" data-confirm="Stop getting {{ w.album }}?{% if w.status == 'downloading' %} Its download stops too.{% endif %}" data-confirm-button="Stop getting it"><button class="btn" data-variant="ghost" data-size="sm">Cancel</button></form>
+      {% elif w.status == 'failed' %}
+      <form class="inline" method="post" action="/wanted/{{ w.id }}/remove" hx-post="/wanted/{{ w.id }}/remove" hx-target="closest .release-row" hx-swap="delete"><button class="btn" data-variant="ghost" data-size="sm">Remove from the list</button></form>
+      {% endif %}
+    </div>
+  {% else %}
+    {% set r = it.r %}
+    {% if r.fetch and r.fetch.stuck %}
+    <div class="ask"><p class="hint">Nobody else has exactly this folder, even after searching again. Pick a different copy from the search, or keep waiting.</p>{% if it.primary %}<div class="bar tight">{{ primary_action(it.primary, 'default', 'show-sm') }}</div>{% endif %}</div>
+    {% elif r.fetch and r.fetch.note %}<p class="release-line">{{ r.fetch.note }}</p>{% endif %}
+    <p class="hint">{{ transfer_line(r) }}</p>
+    {{ files(it.key, r) }}
+    <div class="bar tight release-actions">
+      <span class="spacer"></span>
+      <form class="inline" method="post" action="/get/downloads/another" hx-post="/get/downloads/another" hx-target="#coming-list" hx-swap="innerHTML">
+        <input type="hidden" name="username" value="{{ r.origin }}"><input type="hidden" name="folder" value="{{ r.folder }}"><input type="hidden" name="name" value="{{ r.folder_name }}">
+        <button class="btn" data-variant="outline" data-size="sm">Get it from someone else</button>
+      </form>
+      {% if r.state in ('queued', 'downloading') %}
+      <form class="inline" method="post" action="/get/downloads/cancel" hx-post="/get/downloads/cancel" hx-target="#coming-list" hx-swap="innerHTML" data-confirm="Stop downloading {{ r.folder_name }}? Files that already finished stay in the inbox." data-confirm-button="Cancel download">
+        <input type="hidden" name="username" value="{{ r.origin }}"><input type="hidden" name="name" value="{{ r.folder_name }}">
+        {% for f in r.files %}{% if f.kind in ('queued', 'active') %}<input type="hidden" name="id" value="{{ f.id }}">{% endif %}{% endfor %}
+        <button class="btn" data-variant="ghost" data-size="sm">Cancel</button>
+      </form>
+      {% else %}
+      {% if r.failed_files %}<form class="inline" method="post" action="/get/downloads/retry" hx-post="/get/downloads/retry" hx-target="#coming-list" hx-swap="innerHTML">
+        <input type="hidden" name="username" value="{{ r.origin }}"><input type="hidden" name="name" value="{{ r.folder_name }}">
+        {% for f in r.failed_files %}<input type="hidden" name="file" value="{{ f.size }}:{{ f.filename }}"><input type="hidden" name="id" value="{{ f.id }}">{% endfor %}
+        <button class="btn" data-variant="outline" data-size="sm">Download the {{ r.failed_files|length }} failed file{{ 's' if r.failed_files|length != 1 }} again</button>
+      </form>{% endif %}
+      <form class="inline" method="post" action="/get/downloads/cancel" hx-post="/get/downloads/cancel" hx-target="#coming-list" hx-swap="innerHTML">
+        <input type="hidden" name="username" value="{{ r.origin }}"><input type="hidden" name="name" value="{{ r.folder_name }}"><input type="hidden" name="remove" value="1">
+        {% for f in r.files %}<input type="hidden" name="id" value="{{ f.id }}">{% endfor %}
+        <button class="btn" data-variant="ghost" data-size="sm">Remove from the list</button>
+      </form>
+      {% endif %}
+    </div>
+  {% endif %}
+  </div>
+</details>
+{% if it.primary %}<div class="release-quick">{{ primary_action(it.primary) }}</div>{% endif %}
+</div>
+{% endmacro %}
+
+{% set needs = items|selectattr('group', 'equalto', 'needs')|list %}
+{% set moving = items|rejectattr('group', 'equalto', 'needs')|list %}
+{% set failed = needs|selectattr('kind', 'equalto', 'download')|selectattr('tone', 'equalto', 'destructive')|list %}
+<span hidden data-announce="{{ needs|length }} need{{ 's' if needs|length == 1 }} you, {{ moving|length }} on {{ 'its' if moving|length == 1 else 'their' }} way"></span>
+{% if needs %}
+<section aria-labelledby="h-needs-you">
+  <div class="section-head">
+    <h2 id="h-needs-you">Needs you <span class="count">{{ needs|length }}</span></h2>
+    <span class="section-actions">
+      <span class="hint">Stopped until you decide</span>
+      {% if failed %}<form class="inline" method="post" action="/get/downloads/clear" hx-post="/get/downloads/clear" hx-target="#coming-list" hx-swap="innerHTML"><button class="btn" data-variant="ghost" data-size="sm">Clear failed downloads</button></form>{% endif %}
+    </span>
+  </div>
+  <div class="release-list">{% for it in needs %}{{ row(it) }}{% endfor %}</div>
+</section>
+{% endif %}
+{% if moving %}
+<section aria-labelledby="h-on-its-way">
+  <div class="section-head"><h2 id="h-on-its-way">On its way <span class="count">{{ moving|length }}</span></h2></div>
+  <div class="release-list">{% for it in moving %}{{ row(it) }}{% endfor %}</div>
+</section>
+{% endif %}
+{% if not items %}
+{% call empty() %}Nothing is coming in. Get an album from <a href="/get/missing">Missing</a> or <a href="/get/discover">Discover</a>, or search for one under <a href="/get/find">Find</a>. Finished downloads wait in the <a href="/inbox">inbox</a> for review.{% endcall %}
+{% endif %}

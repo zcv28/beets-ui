@@ -3,7 +3,7 @@
 {% block title %}Cover: {{ album.album }}{% endblock %}
 {% block header %}{% endblock %}
 {% block content %}
-<div class="bar tight">{{ back('/artwork', 'Album covers') }}<span class="spacer"></span><a class="btn" data-variant="outline" data-size="sm" href="/library/album/{{ album.id }}">Open album</a></div>
+<div class="bar tight">{{ back('/library/covers', 'Covers') }}<span class="spacer"></span><a class="btn" data-variant="outline" data-size="sm" href="/library/album/{{ album.id }}">Open album</a></div>
 <div class="album-head">
   <div class="art"><img class="art-img" src="/library/album/{{ album.id }}/cover?size=600" alt="Current cover"><p class="hint">{% if cover.has %}Current: <span class="mono">{{ cover.size[0] if cover.size else '?' }}×{{ cover.size[1] if cover.size else '?' }}</span>{% elif cover.embedded %}Embedded in files{% if cover.size %} <span class="mono">({{ cover.size[0] }}×{{ cover.size[1] }})</span>{% endif %}{% if cover.low %} <span class="status" data-status="warning">Low resolution</span>{% endif %}{% else %}<span class="status" data-status="warning">No cover</span>{% endif %}</p></div>
   <div class="meta">

@@ -642,3 +642,165 @@
     .release-table th:last-child { width: 7.5rem; }
   }
 }
+
+/* ==================================================================== jobs */
+@layer app {
+  /* The list beside the chosen job. Below 1100px they stack, the chosen job first. */
+  .jobs-split { display: grid; gap: 1.5rem; align-items: start; }
+  @media (min-width: 1100px) {
+    .jobs-split { grid-template-columns: minmax(22rem, 2fr) minmax(0, 3fr); }
+    .job-pane { position: sticky; top: 1rem; }
+    .job-pane .log { max-height: calc(100vh - 16rem); }
+  }
+  @media (max-width: 1099px) {
+    .jobs-split.has-job > .job-pane { order: -1; }
+    .jobs-split:not(.has-job) > .job-pane { display: none; }
+  }
+  .job-pane { min-width: 0; padding: 1rem 1.25rem; border: 1px solid var(--border); border-radius: var(--radius-xl); background: var(--card); color: var(--card-foreground); }
+  .job-pane-head { position: relative; padding-right: 2.5rem; }
+  .job-pane-head h2 { margin: 0; font-size: 1.125rem; overflow-wrap: anywhere; }
+  .job-pane-head > .hint { margin: 0.25rem 0 0; }
+  .job-pane-close { position: absolute; top: -0.25rem; right: -0.5rem; }
+  .job-pane-empty { display: grid; place-items: center; align-content: center; gap: 0.5rem; min-height: 16rem; color: var(--muted-foreground); text-align: center; }
+  .job-pane-empty p { margin: 0; }
+  .job-pane-empty .icon { width: 1.5rem; height: 1.5rem; }
+  .job-table .table-row[aria-current] { background: var(--muted); box-shadow: inset 2px 0 0 var(--foreground); }
+  /* Muted text on --muted reads 4.3:1: rows on that background use the foreground. */
+  .job-table .table-row[aria-current] .hint { color: var(--foreground); }
+  .job-table a[aria-current] { font-weight: 500; }
+  .job-table .col-main > .hint { margin: 0.125rem 0 0; }
+  .job-error { overflow-wrap: anywhere; }
+
+  /* The console: a drop-down above the list. */
+  .console-drop { margin: 0 0 1rem; border: 1px solid var(--border); border-radius: var(--radius-xl); background: var(--card); }
+  .console-drop > summary { display: flex; align-items: center; gap: 0.5rem; padding: 0.625rem 1rem; cursor: pointer; font-size: 0.875rem; font-weight: 500; }
+  .console-drop > summary .hint { font-weight: 400; }
+  .console-drop > summary:hover { background: var(--muted); border-radius: var(--radius-xl); }
+  .console-drop[open] > summary { border-bottom: 1px solid var(--border); border-radius: var(--radius-xl) var(--radius-xl) 0 0; }
+  .console-body { padding: 0 1rem 0.75rem; }
+  .console-body .console-bar { margin: 0.75rem 0 0.5rem; }
+  .command-list { margin: 0.5rem 0; padding: 0; list-style: none; font-size: 0.8125rem; }
+  .command-list li { padding: 0.125rem 0; }
+}
+
+/* ============================================================ get: releases */
+@layer app {
+  /* Covers of releases (fetched once, kept): a square with the album's art, or a quiet note. */
+  .cover { flex: none; display: block; width: 3rem; height: 3rem; border-radius: var(--radius-sm); background: var(--muted); object-fit: cover; box-shadow: inset 0 0 0 1px color-mix(in oklch, var(--foreground) 8%, transparent); }
+  .cover-none { display: grid; place-items: center; color: var(--muted-foreground); }
+  .cover-none .icon { width: 1.125rem; height: 1.125rem; opacity: 0.6; }
+  .cover-sm { width: 2.25rem; height: 2.25rem; }
+  .cover-lg { width: 5.5rem; height: 5.5rem; border-radius: var(--radius-md); }
+
+  /* One row per release that opens into how it is being got. */
+  .release-list { margin: 0 0 1.5rem; border: 1px solid var(--border); border-radius: var(--radius-xl); background: var(--card); color: var(--card-foreground); overflow: hidden; }
+  .release + .release { border-top: 1px solid var(--border); }
+  .release > summary:hover .hint, .gap > summary:hover .hint { color: var(--foreground); }
+  .release > summary {
+    display: grid; grid-template-columns: 1rem 3rem minmax(0, 1fr) minmax(0, 10rem) minmax(0, 10rem);
+    align-items: center; gap: 0.5rem 0.875rem; padding: 0.625rem 1rem; cursor: pointer; list-style: none;
+  }
+  .release > summary::-webkit-details-marker { display: none; }
+  .release > summary::before { content: none !important; }
+  .release > summary:hover { background: var(--muted); }
+  .release > summary:focus-visible { outline-offset: -2px; }
+  .release-chevron { width: 1rem; height: 1rem; color: var(--muted-foreground); transition: rotate 150ms ease; }
+  .release[open] > summary .release-chevron { rotate: 90deg; }
+  .release[open] > summary { border-bottom: 1px solid var(--border); }
+  .release-main { display: flex; flex-direction: column; min-width: 0; }
+  .release-title { overflow: hidden; font-weight: 500; text-overflow: ellipsis; white-space: nowrap; }
+  .release-main > .hint { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .release-artist { margin-left: 0.375rem; color: var(--muted-foreground); font-weight: 400; }
+  .release-reason { color: var(--foreground); }
+
+  /* A row that stopped for you shows its one main action beside it, without opening. */
+  .release-row { position: relative; }
+  .release-row + .release-row { border-top: 1px solid var(--border); }
+  .release-row.has-quick > .release > summary { padding-right: 11.5rem; }
+  .release-quick { position: absolute; top: 0; right: 1rem; display: flex; align-items: center; height: 4.25rem; }
+  .release > summary { min-height: 4.25rem; }
+  .release-progress .progress { width: 5rem; }
+  .release-state { justify-self: end; text-align: right; }
+  .release-body { padding: 0.75rem 1rem 0.75rem 5.875rem; background: var(--background); }
+  .release-body > :first-child { margin-top: 0; }
+  .release-body > .table-container { margin: 0 0 0.5rem; }
+  .release-line { margin: 0 0 0.25rem; }
+  .release-actions { margin: 0.5rem 0 0; }
+  .section-actions { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 0.25rem 0.75rem; }
+  @media (prefers-reduced-motion: reduce) { .release-chevron { transition: none; } }
+
+  /* Phone: the title may take two lines; the status goes under it, then the progress.
+     The main action moves into the opened row. */
+  @media (max-width: 767px) {
+    .release > summary { grid-template-columns: 1rem 2.5rem minmax(0, 1fr); align-items: start; padding: 0.625rem 0.75rem; }
+    .release-row.has-quick > .release > summary { padding-right: 0.75rem; }
+    .release-quick { display: none; }
+    .release > summary .release-chevron { margin-top: 0.75rem; }
+    .release > summary .cover { grid-row: span 3; width: 2.5rem; height: 2.5rem; }
+    .release-main, .release-state, .release-progress { grid-column: 3; }
+    .release-title { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; white-space: normal; }
+    .release-main > .hint { white-space: normal; }
+    .release-state { justify-self: start; text-align: left; }
+    .release-progress:empty { display: none; }
+    .release-body { padding: 0.75rem; }
+  }
+  @media (min-width: 768px) { .release-body .show-sm { display: none !important; } }
+
+  /* A request that stopped and needs you: the ways on. In a row it is plain text and
+     buttons (the row already says why); on its own page a neutral box whose title carries
+     the status dot. */
+  .ask { margin: 0 0 0.75rem; }
+  .ask > .hint { max-width: 62ch; margin: 0; }
+  .ask > .bar { margin: 0.5rem 0 0; }
+  .ask[data-boxed] { padding: 0.875rem 1rem; border: 1px solid var(--border); border-radius: var(--radius-lg); background: var(--card); }
+  .ask[data-boxed] > .hint { margin-top: 0.25rem; }
+  .ask-title { display: flex; align-items: center; gap: 0.5rem; margin: 0; font-weight: 500; }
+  .ask-title::before { content: ""; flex: none; width: 0.5rem; height: 0.5rem; border-radius: 50%; background: var(--muted-foreground); }
+  .ask[data-tone="warning"] .ask-title::before { background: var(--warning); }
+  .ask[data-tone="destructive"] .ask-title::before { background: var(--destructive); }
+
+  /* What was tried for a request, latest first. */
+  .history { margin: 0.5rem 0 0; padding: 0 0 0 0.875rem; list-style: none; border-left: 1px solid var(--border); font-size: 0.8125rem; }
+  .history li { position: relative; padding: 0.1875rem 0; overflow-wrap: anywhere; }
+  .history li::before { content: ""; position: absolute; top: 0.6875rem; left: calc(-0.875rem - 3px); width: 5px; height: 5px; border-radius: 50%; background: var(--muted-foreground); }
+  .history li:first-child::before { background: var(--foreground); }
+  .history-when { margin-right: 0.375rem; color: var(--muted-foreground); font-variant-numeric: tabular-nums; }
+  .search-log li { padding: 0.125rem 0; }
+
+  /* Find, for a release: says which, and that a download goes to its request. */
+  .for-release { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem 0.75rem; margin: 0 0 0.75rem; padding: 0.5rem 0.75rem; border: 1px solid var(--border); border-radius: var(--radius-lg); background: var(--muted); font-size: 0.875rem; }
+  .for-release > p { flex: 1 1 16rem; margin: 0; }
+  .for-line { margin: 0 0 0.5rem; }
+
+  /* Missing: each artist opens into its releases, with covers. */
+  .gap-artist { display: flex; align-items: center; gap: 0.5rem; }
+  .gap > summary { align-items: center; }
+  .gap-avatar { flex: none; width: 1.5rem; height: 1.5rem; border-radius: 50%; object-fit: cover; background: var(--muted); }
+  .gap-artist .original { margin-left: 0; }
+  .missing-table .cover-col { width: 4rem; }
+  .missing-table td.cover-col { padding-top: 0.375rem; padding-bottom: 0.375rem; }
+  .missing-table .col-main .original { display: block; }
+  @media (min-width: 768px) {
+    .missing-table { table-layout: fixed; }
+    .missing-table th:nth-child(3) { width: 7.5rem; }
+    .missing-table th:nth-child(4) { width: 9rem; }
+    .missing-table th:last-child { width: 11rem; }
+  }
+  /* Phone: cover and names take the width; Get and the menu sit on a line beneath. */
+  @media (max-width: 767px) {
+    .missing-table .table-row { flex-wrap: wrap; align-items: flex-start; }
+    .missing-table td.cover-col { padding: 0; }
+    .missing-table .col-main { flex: 1 1 0; order: 0; min-width: 0; }
+    .missing-table .col-actions { flex-basis: 100%; display: flex; justify-content: flex-end; gap: 0.5rem; }
+  }
+
+  /* A request's page leads with its cover. */
+  .request-head { display: flex; align-items: center; gap: 1rem; }
+  .request-head h1 { margin: 0; }
+}
+@layer app {
+  /* Inside an artist's row the release tables are not boxes of their own: the row is the box. */
+  .gap > .box-body > .table-container { border: 0; border-radius: 0; box-shadow: none; background: transparent; }
+  .gap > .box-body > .table-container .table-head:first-child { border-radius: var(--radius-sm) 0 0 var(--radius-sm); }
+  .gap > .box-body > .table-container .table-head:last-child { border-radius: 0 var(--radius-sm) var(--radius-sm) 0; }
+}

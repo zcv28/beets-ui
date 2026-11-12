@@ -4,13 +4,15 @@ import uuid
 from urllib.parse import quote
 
 from fastapi import APIRouter, File, Form, HTTPException, Request, UploadFile
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, RedirectResponse
 
 from .. import beets_ctx
 from ..artwork.service import MAX_IMAGE_BYTES, ArtworkError, validate_image
 from ..web import HERE, flash, partial, redirect, render, user
 
 router = APIRouter(prefix="/artwork")
+# The two lists live under Library; the album and artist pages and the actions stay here.
+pages = APIRouter(prefix="/library")
 NOARTIST = HERE / "static" / "noartist.svg"
 
 
@@ -40,7 +42,22 @@ def _sources(form_values: list[str]) -> list[str] | None:
 # ------------------------------------------------------------------ covers
 
 
-@router.get("")
+def _moved(request: Request, target: str) -> RedirectResponse:
+    query = request.url.query
+    return RedirectResponse(target + ("?" + query if query else ""), status_code=307)
+
+
+@router.get("", include_in_schema=False)
+def old_covers(request: Request):
+    return _moved(request, "/library/covers")
+
+
+@router.get("/artists", include_in_schema=False)
+def old_artists(request: Request):
+    return _moved(request, "/library/pictures")
+
+
+@pages.get("/covers")
 def covers(request: Request, filter: str = "missing", q: str = "", page: int = 1):
     aw = request.app.state.artwork
     lib = beets_ctx.lib()
@@ -80,7 +97,7 @@ def covers(request: Request, filter: str = "missing", q: str = "", page: int = 1
     return render(
         request,
         "artwork/covers.html",
-        nav="artwork",
+        nav="library",
         rows=rows,
         total=total,
         page=page,
@@ -99,7 +116,7 @@ def album_art(request: Request, album_id: int):
     return render(
         request,
         "artwork/album.html",
-        nav="artwork",
+        nav="library",
         album=a,
         cover=aw.cover_status(a),
         sources=aw.available_sources("album"),
@@ -166,7 +183,7 @@ async def covers_fill(request: Request):
 # ----------------------------------------------------------------- artists
 
 
-@router.get("/artists")
+@pages.get("/pictures")
 def artists(request: Request, filter: str = "missing", q: str = ""):
     aw = request.app.state.artwork
     results = request.app.state.state.artist_art()
@@ -189,7 +206,7 @@ def artists(request: Request, filter: str = "missing", q: str = ""):
     return render(
         request,
         "artwork/artists.html",
-        nav="artwork",
+        nav="library",
         rows=rows[:500],
         total=len(rows),
         filter=filter,
@@ -209,7 +226,7 @@ def artist_page(request: Request, name: str):
     return render(
         request,
         "artwork/artist.html",
-        nav="artwork",
+        nav="library",
         info=info,
         sources=aw.available_sources("artist"),
         names=request.app.state.settings.artist_image_names,

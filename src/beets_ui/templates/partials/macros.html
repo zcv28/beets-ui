@@ -90,9 +90,7 @@
     ('get', '/get', 'Get', 'download'),
     ('inbox', '/inbox', 'Inbox', 'inbox'),
     ('library', '/library', 'Library', 'library'),
-    ('artwork', '/artwork', 'Artwork', 'image'),
     ('insights', '/insights', 'Insights', 'chart'),
-    ('console', '/console', 'Console', 'terminal'),
     ('jobs', '/jobs', 'Jobs', 'activity'),
   ] %}
   <a class="sidebar-link" href="{{ href }}" {% if nav == key %}aria-current="page"{% endif %}>{{ icon(ic) }}<span>{{ label }}</span>{% if key == 'get' and source_status and not source_status.connected %}<span class="nav-alert" title="Downloads are paused: the download source isn't connected"><span class="sr-only">(downloads paused)</span></span>{% endif %}</a>
@@ -117,4 +115,30 @@
 {% macro row_menu(id, label) -%}
 <button class="btn" data-variant="ghost" data-size="icon-xs" type="button" popovertarget="{{ id }}" aria-label="{{ label }}" title="More">{{ icon('more') }}</button>
 <div class="menu-content" id="{{ id }}" popover>{{ caller() }}</div>
+{%- endmacro %}
+
+
+{# A release's small cover, or a quiet placeholder when there is none to fetch. #}
+{% macro cover(src, cls='cover') -%}
+{% if src %}<img class="{{ cls }}" src="{{ src }}" alt="" loading="lazy" decoding="async" width="48" height="48">{% else %}<span class="{{ cls }} cover-none" aria-hidden="true">{{ icon('music') }}</span>{% endif %}
+{%- endmacro %}
+
+{# A request's state as a dot and a word (not a link: for summaries and rows that are links). #}
+{% macro wanted_status(w) -%}
+{% set tok, text = wanted_label(w) %}
+<span class="status" data-status="{{ {'running': 'info', 'warning': 'warning', 'done': 'success', 'failed': 'destructive'}.get(tok, '') }}">{{ text }}</span>
+{%- endmacro %}
+
+
+{# What was tried for a request, latest first; repeats in a row show once with a count. #}
+{% macro history_list(history, limit=0) -%}
+<ol class="history" aria-label="What was tried, latest first">
+  {% for h in history_view(history, limit) %}<li><span class="history-when">{{ h.at|ago }}</span> <span{{ h.text|lang }}>{{ h.text }}</span>{% if h.n > 1 %} <span class="hint">({{ h.n }} times)</span>{% endif %}</li>{% endfor %}
+</ol>
+{%- endmacro %}
+
+{# A row's one main action: a link, or a button that posts. #}
+{% macro primary_action(a, variant='default', cls='') -%}
+{% if a.href %}<a class="btn {{ cls }}" data-variant="{{ variant }}" data-size="sm" href="{{ a.href }}">{{ a.label }}</a>
+{% else %}<form class="inline {{ cls }}" method="post" action="{{ a.post }}" hx-post="{{ a.post }}" hx-swap="none"><button class="btn" data-variant="{{ variant }}" data-size="sm">{{ a.label }}</button></form>{% endif %}
 {%- endmacro %}

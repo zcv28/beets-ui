@@ -338,19 +338,50 @@ document.addEventListener("change", (e) => {
 });
 
 // ----------------------------------------------- polled lists keep open rows
-// A refreshed region marked data-keep-open re-opens the details that were open before the swap.
+// A refreshed region marked data-keep-open re-opens the details that were open before the
+// swap, and gives focus back to the row it was in (its summary) so the keyboard keeps its place.
 document.addEventListener("htmx:beforeSwap", (e) => {
   const el = e.detail.target;
   if (!el.hasAttribute || !el.hasAttribute("data-keep-open")) return;
   el.dataset.openIds = [...el.querySelectorAll("details[open][id]")].map((d) => d.id).join(" ");
+  const active = document.activeElement;
+  const row = active && el.contains(active) ? active.closest("details[id]") : null;
+  el.dataset.focusId = row ? row.id : "";
 });
 document.addEventListener("htmx:afterSwap", (e) => {
   const el = e.detail.target;
-  if (!el.dataset || !el.dataset.openIds) return;
-  for (const id of el.dataset.openIds.split(" ")) {
-    const d = document.getElementById(id);
+  if (!el.dataset || !el.dataset.openIds && !el.dataset.focusId) return;
+  for (const id of (el.dataset.openIds || "").split(" ")) {
+    const d = id && document.getElementById(id);
     if (d) d.open = true;
   }
+  const focus = el.dataset.focusId && document.getElementById(el.dataset.focusId);
+  if (focus) focus.querySelector("summary").focus({ preventScroll: true });
+  el.dataset.openIds = el.dataset.focusId = "";
+});
+
+// A row that removes itself (hx-swap="delete") hands focus to the next row, or the one before.
+const FOCUSABLE = "a[href], button:not([disabled]), summary, input:not([type=hidden]), select";
+document.addEventListener("htmx:beforeSwap", (e) => {
+  const target = e.detail.target;
+  const active = document.activeElement;
+  if (!target || !active || !target.contains(active)) return;
+  const swap = e.detail.requestConfig && e.detail.requestConfig.elt && e.detail.requestConfig.elt.getAttribute("hx-swap");
+  if (swap !== "delete") return;
+  const next = target.nextElementSibling || target.previousElementSibling;
+  const into = next && (next.matches(FOCUSABLE) ? next : next.querySelector(FOCUSABLE));
+  if (into) setTimeout(() => into.focus({ preventScroll: true }), 0);
+});
+
+// A refreshed list may carry a one-line summary for screen readers ([data-announce]);
+// it is read out when it changes.
+document.addEventListener("htmx:afterSwap", (e) => {
+  const note = e.detail.target.querySelector && e.detail.target.querySelector("[data-announce]");
+  const region = document.getElementById("live-status");
+  if (!note || !region) return;
+  const text = note.dataset.announce;
+  if (region.dataset.last !== undefined && region.dataset.last !== text) region.textContent = text;
+  region.dataset.last = text;
 });
 
 // ------------------------------------------------------- tabs that overflow

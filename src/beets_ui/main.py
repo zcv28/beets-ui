@@ -32,6 +32,7 @@ from .console import Console
 from .inbox import Inbox
 from .jobs import JobQueue
 from .library import register_jobs
+from .release_covers import ReleaseCovers
 from .settings import Settings
 from .state import State
 from .web import HERE
@@ -119,6 +120,7 @@ def create_app(settings: Settings | None = None, background: bool = True) -> Fas
     app.state.source_watch = source_watch
     app.state.acquirer = acquirer
     app.state.limiter = RateLimiter()
+    app.state.release_covers = ReleaseCovers(settings.data_dir / "release-covers")
 
     # Order matters: the session middleware must wrap the auth middleware.
     app.add_middleware(AuthMiddleware)
@@ -160,6 +162,7 @@ def create_app(settings: Settings | None = None, background: bool = True) -> Fas
         r_home,
     ):
         app.include_router(r.router)
+    app.include_router(r_artwork.pages)
     app.include_router(r_find.legacy)
     app.include_router(r_get.legacy)
 

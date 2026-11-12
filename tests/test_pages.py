@@ -79,6 +79,8 @@ def test_every_page_renders_with_balanced_html(env, fake_source):
         f"/library/album/{album.id}",
         f"/library/item/{item.id}",
         "/artwork",
+        "/library/covers",
+        "/library/pictures",
         "/artwork/artists",
         f"/artwork/album/{album.id}",
         "/artwork/artist?name=Test%20Artist",
@@ -89,6 +91,8 @@ def test_every_page_renders_with_balanced_html(env, fake_source):
         "/insights/listening",
         "/insights/lyrics",
         "/console",
+        "/jobs?console=1&cmd=ls",
+        "/jobs?dismissed=true",
         "/jobs",
         f"/jobs/{job}",
     ]

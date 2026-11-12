@@ -39,9 +39,9 @@
   <div class="toast-content">
     {{ icon('success' if w.status == 'done' else 'destructive' if bad else 'info', 'toast-icon') }}
     <div class="toast-text">
-      <p class="toast-title">{% if w.status == 'done' %}Got {% elif bad %}Couldn't get {% elif w.status == 'choosing' %}Choose a copy of {% endif %}<span{{ w.album|lang }}>{{ w.album }}</span>{% if w.status == 'review' %} is in the inbox{% endif %}</p>
+      <p class="toast-title">{% if w.status == 'done' %}Got {% elif bad %}Couldn't get {% elif w.status == 'choosing' %}Pick a copy of {% endif %}<span{{ w.album|lang }}>{{ w.album }}</span>{% if w.status == 'review' %} is in the inbox{% endif %}</p>
       <p class="toast-description">{% if w.status == 'done' %}{{ 'It replaced the old copy in your library.' if w.kind == 'upgrade' else "It's in your library." }}{% else %}{{ w.status_text }}{% endif %}</p>
-      {% if w.status != 'done' %}<div class="toast-actions"><a class="btn" data-variant="outline" data-size="xs" href="{{ '/inbox/folder?f=' ~ (w.folder|q) if w.status == 'review' and w.folder else '/wanted/' ~ w.id }}">{{ 'Review' if w.status == 'review' else 'Choose a copy' if w.status == 'choosing' else 'Open' }}</a></div>{% endif %}
+      {% if w.status != 'done' %}<div class="toast-actions"><a class="btn" data-variant="outline" data-size="xs" href="{{ '/inbox/folder?f=' ~ (w.folder|q) if w.status == 'review' and w.folder else '/wanted/' ~ w.id }}">{{ 'Review' if w.status == 'review' else 'Pick a copy' if w.status == 'choosing' else 'Open' }}</a></div>{% endif %}
     </div>
     <button class="toast-close" type="button" aria-label="Dismiss">{{ icon('x') }}</button>
   </div>

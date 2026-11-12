@@ -371,7 +371,7 @@ def test_inbox_table_answers_204_when_unchanged(app, client, env):
 
 
 def test_console_interrupt_only_while_running(client):
-    assert "Interrupt command" not in client.get("/console").text
+    assert "Interrupt it" not in client.get("/console").text
 
 
 def test_lang_attribute_marks_japanese_names():

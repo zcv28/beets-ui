@@ -1,0 +1,102 @@
+"""Small covers for releases the library doesn't have (Missing, Coming in, Find).
+
+Fetched once from where the release was looked up (the Cover Art Archive for a
+MusicBrainz release group, the album picture for VocaDB, TouhouDB and UtaiteDB),
+kept on disk, and served from beets-ui so pages never link out. A release with
+no cover is remembered for a week before it is asked again.
+"""
+
+from __future__ import annotations
+
+import hashlib
+import logging
+import re
+import time
+from pathlib import Path
+
+import httpx
+
+from .discography import USER_AGENT, UUID, VOCADB
+
+log = logging.getLogger(__name__)
+
+MAX_BYTES = 2 * 1024 * 1024
+MISS_KEEP = 7 * 86400
+TYPES = {
+    b"\xff\xd8\xff": "image/jpeg",
+    b"\x89PNG": "image/png",
+    b"GIF8": "image/gif",
+    b"RIFF": "image/webp",
+}
+DIGITS = re.compile(r"^\d{1,12}$")
+
+
+def remote_url(source: str, release_id: str) -> str | None:
+    """Where a release's small cover is, or None for an unknown source or ID."""
+    if source in VOCADB and DIGITS.match(release_id):
+        return f"{VOCADB[source]}/Album/CoverPictureThumb/{release_id}"
+    if source == "musicbrainz" and UUID.match(release_id):
+        return f"https://coverartarchive.org/release-group/{release_id}/front-250"
+    return None
+
+
+def path_for(source: str, release_id: str) -> str | None:
+    """The page's address for a release's cover, or None when it can't have one."""
+    if remote_url(source, release_id) is None:
+        return None
+    return f"/get/cover/{source}/{release_id}"
+
+
+def kind(data: bytes) -> str | None:
+    return next((t for magic, t in TYPES.items() if data.startswith(magic)), None)
+
+
+class ReleaseCovers:
+    def __init__(self, cache_dir: Path, http: httpx.Client | None = None):
+        self.dir = cache_dir
+        self._http = http
+
+    @property
+    def http(self) -> httpx.Client:
+        if self._http is None:
+            self._http = httpx.Client(
+                headers={"User-Agent": USER_AGENT}, timeout=10, follow_redirects=True
+            )
+        return self._http
+
+    def _file(self, source: str, release_id: str) -> Path:
+        key = hashlib.sha1(f"{source}:{release_id}".encode()).hexdigest()
+        return self.dir / key[:2] / key
+
+    def get(self, source: str, release_id: str) -> tuple[Path, str] | None:
+        """(file, media type) of the cover, fetching it the first time; None if there is none."""
+        url = remote_url(source, release_id)
+        if url is None:
+            return None
+        f = self._file(source, release_id)
+        miss = f.with_suffix(".none")
+        if f.exists():
+            t = kind(f.read_bytes()[:8])
+            if t:
+                return f, t
+        if miss.exists() and time.time() - miss.stat().st_mtime < MISS_KEEP:
+            return None
+        try:
+            r = self.http.get(url)
+        except httpx.HTTPError as e:
+            log.info("cover for %s %s: %s", source, release_id, e)
+            return None  # not remembered: the next page asks again
+        data = r.content[: MAX_BYTES + 1]
+        t = kind(data[:8]) if r.status_code == 200 and len(data) <= MAX_BYTES else None
+        if source in VOCADB and not r.history:
+            # A real picture redirects to the site's image host; an album without one
+            # gets the site's "?" placeholder straight away.
+            t = None
+        f.parent.mkdir(parents=True, exist_ok=True)
+        if t is None:
+            if r.status_code in (200, 404):
+                miss.touch()
+            return None
+        f.write_bytes(data)
+        miss.unlink(missing_ok=True)
+        return f, t

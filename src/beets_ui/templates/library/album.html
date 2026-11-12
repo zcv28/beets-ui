@@ -46,7 +46,7 @@
             {% endfor %}
           </form>
           {% if romanizable %}<form method="post" action="/library/album/{{ album.id }}/romanize"><button class="menu-item">Romanize names<span class="hint">from {{ album.get('data_source') }}</span></button></form>{% endif %}
-          <a class="menu-item" href="/console?cmd={{ ('import -L -q album_id:' ~ album.id)|q }}">Re-tag in the console…<span class="mono hint">beet import -L</span></a>
+          <a class="menu-item" href="/jobs?console=1&amp;cmd={{ ('import -L -q album_id:' ~ album.id)|q }}#console">Re-tag in the console…<span class="mono hint">beet import -L</span></a>
           <hr class="separator" role="none">
           <form method="post" action="/library/album/{{ album.id }}/remove" data-confirm="Remove {{ album.album }} from the library? Its files stay on disk." data-confirm-button="Remove album"><button class="menu-item" data-tone="destructive">Remove from library…<span class="hint">Files stay on disk</span></button></form>
           <form method="post" action="/library/album/{{ album.id }}/remove" data-confirm="Remove {{ album.album }} and delete its files from disk? This cannot be undone." data-confirm-button="Delete album and files"><input type="hidden" name="delete" value="1"><button class="menu-item" data-tone="destructive">Delete album and files…<span class="hint">Removes the files from disk</span></button></form>

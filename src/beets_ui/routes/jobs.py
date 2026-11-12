@@ -7,6 +7,7 @@ from fastapi.responses import HTMLResponse
 
 from ..history import UNDOABLE
 from ..web import flash, is_fragment, partial, redirect, render, toast, user
+from . import console as console_routes
 
 router = APIRouter(prefix="/jobs")
 
@@ -26,23 +27,41 @@ def _trim(log: str) -> tuple[str, bool]:
     return log[-MAX_LOG:], True
 
 
-def _list(request: Request, dismissed: bool) -> dict:
+def _list(request: Request, dismissed: bool, selected: int | None = None) -> dict:
     state = request.app.state.state
     return {
         "jobs": state.jobs(limit=100, dismissed=dismissed),
         "dismissed": dismissed,
         "hidden": 0 if dismissed else state.dismissed_jobs(),
+        "selected": selected,
     }
 
 
+def _pane(request: Request, job: dict) -> dict:
+    """The selected job: its log, and what can be undone."""
+    log, trimmed = _trim(job["log"])
+    state = request.app.state.state
+    snap = state.snapshot_for_job(job["id"]) if job["kind"] in UNDOABLE else None
+    undone = state.job(snap["undone_by"]) if snap and snap["undone_by"] else None
+    return {"job": job, "log": log, "trimmed": trimmed, "snap": snap, "undone": undone}
+
+
 @router.get("")
-def jobs_page(request: Request, dismissed: bool = False):
-    return render(request, "jobs.html", nav="jobs", **_list(request, dismissed))
+def jobs_page(request: Request, dismissed: bool = False, console: bool = False, cmd: str = ""):
+    """The jobs list beside the selected job (none here), with the console above the list."""
+    return render(
+        request,
+        "jobs.html",
+        nav="jobs",
+        job=None,
+        **_list(request, dismissed),
+        **console_routes.context(request, cmd, console),
+    )
 
 
 @router.get("/table")
-def jobs_table(request: Request, dismissed: bool = False):
-    return partial(request, "partials/jobs_table.html", **_list(request, dismissed))
+def jobs_table(request: Request, dismissed: bool = False, sel: int | None = None):
+    return partial(request, "partials/jobs_table.html", **_list(request, dismissed, sel))
 
 
 def _back(back: str, fallback: str) -> str:
@@ -107,20 +126,17 @@ def jobs_pill(request: Request, since: float = 0):
 
 
 @router.get("/{job_id}")
-def job_page(request: Request, job_id: int):
+def job_page(
+    request: Request, job_id: int, dismissed: bool = False, console: bool = False, cmd: str = ""
+):
     job = _job_or_404(request, job_id)
-    log, trimmed = _trim(job["log"])
-    snap = request.app.state.state.snapshot_for_job(job_id) if job["kind"] in UNDOABLE else None
-    undone = request.app.state.state.job(snap["undone_by"]) if snap and snap["undone_by"] else None
     return render(
         request,
-        "job.html",
+        "jobs.html",
         nav="jobs",
-        job=job,
-        log=log,
-        trimmed=trimmed,
-        snap=snap,
-        undone=undone,
+        **_list(request, dismissed, job_id),
+        **_pane(request, job),
+        **console_routes.context(request, cmd, console),
     )
 
 

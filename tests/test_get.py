@@ -291,7 +291,14 @@ def test_nothing_found_fails(app, engine):
     for _ in range(8):
         acq.tick()
     w = app.state.state.wanted(wid)
-    assert w["status"] == "failed" and w["status_text"] == "Nothing found"
+    assert (
+        w["status"] == "failed" and w["status_text"] == "Nothing found after 3 rounds of searches"
+    )
+    # Each round waits longer for answers.
+    assert len(src.searched) == 3
+    assert [h["text"] for h in w["history"]][
+        -1
+    ] == "Stopped after 3 rounds of searches: nothing found"
 
 
 def test_failed_download_moves_to_the_next_copy(app, engine):
@@ -623,11 +630,16 @@ def test_out_of_copies_searches_again_for_other_uploaders(app, engine):
     acq.tick()
     w = state.wanted(wid)
     assert w["status"] == "downloading" and w["origin"] == "dave"
-    # dave fails too: no more searching, you choose.
+    # dave fails too: a last round of searches finds nobody new, so you choose.
     src.rows = [transfer(other, "failed")]
     acq.tick()
     w = state.wanted(wid)
-    assert w["status"] == "choosing" and "choose" in w["status_text"]
+    assert w["status"] == "queued" and w["researched"] == 2
+    acq.tick()
+    acq.tick()
+    w = state.wanted(wid)
+    assert w["status"] == "choosing"
+    assert w["status_text"] == "No copy was clearly right after 3 rounds of searches"
 
 
 def test_skip_tries_another_copy(app, engine):
@@ -721,7 +733,7 @@ def test_try_another_copy_answers_in_place_and_switches_in_the_background(app, e
     )
     assert r.status_code == 200 and "location" not in r.headers
     toast = json.loads(r.headers["HX-Trigger"])["toast"]
-    assert toast["title"] == "Looking for another copy of Test Album [FLAC]"
+    assert toast["title"] == "Getting Test Album [FLAC] from someone else"
     assert "alice keeps going" in toast["text"]
     assert src.fetched == [] and src.cancelled == []  # nothing waits on the uploaders
     acq.tick()

@@ -1,19 +1,15 @@
-{% extends "base.html" %}
-{% from "partials/macros.html" import alert, status, back %}
-{% block title %}Job #{{ job.id }}{% endblock %}
-{% block header %}
-<header class="page-header">
-  {{ back('/jobs', 'Jobs') }}
-  <h1><span class="mono">#{{ job.id }}</span> {{ job.title }}</h1>
-  <p class="page-description">Queued {{ job.created_at|ts }}{% if job.user %} by {{ job.user }}{% endif %}{% if job.finished_at and job.started_at %} · took {{ (job.finished_at - job.started_at)|duration }}{% endif %}</p>
-</header>
-{% endblock %}
-{% block content %}
+{% from "partials/macros.html" import alert, icon, status %}
+{# One job beside the list: what it is, what can be done with it, its log. #}
+<div class="job-pane-head">
+  <a class="btn job-pane-close" data-variant="ghost" data-size="icon-sm" href="/jobs{{ '?dismissed=true' if dismissed }}" aria-label="Close job" title="Close">{{ icon('x') }}</a>
+  <h2><span class="mono hint">#{{ job.id }}</span> {{ job.title }}</h2>
+  <p class="hint">Queued {{ job.created_at|ts }}{% if job.user %} by {{ job.user }}{% endif %}{% if job.finished_at and job.started_at %} · took {{ (job.finished_at - job.started_at)|duration }}{% endif %}</p>
+</div>
 <div class="bar">
-  {% if job.status == 'done' and job.error %}{{ status('attention', 'Needs attention', badge=True) }}{% else %}{{ status(job.status, badge=True) }}{% endif %}
+  {% if job.status == 'done' and job.error %}{{ status('attention', 'Needs attention') }}{% else %}{{ status(job.status) }}{% endif %}
   {% if snap and undone %}<span class="hint">Undone by <a href="/jobs/{{ undone.id }}">job #{{ undone.id }}</a></span>{% endif %}
   <span class="spacer"></span>
-  {% if job.kind == 'console' %}<a class="btn" data-variant="outline" data-size="sm" href="/console?cmd={{ job.params.argv|join(' ')|q }}">Run again</a>{% endif %}
+  {% if job.kind == 'console' %}<a class="btn" data-variant="outline" data-size="sm" href="?console=1&amp;cmd={{ job.params.argv|join(' ')|q }}#console">Run again</a>{% endif %}
   {% if job.params.folder %}<a class="btn" data-variant="outline" data-size="sm" href="/inbox/folder?f={{ job.params.folder|q }}">Open folder</a>{% endif %}
   {% if snap and not undone and job.status in ('done', 'failed') %}<form class="inline" method="post" action="/jobs/{{ job.id }}/undo" data-confirm="Put back the values from before this job? Tags are rewritten{{ ' and files moved back' if snap.data.move }} the same way the job did it." data-confirm-button="Undo job" data-confirm-kind="default"><button class="btn" data-variant="outline" data-size="sm" title="{{ snap.data.entries|length }} album/track record(s) saved before this job ran">Undo</button></form>{% endif %}
   {% if job.status not in ('queued', 'running') %}{% if job.dismissed_at %}<span class="hint">Dismissed</span><form class="inline" method="post" action="/jobs/{{ job.id }}/restore"><button class="btn" data-variant="outline" data-size="sm" title="Show it in the jobs list again">Restore</button></form>{% else %}<form class="inline" method="post" action="/jobs/{{ job.id }}/dismiss"><button class="btn" data-variant="ghost" data-size="sm" title="Hide it from the jobs list and Home">Dismiss</button></form>{% endif %}{% endif %}
@@ -26,4 +22,3 @@
 {% else %}
 {% include "partials/job_log.html" %}
 {% endif %}
-{% endblock %}
