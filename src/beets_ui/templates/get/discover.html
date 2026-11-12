@@ -12,13 +12,13 @@
 {% set here = request.url.path ~ ('?' ~ request.url.query if request.url.query else '') %}
 
 {# One album's actions: Get (or where its request stands), and a menu. #}
-{% macro actions(a, date='', key='s') -%}
-<span class="get-slot">{% if a.wanted %}{% set w = a.wanted %}{% include "wanted/_chip.html" %}{% elif get_enabled %}<form class="inline" method="post" action="/wanted/discover" hx-post="/wanted/discover" hx-target="closest .get-slot" hx-swap="innerHTML">
+{% macro actions(a, date='', key='s', upcoming=False) -%}
+<span class="get-slot">{% if a.wanted %}{% set w = a.wanted %}{% include "wanted/_chip.html" %}{% elif upcoming %}<span class="hint">Not out yet</span>{% elif get_enabled %}<form class="inline" method="post" action="/wanted/discover" hx-post="/wanted/discover" hx-target="closest .get-slot" hx-swap="innerHTML">
   <input type="hidden" name="id" value="{{ a.id }}"><input type="hidden" name="title" value="{{ a.title }}"><input type="hidden" name="artist" value="{{ a.artist }}"><input type="hidden" name="date" value="{{ date or a.year }}"><input type="hidden" name="back" value="{{ here }}">
   <button class="btn" data-variant="outline" data-size="xs" title="Search, download and import {{ a.title }}">Get</button>
 </form>{% endif %}</span>
 {% call row_menu(key ~ '-' ~ a.id, 'More for ' ~ a.title) %}
-  {% if sources_enabled %}{% set q = a.artist ~ ' ' ~ a.title %}<a class="menu-item" href="/get/find?q={{ q|q }}">Find by hand<span class="hint"{{ q|lang }}>{{ q }}</span></a>{% endif %}
+  {% if sources_enabled %}{% set q = a.artist ~ ' ' ~ a.title %}<a class="menu-item" href="/get/find?q={{ q|q }}&amp;artist={{ a.artist|q }}&amp;album={{ a.title|q }}{{ '&amp;w=' ~ a.wanted.id if a.wanted }}">Find by hand<span class="hint"{{ q|lang }}>{{ q }}</span></a>{% endif %}
   <a class="menu-item" href="https://musicbrainz.org/release-group/{{ a.id }}" target="_blank" rel="noopener noreferrer">Open in MusicBrainz<span class="hint">Tracklist, releases and links</span></a>
   <form method="post" action="/get/discover/dismiss" hx-post="/get/discover/dismiss" hx-target="closest tr" hx-swap="delete">
     <input type="hidden" name="id" value="{{ a.id }}"><input type="hidden" name="label" value="{{ a.artist }} – {{ a.title }}"><input type="hidden" name="back" value="{{ here }}">
@@ -27,7 +27,7 @@
 {% endcall %}
 {%- endmacro %}
 
-{% macro release_table(list) -%}
+{% macro release_table(list, upcoming=False) -%}
 <div class="table-container" data-density="compact"><table class="table stack-sm release-table">
   <thead><tr><th class="table-head">Date</th><th class="table-head">Release</th><th class="table-head hide-sm">Type</th><th class="table-head"><span class="sr-only">Actions</span></th></tr></thead>
   <tbody>
@@ -36,7 +36,7 @@
     <td class="table-cell nowrap mono">{{ r.date or '?' }}</td>
     <td class="table-cell col-main"><span class="strong"{{ r.title|lang }}>{{ r.title }}</span><p class="hint"{{ r.artist|lang }}>{{ r.artist }}</p></td>
     <td class="table-cell hide-sm hint">{{ r.type }}{% if r.secondary %} · {{ r.secondary }}{% endif %}</td>
-    <td class="table-cell nowrap col-actions">{{ actions(r, r.date, 'f') }}</td>
+    <td class="table-cell nowrap col-actions">{{ actions(r, r.date, 'f', upcoming) }}</td>
   </tr>
   {% endfor %}
   </tbody>
@@ -79,7 +79,7 @@
   {% else %}{% call empty() %}No new releases of these types by artists you listen to in the last 90 days.{% endcall %}{% endif %}
   {% if data.upcoming %}
   <h3>Upcoming</h3>
-  {{ release_table(data.upcoming) }}
+  {{ release_table(data.upcoming, upcoming=True) }}
   {% endif %}
 </section>
 

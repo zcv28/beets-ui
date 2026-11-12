@@ -13,9 +13,9 @@ from beets_ui import beets_ctx, discover, importer
 from beets_ui.acquire import Acquirer
 from beets_ui.discography import Client
 from beets_ui.settings import Settings
-from test_get import FakeClient, FakeSource
 
 from conftest import make_album
+from test_get import FakeClient, FakeSource
 
 LB = "https://api.listenbrainz.org"
 

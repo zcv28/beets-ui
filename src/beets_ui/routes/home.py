@@ -13,13 +13,12 @@ from fastapi import APIRouter, Request
 
 from .. import beets_ctx, discography, upgrades
 from .. import library as libsvc
-from ..sources import incoming, requests_in_flight
+from ..sources import coming
 from ..web import partial, render
 from .inbox import REVIEW, _queue
 
 router = APIRouter()
 
-COMING = ("queued", "searching", "downloading", "arrived", "lookup", "importing")
 RECENT_FAILURES = 86400  # failed jobs show for a day
 
 
@@ -28,8 +27,6 @@ def _now(app) -> dict:
     state = app.state.state
     folders = state.folders()
     queue = _queue(folders, "")
-    requests = requests_in_flight(app)
-    downloads = incoming(app)
     needs = []
     watch = getattr(app.state, "source_watch", None)
     status = watch.status if watch else None
@@ -71,41 +68,36 @@ def _now(app) -> dict:
                 "action": "Open",
             }
         )
-    for w in requests:
-        if w["status"] == "choosing":
-            needs.append(
-                {
-                    "tone": "warning",
-                    "title": f"Choose a copy of {w['album']}",
-                    "detail": w["status_text"],
-                    "href": f"/wanted/{w['id']}",
-                    "action": "Choose",
-                    "name": w["album"],
-                }
+    # Requests and downloads that stopped for you: the same ones as Coming in.
+    items = coming(app)
+    for it in items:
+        if it["group"] != "needs":
+            continue
+        if it["kind"] == "request":
+            w = it["w"]
+            title = (
+                f"Pick a copy of {w['album']}"
+                if w["status"] == "choosing"
+                else f"Couldn't get {w['album']}"
             )
-        elif w["status"] == "failed":
-            needs.append(
-                {
-                    "tone": "destructive",
-                    "title": f"Couldn't get {w['album']}",
-                    "detail": w["status_text"],
-                    "href": f"/wanted/{w['id']}",
-                    "action": "Open",
-                    "name": w["album"],
-                }
+            href, action = f"/wanted/{w['id']}", "Open"
+        else:
+            title = (
+                f"Stuck: {it['title']}"
+                if it["tone"] == "warning"
+                else f"Download failed: {it['title']}"
             )
-    for d in downloads:
-        if d["state"] == "failed":
-            needs.append(
-                {
-                    "tone": "destructive",
-                    "title": f"Download failed: {d['folder_name']}",
-                    "detail": d["label"],
-                    "href": "/get/coming",
-                    "action": "Retry",
-                    "name": d["folder_name"],
-                }
-            )
+            href, action = f"/get/coming#c-{it['key']}", "Open"
+        needs.append(
+            {
+                "tone": it["tone"],
+                "title": title,
+                "detail": it["reason"],
+                "href": href,
+                "action": action,
+                "name": it["title"],
+            }
+        )
     since = time.time() - RECENT_FAILURES
     for j in state.jobs(30, dismissed=False):
         if j["status"] == "failed" and (j["finished_at"] or 0) > since and j["kind"] != "preview":
@@ -119,11 +111,9 @@ def _now(app) -> dict:
                     "dismiss": f"/jobs/{j['id']}/dismiss",
                 }
             )
-    coming = [w for w in requests if w["status"] in COMING]
     return {
         "needs": needs,
-        "coming": coming,
-        "downloads": [d for d in downloads if d["state"] in ("downloading", "queued")],
+        "coming": [it for it in items if it["group"] != "needs"],
         "running": len(app.state.jobs.running()),
         "pending": app.state.jobs.pending(),
         "review_states": REVIEW,
@@ -148,7 +138,7 @@ def _care(lib, state) -> list[dict]:
         return "album" if n == 1 else "albums"
 
     if no_cover:
-        rows.append(("No cover file", no_cover, albums(no_cover), "/artwork?filter=nofile"))
+        rows.append(("No cover file", no_cover, albums(no_cover), "/library/covers?filter=nofile"))
     for key, label in (
         ("lossy", "Lossy"),
         ("bitrate", "Low bitrate"),

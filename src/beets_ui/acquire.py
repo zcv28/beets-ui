@@ -15,6 +15,13 @@ A request (a row in the ``wanted`` table) moves through these states:
 The Acquirer (a background thread) drives queued → arrived. The inbox drives
 lookup → done, through ``inbox_*`` hooks below, so a requested folder is still an
 ordinary inbox folder you can review.
+
+It keeps at it before asking you: every search text in turn, the copies that look
+right (uploaders that answer with the folder's listing first), then another round
+of searches that waits longer for answers. Only when the rounds run out does a
+request stop at "choosing" (copies were found, none clearly right) or "failed"
+(nothing found), where you can keep trying, choose a copy, or find it by hand.
+Each request keeps a short history of what was tried.
 """
 
 from __future__ import annotations
@@ -37,29 +44,58 @@ log = logging.getLogger(__name__)
 STATES = {
     "queued": ("running", "Waiting to search"),
     "searching": ("running", "Searching"),
-    "choosing": ("warning", "Choose a copy"),
+    "choosing": ("warning", "Waiting for your pick"),
     "downloading": ("running", "Downloading"),
     "arrived": ("running", "Downloaded"),
     "lookup": ("running", "Looking up"),
     "importing": ("running", "Importing"),
-    "review": ("warning", "Waiting for review"),
+    "review": ("running", "Waiting for review"),
     "done": ("done", "In your library"),
     "failed": ("failed", "Couldn't get it"),
     "cancelled": ("", "Cancelled"),
 }
 DRIVEN = ("queued", "searching", "downloading", "arrived")
+# Requests a download started by hand (Find) can take over.
+ADOPTABLE = ("queued", "searching", "choosing", "failed", "cancelled")
 OPEN = (*DRIVEN, "choosing", "lookup", "importing", "review", "failed")
 NEEDS_YOU = ("choosing", "review", "failed")
+# Requests that stop until you act on them here (review is decided in the inbox).
+ASKS_YOU = ("choosing", "failed")
 MAX_SEARCHES = 2
-MAX_ATTEMPTS = 3  # downloads started for one request before it asks you
-MAX_RESEARCH = 1  # searches started again once every copy found has been tried
-SEARCH_WAIT = 30  # seconds a request's search waits for answers
+MAX_ATTEMPTS = 6  # downloads started for one request before it asks you
+MAX_RESEARCH = 2  # rounds of searches after the first, each waiting longer for answers
+SEARCH_WAIT = 30  # seconds a request's first round of searches waits for answers
+MAX_LISTINGS = 6  # copies that look right whose listing is asked for, per search
+HISTORY_KEEP = 60  # entries kept in a request's history
 # A finished download whose folder never shows up in the inbox gives up after this.
 ARRIVAL_TIMEOUT = 600
 
 
 def label(w: dict[str, Any]) -> tuple[str, str]:
     return STATES.get(w["status"], ("", w["status"]))
+
+
+def detail(w: dict[str, Any]) -> str:
+    """What a request's status text adds to its label ("" when it only repeats it)."""
+    text = (w.get("status_text") or "").strip()
+    name = label(w)[1]
+    if not text or text == name:
+        return ""
+    if text.startswith(name + ", "):
+        return text[len(name) + 2 :]
+    return text
+
+
+def note(state: State, w: dict[str, Any], text: str) -> None:
+    """Add a line to a request's history (what was searched, downloaded, given up on)."""
+    history = [*(w.get("history") or []), {"at": time.time(), "text": text}][-HISTORY_KEEP:]
+    state.update_wanted(w["id"], history=history)
+    w["history"] = history
+
+
+def search_wait(w: dict[str, Any]) -> int:
+    """Seconds a search waits for answers: longer on each round."""
+    return SEARCH_WAIT * (1 + (w.get("researched") or 0))
 
 
 # The one path a release takes: 0 missing, 1 getting, 2 review, 3 in your library.
@@ -196,23 +232,44 @@ def tracklist(client: discography.Client, source: str, release_id: str) -> tuple
     return tracks, best["id"]
 
 
+BRACKETS = re.compile(r"\s*[(\[{（【〔「][^)\]}）】〕」]*[)\]}）】〕」]")
+
+
 def queries(w: dict[str, Any]) -> list[str]:
-    """Search texts to try in turn: romanized names, then the names as written."""
+    """Search texts to try in turn: romanized names, then the names as written, then
+    without bracketed parts ("(Remastered)", "[Disc 1]"), then the album alone when
+    its name is distinctive enough to be found by itself."""
 
     def clean(s: str) -> str:
         # Soulseek drops words starting with "-" and matches whole words only.
         return " ".join(re.sub(r"[^\w\s]+", " ", s).split())
 
+    def bare(s: str) -> str:
+        return BRACKETS.sub(" ", s or "")
+
+    artist, album = w["artist"], w["album"]
+    artist_o, album_o = w["artist_original"] or artist, w["album_original"] or album
     out: list[str] = []
-    for artist, album in (
-        (w["artist"], w["album"]),
-        (w["artist_original"] or w["artist"], w["album_original"] or w["album"]),
-        (w["artist"], w["album_original"]),
-    ):
-        q = clean(f"{artist} {album}")
-        if album and len(q) >= 3 and q.casefold() not in (x.casefold() for x in out):
+
+    def add(q: str, album_part: str) -> None:
+        q = clean(q)
+        if album_part and len(q) >= 3 and q.casefold() not in (x.casefold() for x in out):
             out.append(q)
+
+    for a, b in ((artist, album), (artist_o, album_o), (artist, w["album_original"])):
+        add(f"{a} {b}", b)
+    for a, b in ((artist, bare(album)), (artist_o, bare(album_o))):
+        add(f"{a} {b}", clean(b))
+    for b in dict.fromkeys((clean(bare(album)), clean(bare(album_o)))):
+        if distinctive(b):
+            add(b, b)
     return out
+
+
+def distinctive(title: str) -> bool:
+    """Is an album name unusual enough to search for without its artist?"""
+    wide = sum(1 for c in title if ord(c) >= 0x2E80)  # CJK and kana
+    return wide >= 4 or (len(title) >= 12 and len(title.split()) >= 2)
 
 
 # ------------------------------------------------------------------- engine
@@ -467,11 +524,14 @@ class Acquirer:
             log.info("download %s: switched to %s (%s)", f["folder_name"], o["origin"], reason)
             return f"{o['origin']}|{o['folder']}"
         f["tried"] = sorted(tried)
-        if (f.get("researched") or 0) < MAX_RESEARCH:
+        if (f.get("researched") or 0) < FETCH_RESEARCH:
             # Nobody in this search: ask again, other uploaders may answer now.
             text = f.get("text") or f["folder_name"]
             try:
                 search_id = self.source.search(text, wait=SEARCH_WAIT)
+                self.state.log_search(
+                    search_id, text, f.get("artist", ""), f.get("album", "") or f["folder_name"]
+                )
             except SourceError as e:
                 log.info("searching again for %s: %s", f["folder_name"], e)
                 f.update(stuck=reason, note="")
@@ -525,20 +585,46 @@ class Acquirer:
             self._give_up(w)
             return False
         text = texts[w["query_idx"]]
-        sid = self.source.search(text, wait=SEARCH_WAIT)
+        sid = self.source.search(text, wait=search_wait(w))
+        self.state.log_search(sid, text, w["artist"], w["album"], w["id"])
         self._set(w, "searching", f"Searching for {text}", search_id=sid, error=None)
         return True
 
     def _give_up(self, w: dict[str, Any]) -> None:
+        rounds = (w.get("researched") or 0) + 1
+        tries = f"{rounds} round{'s' if rounds != 1 else ''} of searches"
         if w["offers"]:
-            self._set(w, "choosing", "No copy was clearly right: choose one")
+            self._set(w, "choosing", f"No copy was clearly right after {tries}")
+            n = len(w["offers"])
+            copies = f"{n} cop{'ies' if n != 1 else 'y'} wait{'s' if n == 1 else ''}"
+            note(self.state, w, f"Stopped after {tries}: {copies} for your pick")
         else:
-            self._set(w, "failed", "Nothing found")
+            self._set(w, "failed", f"Nothing found after {tries}")
+            note(self.state, w, f"Stopped after {tries}: nothing found")
+
+    def _end_of_round(self, w: dict[str, Any], why: str) -> None:
+        """Every search text was tried: another round that waits longer, or ask you."""
+        n = w.get("researched") or 0
+        if n >= MAX_RESEARCH:
+            self._give_up(w)
+            return
+        self._set(
+            w,
+            "queued",
+            f"{why[:1].upper()}{why[1:]}: searching again, waiting longer for answers",
+            query_idx=0,
+            search_id="",
+            researched=n + 1,
+            error=None,
+        )
+        note(self.state, w, f"{why[:1].upper()}{why[1:]}: searching again (round {n + 2})")
 
     def _searched(self, w: dict[str, Any]) -> None:
         info = self.source.search_info(w["search_id"])
         if info["running"]:
             return
+        texts = queries(w)
+        text = texts[w["query_idx"]] if w["query_idx"] < len(texts) else info.get("text", "")
         tried = set(w["tried"] or [])
         # Uploaders already tried for this request let it down: skip their other folders too.
         tried_origins = {k.split("|", 1)[0] for k in tried}
@@ -553,16 +639,35 @@ class Acquirer:
         offers = keep or w["offers"]
         self.state.update_wanted(w["id"], offers=offers)
         w["offers"] = offers
-        for p in picks:
-            if not p.confident:
-                break
-            if self._fetch(w, p.offer):
+        confident = [p for p in picks if p.confident][:MAX_LISTINGS]
+        answers = info.get("answers") or 0
+        self.state.search_answered(w["search_id"], answers)
+        rnd = w.get("researched") or 0
+        note(
+            self.state,
+            w,
+            f"Searched for “{text}”{f' (round {rnd + 1})' if rnd else ''}: "
+            f"{answers} answer{'s' if answers != 1 else ''}, "
+            f"{len(picks)} folder{'s' if len(picks) != 1 else ''}"
+            + (f", {len(confident)} looked right" if confident else ", none clearly right"),
+        )
+        # Uploaders who answer with the folder's listing are online and share all of
+        # it: try them first, then the ones who didn't answer.
+        silent = []
+        for p in confident:
+            files = self._listing(p.offer)
+            if files is None:
+                silent.append(p)
+            elif self._fetch(w, p.offer, files=files):
                 return
-        # Nothing to take unasked: the next search text, or ask.
-        if w["query_idx"] + 1 < len(queries(w)):
+        for p in silent:
+            if self._fetch(w, p.offer, files=[]):
+                return
+        # Nothing to take unasked: the next search text, another round, or ask.
+        if w["query_idx"] + 1 < len(texts):
             self._set(w, "queued", "Trying another search", query_idx=w["query_idx"] + 1)
         else:
-            self._give_up(w)
+            self._end_of_round(w, "no copy was clearly right" if w["offers"] else "nothing found")
 
     @staticmethod
     def _slim(p) -> dict[str, Any]:
@@ -592,14 +697,26 @@ class Acquirer:
             "confident": p.confident,
         }
 
-    def _fetch(self, w: dict[str, Any], offer: dict[str, Any], check: bool = True) -> bool:
-        """Download an offer's whole folder. False if its full listing rules it out."""
+    def _listing(self, offer: dict[str, Any]) -> list[dict[str, Any]] | None:
+        """The folder's full listing, or None if its uploader doesn't answer."""
+        try:
+            return self.source.listing(offer["origin"], offer["path"]) or None
+        except SourceError:
+            return None
+
+    def _fetch(
+        self,
+        w: dict[str, Any],
+        offer: dict[str, Any],
+        check: bool = True,
+        files: list[dict[str, Any]] | None = None,
+    ) -> bool:
+        """Download an offer's whole folder. False if its full listing rules it out.
+        ``files``: its listing when already asked for ([]: the uploader didn't answer)."""
         key = f"{offer['origin']}|{offer['folder']}"
         tried = [*(w["tried"] or []), key]
-        try:
-            files = self.source.listing(offer["origin"], offer["path"])
-        except SourceError:
-            files = []
+        if files is None:
+            files = self._listing(offer) or []
         if check and files and w["tracks"] and audio_count(files) < len(w["tracks"]):
             self.state.update_wanted(w["id"], tried=tried)
             w["tried"] = tried
@@ -622,7 +739,34 @@ class Acquirer:
             attempts=w["attempts"] + 1,
             progress_bytes=0,
             progress_at=time.time(),
+            progress_place=None,
         )
+        note(self.state, w, f"Downloading “{offer['folder_name']}” from {offer['origin']}")
+        return True
+
+    def adopt(self, w: dict[str, Any], origin: str, folder: str, folder_name: str) -> bool:
+        """A copy you downloaded by hand (Find) for this request: follow it as the
+        request's download, so it is imported against the release you asked for."""
+        with self._lock:
+            w = self.state.wanted(w["id"]) or {}
+            if w.get("status") not in ADOPTABLE:
+                return False
+            self._set(
+                w,
+                "downloading",
+                f"Downloading from {origin}",
+                origin=origin,
+                remote_folder=folder,
+                folder=folder_name,
+                tried=[*(w["tried"] or []), f"{origin}|{folder}"],
+                attempts=w["attempts"] + 1,
+                progress_bytes=0,
+                progress_at=time.time(),
+                progress_place=None,
+                error=None,
+            )
+            note(self.state, w, f"You chose “{folder_name}” from {origin} under Find")
+        self.wake()
         return True
 
     def choose(self, w: dict[str, Any], origin: str, folder: str) -> bool:
@@ -713,6 +857,7 @@ class Acquirer:
         if w["folder"]:
             self.discard_folder(w["folder"])
         log.info("request %s: %s", w["id"], reason)
+        note(self.state, w, f"Gave up on {w['origin'] or 'the copy'}: {reason}")
         self._next_offer(w, reason)
 
     def skip(self, w: dict[str, Any]) -> None:
@@ -738,15 +883,17 @@ class Acquirer:
                     return
             # Every good copy found so far was tried: look for other uploaders.
             if (w.get("researched") or 0) < MAX_RESEARCH and w["kind"] in ("missing", "upgrade"):
+                n = (w.get("researched") or 0) + 1
                 self._set(
                     w,
                     "queued",
                     f"{reason[:1].upper()}{reason[1:]}: searching for another uploader",
                     query_idx=0,
                     search_id="",
-                    researched=(w.get("researched") or 0) + 1,
+                    researched=n,
                     error=None,
                 )
+                note(self.state, w, f"Every copy found was tried: searching again (round {n + 1})")
                 return
         if any(f"{o['origin']}|{o['folder']}" not in tried for o in w["offers"]):
             self._set(w, "choosing", f"The download failed ({reason}): choose another copy")
@@ -761,6 +908,7 @@ class Acquirer:
         if self.inbox_folder_exists(w["folder"]):
             self.state.link_folder(w["folder"], w["id"])
             self._set(w, "lookup", "In the inbox, being looked up")
+            note(self.state, w, f"Downloaded: “{w['folder']}” is in the inbox")
             self.on_arrival(w["folder"])
         elif time.time() - w["updated_at"] > ARRIVAL_TIMEOUT:
             self._set(
@@ -792,6 +940,7 @@ def settle(state: State, lib: Any) -> int:
             [w["album"], w["album_original"] or ""],
         ):
             state.update_wanted(w["id"], status="done", status_text="In your library", error=None)
+            note(state, w, "Found in your library")
             n += 1
     return n
 
@@ -800,6 +949,7 @@ def settle(state: State, lib: Any) -> int:
 
 FETCHES_KEY = "fetches"  # downloads started from Find, by "origin|remote folder"
 FETCH_KEEP = 7 * 86400
+FETCH_RESEARCH = 1  # searches started again for a download from Find nobody else has
 
 
 def moved(row: dict[str, Any], seen_bytes: int, seen_place: int | None) -> bool:
@@ -816,11 +966,23 @@ def file_name(filename: str) -> str:
 
 
 def remember_fetch(
-    state: State, origin: str, folder: str, folder_name: str, search_id: str, text: str, tracks: int
+    state: State,
+    origin: str,
+    folder: str,
+    folder_name: str,
+    search_id: str,
+    text: str,
+    tracks: int,
+    artist: str = "",
+    album: str = "",
 ) -> None:
-    """A download started from Find: enough to find the same folder elsewhere if it stalls."""
+    """A download started from Find: enough to find the same folder elsewhere if it
+    stalls, and the release it is for when the search knew it."""
     fetches = state.meta(FETCHES_KEY) or {}
-    fetches[f"{origin}|{folder}"] = new_fetch(folder_name, search_id, text, tracks)
+    f = new_fetch(folder_name, search_id, text, tracks)
+    if album:
+        f.update(artist=artist, album=album)
+    fetches[f"{origin}|{folder}"] = f
     state.set_meta(FETCHES_KEY, fetches)
 
 
@@ -853,10 +1015,13 @@ def inbox_previewed(state: State, w: dict[str, Any], auto_import: bool, why: str
     else:
         text = f"In the inbox: {why}" if why else "In the inbox, waiting for you"
         state.update_wanted(w["id"], status="review", status_text=text)
+        note(state, w, text)
 
 
 def inbox_imported(state: State, w: dict[str, Any], ok: bool, why: str = "") -> None:
     if ok:
         state.update_wanted(w["id"], status="done", status_text="In your library", error=None)
+        note(state, w, "Imported into your library")
     else:
         state.update_wanted(w["id"], status="review", status_text=f"In the inbox: {why}")
+        note(state, w, f"Waiting for review in the inbox: {why}")

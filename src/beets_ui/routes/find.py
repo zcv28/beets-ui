@@ -13,10 +13,10 @@ from urllib.parse import quote
 from fastapi import APIRouter, Form, HTTPException, Request
 from fastapi.responses import RedirectResponse
 
-from .. import acquire, rank
+from .. import acquire, discography, rank
 from ..slskd import QUEUE_CHOICES, SEARCH_DEFAULTS, SPEED_CHOICES, WAIT_CHOICES
-from ..sources import Source, SourceError, incoming
-from ..web import flash, is_fragment, partial, redirect, render, toast
+from ..sources import Source, SourceError, coming
+from ..web import flash, is_fragment, partial, redirect, render, toast, wanted_cover
 
 router = APIRouter(prefix="/get")
 legacy = APIRouter()
@@ -92,15 +92,69 @@ def _parse_files(values: list[str]) -> list[dict]:
     return out
 
 
+# ---------------------------------------------------------------- releases
+
+
+def _release(request: Request, artist: str, album: str, w: int | None) -> dict | None:
+    """The release a search by hand is for ("Find by hand" on Missing, Discover or a
+    request), so its searches group under it and a download goes to its request."""
+    req = request.app.state.state.wanted(w) if w else None
+    if req:
+        return {"artist": req["artist"], "album": req["album"], "w": req}
+    if album.strip():
+        return {"artist": artist.strip(), "album": album.strip(), "w": None}
+    return None
+
+
+def group_searches(state, searches: list[dict]) -> list[dict]:
+    """Searches grouped by the release they were for, newest first.
+
+    A search made for a request (by the engine, or by hand from it) groups under the
+    request; one made by hand for a release under its artist and album; any other
+    search under its own text.
+    """
+    logged = state.searches_logged([s["id"] for s in searches])
+    requests: dict[int, dict | None] = {}
+    groups: dict[str, dict] = {}
+    for s in searches:
+        e = logged.get(s["id"]) or {}
+        wid = e.get("wanted_id")
+        if wid and wid not in requests:
+            requests[wid] = state.wanted(wid)
+        w = requests.get(wid) if wid else None
+        if w:
+            key, title, artist = f"w{wid}", w["album"], w["artist"]
+        elif e.get("album"):
+            title, artist = e["album"], e.get("artist") or ""
+            key = f"r:{discography.norm(artist)}|{discography.norm(title)}"
+        else:
+            title, artist = s["text"], ""
+            key = f"t:{discography.norm(s['text']) or s['id']}"
+        g = groups.setdefault(
+            key,
+            {"key": key, "title": title, "artist": artist, "w": w, "searches": []},
+        )
+        g["searches"].append(s)
+    out = list(groups.values())
+    for g in out:
+        g["running"] = any(s["running"] for s in g["searches"])
+        g["answers"] = sum(s["answers"] or 0 for s in g["searches"])
+        g["latest"] = g["searches"][0]
+        g["cover"] = wanted_cover(g["w"]) if g["w"] else None
+    return out
+
+
 # -------------------------------------------------------------------- find
 
 
 @router.get("/find")
-def find_page(request: Request, q: str = ""):
+def find_page(
+    request: Request, q: str = "", artist: str = "", album: str = "", w: int | None = None
+):
     source = _source(request)
     error = None
     try:
-        searches = source.searches()[:15]
+        searches = source.searches()[:60]
     except SourceError as e:
         searches, error = [], str(e)
     return render(
@@ -108,7 +162,8 @@ def find_page(request: Request, q: str = ""):
         "find/index.html",
         nav="get",
         q=q,
-        searches=searches,
+        release=_release(request, artist, album, w),
+        groups=group_searches(request.app.state.state, searches),
         error=error,
         opts=_options(request),
         wait_choices=WAIT_CHOICES,
@@ -124,6 +179,9 @@ def search(
     wait: str | None = Form(None),
     max_queue: str | None = Form(None),
     min_speed: str | None = Form(None),
+    artist: str = Form(""),
+    album: str = Form(""),
+    w: int | None = Form(None),
 ):
     q = q.strip()
     opts = _options(request)
@@ -142,7 +200,19 @@ def search(
     except SourceError as e:
         flash(request, str(e), "warn")
         return redirect("/get/find")
+    release = _release(request, artist, album, w)
+    if release:
+        wid = release["w"]["id"] if release["w"] else None
+        request.app.state.state.log_search(sid, q, release["artist"], release["album"], wid)
     return redirect(f"/get/find/s/{sid}")
+
+
+def _search_release(request: Request, search_id: str) -> dict | None:
+    """The release a search was for, if it was made for one."""
+    e = request.app.state.state.searches_logged([search_id]).get(search_id)
+    if not e:
+        return None
+    return _release(request, e["artist"], e["album"], e["wanted_id"])
 
 
 @router.get("/find/s/{search_id}")
@@ -156,6 +226,7 @@ def search_page(request: Request, search_id: str, fmt: str = "", free: str = "")
         request,
         "find/search.html",
         nav="get",
+        release=_search_release(request, search_id),
         search=info,
         groups=offers,
         search_id=search_id,
@@ -297,6 +368,18 @@ def download(
         text = source.search_info(search_id).get("text") or ""
     except SourceError:
         text = ""
+    release = _search_release(request, search_id)
+    acq = getattr(request.app.state, "acquirer", None)
+    n = len(files)
+    what = f"{n} file{'s' if n != 1 else ''} from {username}: {name}"
+    if release and release["w"] and acq and acq.adopt(release["w"], username, folder, name):
+        # The request follows this download and imports it against its release.
+        flash(
+            request,
+            f"Downloading {what}, for {release['album']}. Follow it under Coming in.{note}",
+            "wip" if note else "ok",
+        )
+        return redirect(back)
     acquire.remember_fetch(
         request.app.state.state,
         origin=username,
@@ -305,14 +388,10 @@ def download(
         search_id=search_id,
         text=text,
         tracks=rank.audio_count(files),
+        artist=release["artist"] if release else "",
+        album=release["album"] if release else "",
     )
-    n = len(files)
-    flash(
-        request,
-        f"Downloading {n} file{'s' if n != 1 else ''} from {username}: {name}. "
-        f"Follow it under Coming in.{note}",
-        "wip" if note else "ok",
-    )
+    flash(request, f"Downloading {what}. Follow it under Coming in.{note}", "wip" if note else "ok")
     return redirect(back)
 
 
@@ -326,7 +405,7 @@ def _downloads_done(request: Request, message, ok: bool = True):
             flash(request, message[0], "ok" if ok else "warn")
         return redirect("/get/coming")
     _refresh_status(request)
-    resp = partial(request, "get/_downloads.html", downloads=incoming(request.app))
+    resp = partial(request, "get/_coming.html", items=coming(request.app))
     if message:
         title, text = message
         resp.headers["HX-Trigger"] = toast(title, text, "success" if ok else "destructive").headers[
@@ -337,7 +416,7 @@ def _downloads_done(request: Request, message, ok: bool = True):
 
 @router.get("/downloads")
 def downloads(request: Request):
-    return partial(request, "get/_downloads.html", downloads=incoming(request.app))
+    return partial(request, "get/_coming.html", items=coming(request.app))
 
 
 @router.post("/downloads/cancel")
@@ -394,12 +473,12 @@ def downloads_another(
     acq = getattr(request.app.state, "acquirer", None)
     name = name or posixpath.basename(folder.replace("\\", "/")) or folder
     if acq is None:
-        return _downloads_done(request, (f"Can't look for another copy of {name}", ""), ok=False)
+        return _downloads_done(request, (f"Can't get {name} from someone else", ""), ok=False)
     acq.another(username, folder, name)
     return _downloads_done(
         request,
         (
-            f"Looking for another copy of {name}",
+            f"Getting {name} from someone else",
             f"It switches to the next uploader with this folder. Until then {username} keeps going.",
         ),
     )

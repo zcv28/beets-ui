@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% from "partials/macros.html" import alert, empty, icon, status %}
+{% from "partials/macros.html" import alert, cover, empty, icon, status, wanted_status %}
 {% block title %}Find{% endblock %}
 {% block header %}<header class="page-header"><h1>Get</h1></header>{% endblock %}
 {% block content %}
@@ -11,6 +11,15 @@
 {% set QUEUE = {0: 'Any queue', 10: 'At most 10 queued', 50: 'At most 50 queued', 200: 'At most 200 queued'} %}
 {% set SPEED = {0: 'Any speed', 100000: '100 KB/s', 500000: '500 KB/s', 1000000: '1 MB/s', 5000000: '5 MB/s'} %}
 <form method="post" action="/get/find/search">
+  {% if release %}
+  {# A search for a release: it groups under it, and a download goes to its request. #}
+  <div class="for-release">
+    {{ cover(wanted_cover(release.w) if release.w else None, 'cover cover-sm') }}
+    <p>Finding <span class="strong"{{ release.album|lang }}>{{ release.album }}</span>{% if release.artist %} by <span{{ release.artist|lang }}>{{ release.artist }}</span>{% endif %}{% if release.w %}. A copy you download goes to its request and is imported against it.{% endif %}</p>
+    <a class="btn" data-variant="ghost" data-size="sm" href="/get/find{{ '?q=' ~ q|q if q }}" title="Search without tying it to this release">Search for anything</a>
+    <input type="hidden" name="artist" value="{{ release.artist }}"><input type="hidden" name="album" value="{{ release.album }}">{% if release.w %}<input type="hidden" name="w" value="{{ release.w.id }}">{% endif %}
+  </div>
+  {% endif %}
   <div class="bar">
     <div class="input-group grow">{{ icon('search') }}<input class="input" type="search" name="q" value="{{ q }}" placeholder="Artist album" data-autofocus required minlength="3" aria-label="Find music"></div>
     <button class="btn">Search</button>
@@ -32,22 +41,42 @@
   </details>
 </form>
 <p class="hint">A download shows under <a href="/get/coming">Coming in</a> while it arrives, then waits in the inbox for review like any other folder.</p>
-{% if searches %}
-<h2>Recent searches</h2>
-<div class="table-container"><table class="table">
-  <thead><tr><th class="table-head">Search</th><th class="table-head">State</th><th class="table-head num">Answers</th><th class="table-head num hide-sm">Files</th><th class="table-head num"><span class="sr-only">Actions</span></th></tr></thead>
-  <tbody>
-  {% for s in searches %}
-  <tr class="table-row">
-    <td class="table-cell"><a class="strong" href="/get/find/s/{{ s.id }}"{{ s.text|lang }}>{{ s.text }}</a></td>
-    <td class="table-cell nowrap">{% if s.running %}{{ status('running', s.label) }}{% else %}<span class="hint">{{ s.label }}</span>{% endif %}</td>
-    <td class="table-cell num">{{ s.answers }}</td>
-    <td class="table-cell num hide-sm">{{ s.files }}</td>
-    <td class="table-cell num"><form class="inline" method="post" action="/get/find/s/{{ s.id }}/delete" hx-post="/get/find/s/{{ s.id }}/delete" hx-target="closest tr" hx-swap="delete"><button class="btn" data-variant="ghost" data-tone="destructive" data-size="icon-sm" aria-label="Delete search {{ s.text }}" title="Delete search">{{ icon('trash') }}</button></form></td>
-  </tr>
+{% if groups %}
+<div class="section-head"><h2>Searched</h2><span class="hint">Grouped by the release they were for</span></div>
+<div class="release-list">
+  {% for g in groups %}
+  <details class="release" id="g-{{ g.key|uid }}">
+    <summary>
+      {{ icon('chevron', 'icon release-chevron') }}
+      {{ cover(g.cover) }}
+      <span class="release-main">
+        {% set loose = g.key.startswith('t:') %}
+        <span class="release-title"{{ g.title|lang }}>{{ '“' ~ g.title ~ '”' if loose else g.title }}</span>
+        <span class="hint">{% if g.artist %}<span{{ g.artist|lang }}>{{ g.artist }}</span>, {% elif loose %}a search for no release in particular, {% endif %}searched {{ 'once' if g.searches|length == 1 else (g.searches|length ~ ' times') }}, {{ g.answers|plural('answer') }}</span>
+      </span>
+      <span class="release-progress">{% if g.running %}{{ status('running', 'Searching') }}{% endif %}</span>
+      <span class="release-state">{% if g.w %}{{ wanted_status(g.w) }}{% endif %}</span>
+    </summary>
+    <div class="release-body">
+      <div class="table-container" data-density="compact"><table class="table stack-sm">
+        <thead><tr><th class="table-head">Search</th><th class="table-head">State</th><th class="table-head num">Answers</th><th class="table-head num hide-sm">Files</th><th class="table-head num"><span class="sr-only">Actions</span></th></tr></thead>
+        <tbody>
+        {% for s in g.searches %}
+        <tr class="table-row">
+          <td class="table-cell col-main"><a class="strong" href="/get/find/s/{{ s.id }}"{{ s.text|lang }}>{{ s.text }}</a></td>
+          <td class="table-cell nowrap">{% if s.running %}{{ status('running', s.label) }}{% else %}<span class="hint">{{ s.label }}</span>{% endif %}</td>
+          <td class="table-cell num">{{ s.answers }}<span class="show-sm"> answer{{ 's' if s.answers != 1 }}</span></td>
+          <td class="table-cell num hide-sm">{{ s.files }}</td>
+          <td class="table-cell num col-actions"><form class="inline" method="post" action="/get/find/s/{{ s.id }}/delete" hx-post="/get/find/s/{{ s.id }}/delete" hx-target="closest tr" hx-swap="delete"><button class="btn" data-variant="ghost" data-tone="destructive" data-size="icon-sm" aria-label="Delete search {{ s.text }}" title="Delete search">{{ icon('trash') }}</button></form></td>
+        </tr>
+        {% endfor %}
+        </tbody>
+      </table></div>
+      {% if g.w %}<p class="hint"><a href="/wanted/{{ g.w.id }}">Everything tried for {{ g.title }}</a></p>{% endif %}
+    </div>
+  </details>
   {% endfor %}
-  </tbody>
-</table></div>
+</div>
 {% elif not error %}
 {% call empty() %}No searches yet. Search for an artist and album above, or use Find by hand on a missing album.{% endcall %}
 {% endif %}

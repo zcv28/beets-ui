@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% from "partials/macros.html" import alert, empty, icon, row_menu %}
+{% from "partials/macros.html" import alert, cover, empty, icon, row_menu %}
 {% block title %}Missing{% endblock %}
 {% block header %}
 <header class="page-header">
@@ -49,6 +49,7 @@
 
 {% set base %}?{% for k in picked %}kinds={{ k }}&amp;{% endfor %}show={{ show }}{% endset %}
 {% if rows %}
+<h2 class="sr-only">Artists</h2>
 <div class="gap-list">
   <div class="gap-head">
     <span></span>
@@ -61,7 +62,7 @@
 <details class="gap" {% if loop.length == 1 %}open{% endif %}>
   <summary>
     {{ icon('chevron', 'icon gap-chevron') }}
-    <h3 class="gap-artist"><span{{ r.artist|lang }}>{{ r.artist }}</span>{% if r.artist_original and r.artist_original != r.artist %}<span class="original"{{ r.artist_original|lang }}>{{ r.artist_original }}</span>{% endif %}</h3>
+    <span class="gap-artist"><img class="gap-avatar" src="/artwork/artist/image?name={{ r.artist|q }}&amp;size=64" alt="" loading="lazy" width="24" height="24"><span{{ r.artist|lang }}>{{ r.artist }}</span>{% if r.artist_original and r.artist_original != r.artist %}<span class="original"{{ r.artist_original|lang }}>{{ r.artist_original }}</span>{% endif %}</span>
     {% if r.looked_up %}
     <span class="gap-owned num" title="{{ r.owned|length }} of {{ r.owned|length + r.missing|length }} owned"><span class="sr-only">Owned </span>{{ r.owned|length }}/{{ r.owned|length + r.missing|length }}</span>
     <span class="gap-missing">{% if r.missing %}<span class="gap-count">{{ r.missing|length }} missing</span>{% else %}<span class="hint">Complete</span>{% endif %}{% if r.upcoming %}<span class="hint"> · {{ r.upcoming|length }} upcoming</span>{% endif %}</span>
@@ -84,28 +85,35 @@
     {% endif %}
     {% for title, list in [('Missing', r.missing), ('Upcoming', r.upcoming)] if list %}
     {% if title == 'Upcoming' %}<h3>Upcoming</h3>{% endif %}
-    <div class="table-container" data-density="compact"><table class="table stack-sm">
-      <thead><tr><th class="table-head">Date</th><th class="table-head">Release</th><th class="table-head hide-sm">Type</th><th class="table-head hide-sm">Catalog</th><th class="table-head"><span class="sr-only">Actions</span></th></tr></thead>
+    <div class="table-container" data-density="compact"><table class="table stack-sm missing-table">
+      <thead><tr><th class="table-head cover-col"><span class="sr-only">Cover</span></th><th class="table-head">Release</th><th class="table-head hide-sm">Released</th><th class="table-head hide-sm">Type</th><th class="table-head"><span class="sr-only">Actions</span></th></tr></thead>
       <tbody>
       {% for rel in list %}
       {% set roman_q = r.artist ~ ' ' ~ rel.title %}
       {% set orig_q = (r.artist_original or r.artist) ~ ' ' ~ rel.original %}
+      {% set ctx = '&artist=' ~ r.artist|q ~ '&album=' ~ rel.title|q %}
       <tr class="table-row">
-        <td class="table-cell nowrap mono">{{ rel.date or '?' }}</td>
-        <td class="table-cell col-main"><a href="{{ rel.url }}" target="_blank" rel="noopener noreferrer"{{ rel.title|lang }}>{{ rel.title }}</a>{% if rel.original and rel.original != rel.title %}<span class="original"{{ rel.original|lang }}>{{ rel.original }}</span>{% endif %}{% if rel.artists and rel.artists != r.artist %}<p class="hint"{{ rel.artists|lang }}>{{ rel.artists }}</p>{% endif %}</td>
+        <td class="table-cell cover-col">{{ cover(release_cover(r.source, rel.id)) }}</td>
+        <td class="table-cell col-main">
+          <a class="strong" href="{{ rel.url }}" target="_blank" rel="noopener noreferrer"{{ rel.title|lang }}>{{ rel.title }}</a>{% if rel.original and rel.original != rel.title %}<span class="original"{{ rel.original|lang }}>{{ rel.original }}</span>{% endif %}
+          {% if (rel.artists and rel.artists != r.artist) or rel.catalog %}<p class="hint">{% if rel.artists and rel.artists != r.artist %}<span{{ rel.artists|lang }}>{{ rel.artists }}</span>{% endif %}{% if rel.catalog %}{{ ' · ' if rel.artists and rel.artists != r.artist }}<span class="mono">{{ rel.catalog }}</span>{% endif %}</p>{% endif %}
+          <p class="hint show-sm"><span class="mono">{{ rel.date or '?' }}</span> · {{ rel.type }}</p>
+        </td>
+        <td class="table-cell hide-sm nowrap mono">{{ rel.date or '?' }}</td>
         <td class="table-cell hide-sm hint">{{ rel.type }}</td>
-        <td class="table-cell hide-sm nowrap mono hint">{{ rel.catalog }}</td>
         <td class="table-cell nowrap col-actions">
           {% set w = wanted.get(r.source ~ ':' ~ rel.id) %}
-          {% if get_enabled %}<span class="get-slot">{% if w and w.status != 'cancelled' %}{% include "wanted/_chip.html" %}{% else %}<form class="inline" method="post" action="/wanted/release" hx-post="/wanted/release" hx-target="closest .get-slot" hx-swap="innerHTML">
+          {% if title == 'Upcoming' and not (w and w.status != 'cancelled') %}<span class="hint">Not out yet</span>
+          {% elif get_enabled %}<span class="get-slot">{% if w and w.status != 'cancelled' %}{% include "wanted/_chip.html" %}{% else %}<form class="inline" method="post" action="/wanted/release" hx-post="/wanted/release" hx-target="closest .get-slot" hx-swap="innerHTML">
             <input type="hidden" name="source" value="{{ r.source }}"><input type="hidden" name="artist_id" value="{{ r.artist_id }}"><input type="hidden" name="release_id" value="{{ rel.id }}"><input type="hidden" name="back" value="{{ here }}">
             <button class="btn" data-variant="outline" data-size="xs" title="Search, download and import {{ rel.title }}">Get</button>
           </form>{% endif %}</span>{% endif %}
           {% call row_menu('m-' ~ (r.source ~ rel.id)|uid, 'More for ' ~ rel.title) %}
             {% if sources_enabled %}
-            <a class="menu-item" href="/get/find?q={{ roman_q|q }}">Find by hand<span class="hint"{{ roman_q|lang }}>{{ roman_q }}</span></a>
-            {% if rel.original and rel.original != rel.title %}<a class="menu-item" href="/get/find?q={{ orig_q|q }}">Find by the original name<span class="hint"{{ orig_q|lang }}>{{ orig_q }}</span></a>{% endif %}
+            <a class="menu-item" href="/get/find?q={{ roman_q|q }}{{ ctx }}{{ '&w=' ~ w.id if w and w.status != 'cancelled' }}">Find by hand<span class="hint"{{ roman_q|lang }}>{{ roman_q }}</span></a>
+            {% if rel.original and rel.original != rel.title %}<a class="menu-item" href="/get/find?q={{ orig_q|q }}{{ ctx }}{{ '&w=' ~ w.id if w and w.status != 'cancelled' }}">Find by the original name<span class="hint"{{ orig_q|lang }}>{{ orig_q }}</span></a>{% endif %}
             {% endif %}
+            <a class="menu-item" href="{{ rel.url }}" target="_blank" rel="noopener noreferrer">Open in {{ r.source_name }}<span class="hint">Tracklist and links</span></a>
             <form method="post" action="/get/missing/dismiss" hx-post="/get/missing/dismiss" hx-target="closest tr" hx-swap="delete">
               <input type="hidden" name="source" value="{{ r.source }}">
               <input type="hidden" name="release_id" value="{{ rel.id }}">

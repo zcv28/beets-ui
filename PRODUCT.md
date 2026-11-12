@@ -28,7 +28,7 @@ One place for the whole path a release takes: notice it is missing (discographie
 
 - Get: Missing (discography gaps), Discover (ListenBrainz suggestions and fresh releases), Coming in (requests and downloads on their way) and Find (search by hand), over a source-neutral layer of download sources (Soulseek through slskd today; others such as streaming rippers may be added). Pages never name the source except where it needs fixing.
 - Inbox: for review only. Folders are looked up and reviewed against candidates; confident matches can import on their own.
-- Library, Artwork, Insights (upgrades, listening, lyrics), Console (any non-interactive beet command), Jobs (one queue for library changes, undo for edits).
+- Library (with album covers and artist pictures), Insights (upgrades, listening, lyrics), Jobs (one queue for library changes, undo for edits, and the console for any non-interactive beet command).
 - Stack: FastAPI, Jinja templates, htmx; plain JS and CSS, no build step. Boosted navigation, live updates over server-sent events, installable as an app.
 - Interface language: English.
 

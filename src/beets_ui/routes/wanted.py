@@ -137,8 +137,10 @@ def get_better_copy(request: Request, album_id: int, back: str = Form("/insights
 @router.get("/{wanted_id}")
 def request_page(request: Request, wanted_id: int):
     w = _wanted_or_404(request, wanted_id)
-    folder = request.app.state.state.folder(w["folder"]) if w["folder"] else None
-    return render(request, "wanted/request.html", nav="get", w=w, folder=folder)
+    state = request.app.state.state
+    folder = state.folder(w["folder"]) if w["folder"] else None
+    searches = state.searches_for_wanted(wanted_id)[:30]
+    return render(request, "wanted/request.html", nav="get", w=w, folder=folder, searches=searches)
 
 
 @router.post("/{wanted_id}/choose")
@@ -172,9 +174,12 @@ def retry(request: Request, wanted_id: int):
         search_id="",
         error=None,
     )
+    acquire.note(request.app.state.state, w, "You asked it to keep trying")
     acq.wake()
     if is_fragment(request):
-        return toast(f"Trying {w['album']} again")
+        return toast(
+            f"Searching again for {w['album']}", "From the start, skipping copies that failed."
+        )
     return redirect(f"/wanted/{wanted_id}")
 
 
@@ -190,7 +195,7 @@ def skip(request: Request, wanted_id: int):
     acq.skip(w)
     acq.wake()
     if is_fragment(request):
-        return toast(f"Trying another copy of {w['album']}")
+        return toast(f"Getting {w['album']} from someone else")
     return redirect(f"/wanted/{wanted_id}")
 
 

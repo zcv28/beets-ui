@@ -7,11 +7,13 @@ under the Inbox; their old addresses redirect here. The Inbox is for review.
 from __future__ import annotations
 
 from fastapi import APIRouter, Form, Query, Request
-from fastapi.responses import HTMLResponse, RedirectResponse, Response
+from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse, Response
 
 from .. import beets_ctx, discography, discover
-from ..sources import incoming, requests_in_flight
-from ..web import flash, is_fragment, partial, redirect, render, toast, user
+from ..sources import coming
+from ..web import HERE, flash, is_fragment, partial, redirect, render, toast, user
+
+NOCOVER = HERE / "static" / "nocover.svg"
 
 router = APIRouter(prefix="/get")
 legacy = APIRouter()
@@ -36,18 +38,28 @@ def index():
 
 @router.get("/coming")
 def coming_page(request: Request):
-    return render(
-        request,
-        "get/coming.html",
-        nav="get",
-        requests=requests_in_flight(request.app),
-        downloads=incoming(request.app),
-    )
+    return render(request, "get/coming.html", nav="get", items=coming(request.app))
 
 
 @router.get("/requests")
-def coming_requests(request: Request):
-    return partial(request, "get/_requests.html", requests=requests_in_flight(request.app))
+@router.get("/coming/list")
+def coming_list(request: Request):
+    """The releases coming in, refreshed in place."""
+    return partial(request, "get/_coming.html", items=coming(request.app))
+
+
+@router.get("/cover/{source}/{release_id}")
+def release_cover(request: Request, source: str, release_id: str):
+    """A small cover for a release the library doesn't have (fetched once, then kept)."""
+    got = request.app.state.release_covers.get(source, release_id)
+    if got is None:
+        return FileResponse(
+            NOCOVER, media_type="image/svg+xml", headers={"Cache-Control": "private, max-age=3600"}
+        )
+    path, media_type = got
+    return FileResponse(
+        path, media_type=media_type, headers={"Cache-Control": "private, max-age=604800"}
+    )
 
 
 # --------------------------------------------------------------- discover

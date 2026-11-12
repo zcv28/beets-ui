@@ -46,7 +46,7 @@ ignore = ["B008", "E501"]
 
 [tool.ruff.lint.isort]
 known-first-party = ["beets_ui"]
-known-local-folder = ["conftest", "test_pages"]
+known-local-folder = ["conftest", "test_get", "test_pages"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

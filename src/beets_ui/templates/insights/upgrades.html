@@ -6,7 +6,7 @@
 {% set tab = 'upgrades' %}{% include "insights/_tabs.html" %}
 {% set here = request.url.path ~ ('?' ~ request.url.query if request.url.query else '') %}
 <div class="tab-content">
-<p class="lead">Albums worth replacing with a better copy. Lossy means MP3, AAC, Vorbis, Opus or WMA; low bitrate is under 192 kbps (96 kbps for Opus); incomplete means fewer tracks than the track or disc totals say. Missing and small covers are on the <a href="/artwork?filter=low">Artwork page</a> (under {{ min_px }}px).</p>
+<p class="lead">Albums worth replacing with a better copy. Lossy means MP3, AAC, Vorbis, Opus or WMA; low bitrate is under 192 kbps (96 kbps for Opus); incomplete means fewer tracks than the track or disc totals say. Missing and small covers are under <a href="/library/covers?filter=low">Library › Covers</a> (under {{ min_px }}px).</p>
 <nav class="toggles" aria-label="Upgrade reasons">
   <a class="toggle" data-variant="outline" href="/insights/upgrades" {% if not reason %}aria-current="page"{% endif %}>All</a>
   {% for k, label in reasons.items() %}<a class="toggle" data-variant="outline" href="/insights/upgrades?reason={{ k }}" {% if reason == k %}aria-current="page"{% endif %}>{{ label }} · {{ counts[k] }}</a>{% endfor %}

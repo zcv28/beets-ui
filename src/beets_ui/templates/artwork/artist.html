@@ -3,7 +3,7 @@
 {% block title %}{{ info.name }}{% endblock %}
 {% block header %}{% endblock %}
 {% block content %}
-<div class="bar tight">{{ back('/artwork/artists', 'Artist pictures') }}<span class="spacer"></span><a class="btn" data-variant="outline" data-size="sm" href="/library?q={{ ('albumartist:=' ~ info.name)|term|q }}">Show albums</a></div>
+<div class="bar tight">{{ back('/library/pictures', 'Artist pictures') }}<span class="spacer"></span><a class="btn" data-variant="outline" data-size="sm" href="/library?q={{ ('albumartist:=' ~ info.name)|term|q }}">Show albums</a></div>
 <div class="album-head">
   <div class="art"><img class="art-img" src="/artwork/artist/image?name={{ info.name|q }}&size=600" alt="Picture of {{ info.name }}"></div>
   <div class="meta">

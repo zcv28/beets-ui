@@ -18,7 +18,7 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from markupsafe import Markup
 
-from . import __version__, acquire
+from . import __version__, acquire, release_covers
 from .history import UNDOABLE
 from .lyrics import grouped, is_synced
 
@@ -49,6 +49,42 @@ def fmt_time(ts: float | None) -> str:
     if time.time() - ts < 86400:
         return d.strftime("%H:%M:%S")
     return d.strftime("%Y-%m-%d %H:%M")
+
+
+def fmt_ago(ts: float | None) -> Markup:
+    """How long ago, in words, inside a <time> that carries the exact moment."""
+    if not ts:
+        return Markup("")
+    d = dt.datetime.fromtimestamp(ts)
+    secs = time.time() - ts
+    if secs < 60:
+        rel = "just now"
+    elif secs < 3600:
+        rel = f"{int(secs // 60)} min ago"
+    elif secs < 86400:
+        rel = f"{int(secs // 3600)} h ago"
+    elif secs < 2 * 86400:
+        rel = "yesterday"
+    elif secs < 7 * 86400:
+        rel = f"{int(secs // 86400)} days ago"
+    else:
+        rel = f"{d.day} {d.strftime('%b')}" + (
+            f" {d.year}" if d.year != dt.date.today().year else ""
+        )
+    return Markup('<time datetime="{}" title="{}">{}</time>').format(
+        d.astimezone().isoformat(timespec="seconds"), d.strftime("%Y-%m-%d %H:%M"), rel
+    )
+
+
+def history_view(history: list[dict] | None, limit: int = 0) -> list[dict]:
+    """A request's history, latest first, with repeated lines in a row folded into one."""
+    out: list[dict] = []
+    for h in reversed(history or []):
+        if out and out[-1]["text"] == h["text"]:
+            out[-1]["n"] += 1
+            continue
+        out.append({"at": h["at"], "text": h["text"], "n": 1})
+    return out[:limit] if limit else out
 
 
 def match_class(pct: float | None) -> str:
@@ -107,6 +143,7 @@ templates.env.filters.update(
     duration=fmt_duration,
     size=fmt_size,
     ts=fmt_time,
+    ago=fmt_ago,
     match_class=match_class,
     q=lambda s: quote(str(s), safe=""),
     # One beets query term, quoted so names with spaces stay one term.
@@ -121,6 +158,19 @@ templates.env.globals["synced"] = is_synced
 templates.env.globals["lyric_lines"] = grouped
 templates.env.globals["wanted_label"] = acquire.label
 templates.env.globals["wanted_stage"] = acquire.stage
+templates.env.globals["wanted_detail"] = acquire.detail
+templates.env.globals["history_view"] = history_view
+
+
+def wanted_cover(w: dict) -> str | None:
+    """A request's cover: the album it replaces, or the release's own."""
+    if w.get("kind") == "upgrade" and w.get("album_id"):
+        return f"/library/album/{w['album_id']}/cover?size=120"
+    return release_covers.path_for(w.get("source") or "", w.get("release_id") or "")
+
+
+templates.env.globals["release_cover"] = release_covers.path_for
+templates.env.globals["wanted_cover"] = wanted_cover
 # Release ids from one source with a request still under way (gaps page).
 templates.env.globals["open_ids"] = lambda wanted, source: [
     w["release_id"]

@@ -1,13 +1,10 @@
 {% extends "base.html" %}
-{% from "partials/macros.html" import empty %}
 {% block title %}Coming in{% endblock %}
 {% block header %}<header class="page-header"><h1>Get</h1></header>{% endblock %}
 {% block content %}
 {% set tab = 'coming' %}{% include "get/_tabs.html" %}
-<div class="tab-content coming">
-{# Each list refreshes itself; the empty state hides as soon as either has something. #}
-<section id="requests" aria-label="Requested" hx-get="/get/requests" hx-trigger="refresh, every 30s [!document.hidden]" hx-swap="innerHTML" data-refresh="wanted downloads">{% include "get/_requests.html" %}</section>
-<section id="downloads" aria-label="Downloading" hx-get="/get/downloads" hx-trigger="refresh, every 30s [!document.hidden]" hx-swap="innerHTML" data-refresh="downloads" data-keep-open>{% include "get/_downloads.html" %}</section>
-<div class="coming-empty">{% call empty() %}Nothing is coming in. Get an album from <a href="/get/missing">Missing</a>, or search for one under <a href="/get/find">Find</a>. Finished downloads wait in the <a href="/inbox">inbox</a> for review.{% endcall %}</div>
+<div class="tab-content">
+{# Refreshes itself as requests and downloads move; open rows stay open. #}
+<section id="coming-list" aria-label="Coming in" hx-get="/get/coming/list" hx-trigger="refresh, every 30s [!document.hidden]" hx-swap="innerHTML" data-refresh="wanted downloads" data-keep-open>{% include "get/_coming.html" %}</section>
 </div>
 {% endblock %}

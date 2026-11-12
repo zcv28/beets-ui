@@ -12,7 +12,3 @@
   artists you listen to when you open it. Notifications, or getting them on their
   own, wait until that list proves useful. ListenBrainz only knows releases in
   MusicBrainz; VocaDB-only circles still show up only under Get → Missing.
-
-- **Find new name for the project** This is clearly not just a beets frontend
-  anymore. Need help picking out new names and initializing a new repo and just
-  publishing first version 1.0.0.

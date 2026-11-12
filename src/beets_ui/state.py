@@ -128,6 +128,17 @@ CREATE TABLE IF NOT EXISTS plays (
     last_played REAL,
     favorite INTEGER NOT NULL DEFAULT 0
 );
+-- Searches at the download source, and the release each was for (Find groups them by it).
+CREATE TABLE IF NOT EXISTS searches (
+    id TEXT PRIMARY KEY,
+    text TEXT NOT NULL DEFAULT '',
+    artist TEXT NOT NULL DEFAULT '',
+    album TEXT NOT NULL DEFAULT '',
+    wanted_id INTEGER,
+    answers INTEGER,
+    created_at REAL NOT NULL
+);
+CREATE INDEX IF NOT EXISTS searches_wanted ON searches(wanted_id);
 CREATE TABLE IF NOT EXISTS meta (
     key TEXT PRIMARY KEY,
     value TEXT NOT NULL
@@ -154,9 +165,11 @@ WANTED_MIGRATIONS = (
     ("progress_place", "INTEGER"),  # place in the uploader's queue: moving up counts as progress
     # Searches started again after every copy found had been tried.
     ("researched", "INTEGER NOT NULL DEFAULT 0"),
+    # What happened to the request, oldest first: [{"at": ts, "text": "..."}].
+    ("history", "TEXT NOT NULL DEFAULT '[]'"),
 )
 
-WANTED_JSON = ("tracks", "offers", "tried")
+WANTED_JSON = ("tracks", "offers", "tried", "history")
 FOLDER_JSON = ("tasks", "duplicates", "decisions", "files", "tagkeys", "library")
 FOLDER_JSON_LISTS = ("tasks", "files", "library")
 
@@ -302,6 +315,41 @@ class State:
     def delete_wanted(self, wanted_id: int) -> None:
         self._exec("DELETE FROM wanted WHERE id=?", (wanted_id,))
         self._exec("UPDATE folders SET wanted_id=NULL WHERE wanted_id=?", (wanted_id,))
+
+    # ---------------------------------------------------------------- searches
+
+    def log_search(
+        self,
+        search_id: str,
+        text: str,
+        artist: str = "",
+        album: str = "",
+        wanted_id: int | None = None,
+    ) -> None:
+        """Remember which release a search at the download source was for."""
+        self._exec(
+            "INSERT OR REPLACE INTO searches (id, text, artist, album, wanted_id, created_at) "
+            "VALUES (?, ?, ?, ?, ?, ?)",
+            (search_id, text, artist, album, wanted_id, time.time()),
+        )
+        # The source forgets searches long before this.
+        self._exec("DELETE FROM searches WHERE created_at < ?", (time.time() - 180 * 86400,))
+
+    def search_answered(self, search_id: str, answers: int) -> None:
+        self._exec("UPDATE searches SET answers=? WHERE id=?", (answers, search_id))
+
+    def searches_logged(self, ids: list[str]) -> dict[str, dict[str, Any]]:
+        if not ids:
+            return {}
+        qs = ",".join("?" * len(ids))
+        rows = self._exec(f"SELECT * FROM searches WHERE id IN ({qs})", tuple(ids)).fetchall()
+        return {r["id"]: dict(r) for r in rows}
+
+    def searches_for_wanted(self, wanted_id: int) -> list[dict[str, Any]]:
+        rows = self._exec(
+            "SELECT * FROM searches WHERE wanted_id=? ORDER BY created_at DESC", (wanted_id,)
+        ).fetchall()
+        return [dict(r) for r in rows]
 
     def wanted_changed_since(self, ts: float) -> list[dict[str, Any]]:
         rows = self._exec(

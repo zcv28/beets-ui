@@ -23,24 +23,17 @@
 
 <section aria-labelledby="h-coming">
   <h2 id="h-coming">Coming in</h2>
-  {% if coming or downloads %}
+  {% if coming %}
   <ul class="rows">
-    {% for w in coming %}
+    {% for it in coming %}
+    {% set t = it.w.transfer if it.kind == 'request' else it.r %}
     <li class="row">
       <div class="row-main">
-        <a class="strong" href="/wanted/{{ w.id }}"{{ w.album|lang }}>{{ w.album }}</a>
-        <p class="hint"><span{{ w.artist|lang }}>{{ w.artist }}</span>{% if w.status_text and (w.progress is not none or w.status_text != wanted_label(w)[1]) %} · {{ w.status_text }}{% endif %}</p>
+        <a class="strong" href="{{ '/wanted/' ~ it.w.id if it.kind == 'request' else '/get/coming#c-' ~ it.key }}"{{ it.title|lang }}>{{ it.title }}</a>{% if it.artist %} <span class="release-artist"{{ it.artist|lang }}>{{ it.artist }}</span>{% endif %}
+        {% if it.kind == 'request' %}{% if t %}<p class="hint">{{ 'Queued at' if t.state == 'queued' else 'Downloading from' }} {{ t.origin }}</p>{% elif wanted_detail(it.w) %}<p class="hint">{{ wanted_detail(it.w) }}</p>{% endif %}
+        {% else %}<p class="hint">{% if it.r.state == 'queued' %}Queued at {{ it.r.origin }}{% if it.r.place %}, place {{ it.r.place }}{% endif %}{% else %}Downloading from {{ it.r.origin }}{% endif %}</p>{% endif %}
       </div>
-      {% if w.progress is not none %}<span class="match"><span class="mono">{{ '%.0f'|format(w.progress) }}%</span><progress class="progress" value="{{ w.progress }}" max="100" aria-label="{{ w.album }} progress"></progress></span>{% else %}{% include "wanted/_chip.html" %}{% endif %}
-    </li>
-    {% endfor %}
-    {% for d in downloads %}
-    <li class="row">
-      <div class="row-main">
-        <a class="strong" href="/inbox"{{ d.folder_name|lang }}>{{ d.folder_name }}</a>
-        <p class="hint">Downloading from {{ d.origin }}{% if d.place %} · place {{ d.place }} in the queue{% endif %}</p>
-      </div>
-      <span class="match"><span class="mono">{{ '%.0f'|format(d.percent) }}%</span><progress class="progress" value="{{ d.percent }}" max="100" aria-label="{{ d.folder_name }} progress"></progress></span>
+      {% if t and t.state in ('downloading', 'queued') %}<span class="match"><span class="mono">{{ '%.0f'|format(t.percent) }}%</span><progress class="progress" value="{{ t.percent }}" max="100" aria-label="{{ it.title }} progress"></progress></span>{% elif it.kind == 'request' %}{% set w = it.w %}{% include "wanted/_chip.html" %}{% endif %}
     </li>
     {% endfor %}
   </ul>

@@ -143,7 +143,7 @@ Radii from the tokens: inputs and buttons `md` (0.5rem), cards, boxes, tables an
 - **Empty states:** a dashed, neutral box with one sentence saying what will appear and how. Never a status colour.
 - **Toasts:** bottom right; successes leave after 4s (8s with Undo), failures stay. Server responses send them with an `HX-Trigger: {"toast": …}` header.
 - **Menus:** `details.menu` with `.menu-item`s (label plus a hint line); "More actions" and "Tidy up".
-- **Tabs:** line tabs under the page header for sibling views (Get: Missing / Discover / Coming in / Find; Albums / Artists / Tracks; Insights). A section page's h1 is the section; the tab names the page in `<title>`.
+- **Tabs:** line tabs under the page header for sibling views (Get: Missing / Discover / Coming in / Find; Library: Albums / Artists / Tracks / Covers / Artist pictures; Insights). A section page's h1 is the section; the tab names the page in `<title>`.
 - **Row menus:** `row_menu()` macro, a ghost "more" button and a `[popover]` menu in the top layer, so a scrolling table never clips it. For a row's secondary actions; the row's one main action stays visible.
 - **Release path:** `release_path(stage)` macro, Missing → Getting → Review → In your library, on a request's page and on the review page of a folder that came from one.
 - **Tiles:** square cover, title, muted sub-lines; used for album and artist grids.
