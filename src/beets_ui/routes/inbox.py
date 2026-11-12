@@ -11,7 +11,7 @@ from fastapi import APIRouter, Form, HTTPException, Request
 from fastapi.responses import FileResponse, Response
 
 from ..importer import DUPLICATE_ACTIONS
-from ..inbox import AUDIO_EXT, STATUS_LABELS, is_within
+from ..inbox import AUDIO_EXT, STATUS_LABELS, folder_cover, is_within
 from ..web import flash, is_fragment, partial, redirect, render, toast, user
 
 router = APIRouter(prefix="/inbox")
@@ -32,10 +32,25 @@ def _folder_or_404(request: Request, f: str) -> dict:
     return row
 
 
+def folders(app) -> list[dict]:
+    """The inbox folders as the pages show them. Each gets ``incoming`` (a download is
+    still writing to it: it is not up for review yet), ``shown`` (the status to show,
+    "downloading" while it is incoming) and ``cover`` (its release's, when known)."""
+    state = app.state.state
+    flying = app.state.inbox.in_flight()
+    rows = state.folders()
+    for r in rows:
+        r["incoming"] = r["path"] in flying and r["status"] not in (*BUSY, "imported")
+        r["shown"] = "downloading" if r["incoming"] else r["status"]
+        asked = state.wanted(r["wanted_id"]) if r.get("wanted_id") else None
+        r["cover"] = folder_cover(r, asked)
+    return rows
+
+
 def _summary(rows: list[dict]) -> dict:
     out: dict[str, int] = {}
     for r in rows:
-        out[r["status"]] = out.get(r["status"], 0) + 1
+        out[r["shown"]] = out.get(r["shown"], 0) + 1
     return out
 
 
@@ -46,7 +61,8 @@ def _deletable(row: dict) -> bool:
 def _queue(rows: list[dict], current: str) -> dict:
     """Where `current` sits in the review queue, and the folders before and after it."""
     order = {r["path"]: i for i, r in enumerate(rows)}
-    waiting = [r["path"] for r in rows if r["status"] in REVIEW]
+    # A folder still downloading waits its turn: reviewing it now would import part of it.
+    waiting = [r["path"] for r in rows if r["status"] in REVIEW and not r.get("incoming")]
     others = [p for p in waiting if p != current]
     here = order.get(current, -1)
     after = [p for p in others if order[p] > here]
@@ -69,12 +85,12 @@ def _version(rows: list[dict]) -> str:
 def _filter(rows: list[dict], status: str) -> list[dict]:
     if status == "inlib":
         return [r for r in rows if _deletable(r)]
-    return [r for r in rows if not status or r["status"] == status]
+    return [r for r in rows if not status or r["shown"] == status]
 
 
 @router.get("")
 def inbox_page(request: Request, status: str = ""):
-    rows = request.app.state.state.folders()
+    rows = folders(request.app)
     return render(
         request,
         "inbox/index.html",
@@ -92,7 +108,7 @@ def inbox_page(request: Request, status: str = ""):
 
 @router.get("/table")
 def inbox_table(request: Request, status: str = "", v: str = ""):
-    rows = request.app.state.state.folders()
+    rows = folders(request.app)
     version = _version(rows)
     if v == version:
         # Nothing changed: htmx leaves the table (and the focus in it) alone.
@@ -141,9 +157,11 @@ def folder_page(request: Request, f: str):
         "inbox/folder.html",
         nav="inbox",
         folder=row,
-        queue=_queue(request.app.state.state.folders(), f),
+        queue=_queue(folders(request.app), f),
         labels=STATUS_LABELS,
         busy=row["status"] in BUSY,
+        # A download is still writing to it: importing now would bring in part of it.
+        incoming=row["status"] not in BUSY and f in request.app.state.inbox.in_flight(),
         dup_actions=list(DUPLICATE_ACTIONS),
         inbox_root=str(s.inbox.resolve()),
         romanize=s.romanize,
@@ -239,7 +257,7 @@ async def folder_import(request: Request):
         return redirect(_furl(f))
     # Keep the session moving: the import runs as a job while the next folder is up.
     done = int(request.session.get("review_run", 0)) + 1
-    nxt = _queue(request.app.state.state.folders(), f)["next"]
+    nxt = _queue(folders(request.app), f)["next"]
     if nxt:
         request.session["review_run"] = done
         flash(request, f"Importing {f} as job #{job}. A pop-up reports when it is done.")

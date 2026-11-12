@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% from "partials/macros.html" import alert, empty, icon, row_menu %}
+{% from "partials/macros.html" import alert, cover, empty, icon, row_menu %}
 {% block title %}Discover{% endblock %}
 {% block header %}
 <header class="page-header">
@@ -13,6 +13,7 @@
 
 {# One album's actions: Get (or where its request stands), and a menu. #}
 {% macro actions(a, date='', key='s', upcoming=False) -%}
+<span class="row-actions">
 <span class="get-slot">{% if a.wanted %}{% set w = a.wanted %}{% include "wanted/_chip.html" %}{% elif upcoming %}<span class="hint">Not out yet</span>{% elif get_enabled %}<form class="inline" method="post" action="/wanted/discover" hx-post="/wanted/discover" hx-target="closest .get-slot" hx-swap="innerHTML">
   <input type="hidden" name="id" value="{{ a.id }}"><input type="hidden" name="title" value="{{ a.title }}"><input type="hidden" name="artist" value="{{ a.artist }}"><input type="hidden" name="date" value="{{ date or a.year }}"><input type="hidden" name="back" value="{{ here }}">
   <button class="btn" data-variant="outline" data-size="xs" title="Search, download and import {{ a.title }}">Get</button>
@@ -25,18 +26,39 @@
     <button class="menu-item">Dismiss<span class="hint">Not interested: stop suggesting it</span></button>
   </form>
 {% endcall %}
+</span>
 {%- endmacro %}
 
+{# Get every album of a list that isn't asked for yet (shown from two on). #}
+{% macro get_all(section, list, noun) -%}
+{% set gettable = list|rejectattr('wanted')|list %}
+{% if get_enabled and gettable|length > 1 %}
+<form class="bar tight" method="post" action="/wanted/discover-all" data-confirm="Get {{ gettable|length }} {{ noun }}s? Each one is searched, downloaded and imported; anything it isn't sure of waits for you." data-confirm-button="Get {{ gettable|length }} {{ noun }}s" data-confirm-kind="default">
+  <input type="hidden" name="section" value="{{ section }}"><input type="hidden" name="back" value="{{ here }}">
+  {% for k in picked %}<input type="hidden" name="kinds" value="{{ k }}">{% endfor %}
+  {# Worded and weighted like Missing's "Get N missing". #}
+  <button class="btn" data-size="sm">Get {{ gettable|length }} {{ noun }}s</button>
+  <span class="hint">Searches, downloads and imports each one, two at a time.</span>
+</form>
+{% endif %}
+{%- endmacro %}
+
+{# New and upcoming releases: the same columns as Missing, so the cover leads. #}
 {% macro release_table(list, upcoming=False) -%}
-<div class="table-container" data-density="compact"><table class="table stack-sm release-table">
-  <thead><tr><th class="table-head">Date</th><th class="table-head">Release</th><th class="table-head hide-sm">Type</th><th class="table-head"><span class="sr-only">Actions</span></th></tr></thead>
+<div class="table-container" data-density="compact"><table class="table stack-sm missing-table">
+  <thead><tr><th class="table-head cover-col"><span class="sr-only">Cover</span></th><th class="table-head">Release</th><th class="table-head hide-sm">{{ 'Out on' if upcoming else 'Released' }}</th><th class="table-head hide-sm">Type</th><th class="table-head"><span class="sr-only">Actions</span></th></tr></thead>
   <tbody>
   {% for r in list %}
   <tr class="table-row">
-    <td class="table-cell nowrap mono">{{ r.date or '?' }}</td>
-    <td class="table-cell col-main"><span class="strong"{{ r.title|lang }}>{{ r.title }}</span><p class="hint"{{ r.artist|lang }}>{{ r.artist }}</p></td>
+    <td class="table-cell cover-col">{{ cover(release_cover('musicbrainz', r.id)) }}</td>
+    <td class="table-cell col-main">
+      <span class="strong"{{ r.title|lang }}>{{ r.title }}</span>
+      <p class="hint"{{ r.artist|lang }}>{{ r.artist }}</p>
+      <p class="hint show-sm"><span class="mono">{{ r.date or '?' }}</span> · {{ r.type }}{% if r.secondary %} · {{ r.secondary }}{% endif %}</p>
+    </td>
+    <td class="table-cell hide-sm nowrap mono">{{ r.date or '?' }}</td>
     <td class="table-cell hide-sm hint">{{ r.type }}{% if r.secondary %} · {{ r.secondary }}{% endif %}</td>
-    <td class="table-cell nowrap col-actions">{{ actions(r, r.date, 'f', upcoming) }}</td>
+    <td class="table-cell col-actions">{{ actions(r, r.date, 'f', upcoming) }}</td>
   </tr>
   {% endfor %}
   </tbody>
@@ -75,6 +97,7 @@
     </span>
     <noscript><button class="btn" data-variant="outline" data-size="sm">Apply</button></noscript>
   </form>
+  {{ get_all('released', data.released, 'new release') }}
   {% if data.released %}{{ release_table(data.released) }}
   {% else %}{% call empty() %}No new releases of these types by artists you listen to in the last 90 days.{% endcall %}{% endif %}
   {% if data.upcoming %}
@@ -88,12 +111,14 @@
     <h2 id="h-suggested">Suggested for you{% if data.albums %} <span class="count">{{ data.albums|length }}</span>{% endif %}</h2>
     {% if data.playlists %}<span class="hint">From your {{ data.playlists|map(attribute='label')|join(', ') }}</span>{% endif %}
   </div>
+  {{ get_all('suggested', data.albums, 'suggested album') }}
   {% if data.albums %}
-  <div class="table-container" data-density="compact"><table class="table stack-sm">
-    <thead><tr><th class="table-head">Album</th><th class="table-head hide-sm">Because of</th><th class="table-head"><span class="sr-only">Actions</span></th></tr></thead>
+  <div class="table-container" data-density="compact"><table class="table stack-sm missing-table suggested-table">
+    <thead><tr><th class="table-head cover-col"><span class="sr-only">Cover</span></th><th class="table-head">Album</th><th class="table-head hide-sm">Because of</th><th class="table-head"><span class="sr-only">Actions</span></th></tr></thead>
     <tbody>
     {% for a in data.albums %}
     <tr class="table-row">
+      <td class="table-cell cover-col">{{ cover(release_cover('musicbrainz', a.id)) }}</td>
       <td class="table-cell col-main">
         <span class="strong"{{ a.title|lang }}>{{ a.title }}</span>
         <p class="hint"><span{{ a.artist|lang }}>{{ a.artist }}</span>{% if a.year %} · <span class="mono">{{ a.year }}</span>{% endif %}</p>
@@ -102,7 +127,7 @@
         <p class="hint">{% for t in a.tracks[:2] %}<span{{ t.title|lang }}>{{ t.title }}</span>{% if t.artist and t.artist != a.artist %} <span{{ t.artist|lang }}>({{ t.artist }})</span>{% endif %}{% if not loop.last %}, {% endif %}{% endfor %}{% if a.tracks|length > 2 %} and {{ a.tracks|length - 2 }} more{% endif %}</p>
         <p class="hint">{{ a.lists|join(' · ') }}</p>
       </td>
-      <td class="table-cell nowrap col-actions">{{ actions(a) }}</td>
+      <td class="table-cell col-actions">{{ actions(a) }}</td>
     </tr>
     {% endfor %}
     </tbody>

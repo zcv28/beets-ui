@@ -83,6 +83,23 @@ def create_app(settings: Settings | None = None, background: bool = True) -> Fas
     source = sources.build(settings)
     source_watch = sources.Watcher(source) if source else None
     acquirer = Acquirer.build(state, inbox, settings, source, source_watch) if source else None
+    release_covers = ReleaseCovers(settings.data_dir / "release-covers")
+    if source:
+        # The inbox waits for a folder's download to finish before it looks it up.
+        inbox.in_flight = lambda: sources.folders_in_flight(state, source_watch)
+
+    def cover_from_release(album, release_source: str, release_id: str) -> str:
+        """Give an album imported without a cover its release's own."""
+        st = artwork.cover_status(album)
+        if st["has"] or st["embedded"]:
+            return ""
+        url = release_covers.full_url(release_source, release_id)
+        if not url:
+            return ""
+        artwork.save_album_cover(album, artwork.download(url))
+        return f"Cover for {album.album}: the release's own"
+
+    inbox.cover_from_release = cover_from_release
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):
@@ -120,7 +137,7 @@ def create_app(settings: Settings | None = None, background: bool = True) -> Fas
     app.state.source_watch = source_watch
     app.state.acquirer = acquirer
     app.state.limiter = RateLimiter()
-    app.state.release_covers = ReleaseCovers(settings.data_dir / "release-covers")
+    app.state.release_covers = release_covers
 
     # Order matters: the session middleware must wrap the auth middleware.
     app.add_middleware(AuthMiddleware)

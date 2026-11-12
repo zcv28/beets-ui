@@ -32,7 +32,7 @@
     {% set find_url = '/get/find?q=' ~ (w.artist ~ ' ' ~ w.album)|q ~ '&artist=' ~ w.artist|q ~ '&album=' ~ w.album|q ~ '&w=' ~ w.id %}
     {% if w.status in ('choosing', 'failed') %}
     <div class="ask">
-      <p class="hint">{% if w.status == 'choosing' %}It found {{ w.offers|length }} cop{{ 'ies' if w.offers|length != 1 else 'y' }} but wasn't sure of any, so nothing was downloaded.{% else %}No copy turned up, or every copy it tried failed.{% endif %} Search again starts over and skips copies that already failed. Or find it yourself, or put the files in the inbox and import them there: either way this closes once the album is in your library.</p>
+      <p class="hint">{% if w.status == 'choosing' %}It found {{ w.offers|length }} cop{{ 'ies' if w.offers|length != 1 else 'y' }} but wasn't sure of any, so nothing was downloaded. {% endif %}Search again starts over and skips copies that already failed. Or find it yourself, or put the files in the inbox and import them there: either way this closes once the album is in your library.</p>
       <div class="bar tight">
         {% if it.primary %}{{ primary_action(it.primary, 'default', 'show-sm') }}{% endif %}
         {% if w.status == 'choosing' and w.offers %}<form class="inline" method="post" action="/wanted/{{ w.id }}/retry" hx-post="/wanted/{{ w.id }}/retry" hx-swap="none"><button class="btn" data-variant="outline" data-size="sm">Search again</button></form>{% endif %}
@@ -42,6 +42,8 @@
     </div>
     {% elif w.status == 'review' %}
     <div class="ask"><div class="bar tight">{% if it.primary %}{{ primary_action(it.primary, 'default', 'show-sm') }}{% endif %}<span class="hint">It waits in the inbox like any other folder; it is imported against the release you asked for.</span></div></div>
+    {% elif w.status == 'arrived' %}
+    <p class="release-line">Downloaded. It is looked up as soon as its folder shows in the inbox.</p>
     {% elif wanted_detail(w) %}
     <p class="release-line">{{ wanted_detail(w) }}{% if w.error and w.status in ('queued', 'searching', 'downloading') %} <span class="hint">({{ w.error }})</span>{% endif %}</p>
     {% endif %}
@@ -54,8 +56,8 @@
       <a class="btn" data-variant="link" data-size="sm" href="/wanted/{{ w.id }}">Full history{{ icon('arrow-right') }}</a>
       <span class="spacer"></span>
       {% if w.status == 'downloading' %}<form class="inline" method="post" action="/wanted/{{ w.id }}/skip" hx-post="/wanted/{{ w.id }}/skip" hx-swap="none"><button class="btn" data-variant="outline" data-size="sm">Get it from someone else</button></form>{% endif %}
-      {% if w.status in ('queued', 'searching', 'choosing', 'downloading') %}
-      <form class="inline" method="post" action="/wanted/{{ w.id }}/cancel" hx-post="/wanted/{{ w.id }}/cancel" hx-swap="none" data-confirm="Stop getting {{ w.album }}?{% if w.status == 'downloading' %} Its download stops too.{% endif %}" data-confirm-button="Stop getting it"><button class="btn" data-variant="ghost" data-size="sm">Cancel</button></form>
+      {% if w.status in ('queued', 'searching', 'choosing', 'downloading', 'arrived', 'review') %}
+      <form class="inline" method="post" action="/wanted/{{ w.id }}/cancel" hx-post="/wanted/{{ w.id }}/cancel" hx-swap="none" data-confirm="Stop getting {{ w.album }}?{% if w.status == 'downloading' %} Its download stops too.{% elif w.status in ('arrived', 'review') %} What it downloaded stays in the inbox as a folder like any other.{% endif %}" data-confirm-button="Stop getting it"><button class="btn" data-variant="ghost" data-size="sm">Cancel</button></form>
       {% elif w.status == 'failed' %}
       <form class="inline" method="post" action="/wanted/{{ w.id }}/remove" hx-post="/wanted/{{ w.id }}/remove" hx-target="closest .release-row" hx-swap="delete"><button class="btn" data-variant="ghost" data-size="sm">Remove from the list</button></form>
       {% endif %}
@@ -102,6 +104,7 @@
 {% set needs = items|selectattr('group', 'equalto', 'needs')|list %}
 {% set moving = items|rejectattr('group', 'equalto', 'needs')|list %}
 {% set failed = needs|selectattr('kind', 'equalto', 'download')|selectattr('tone', 'equalto', 'destructive')|list %}
+{% set failed_requests = needs|selectattr('kind', 'equalto', 'request')|selectattr('w.status', 'equalto', 'failed')|list %}
 <span hidden data-announce="{{ needs|length }} need{{ 's' if needs|length == 1 }} you, {{ moving|length }} on {{ 'its' if moving|length == 1 else 'their' }} way"></span>
 {% if needs %}
 <section aria-labelledby="h-needs-you">
@@ -109,6 +112,7 @@
     <h2 id="h-needs-you">Needs you <span class="count">{{ needs|length }}</span></h2>
     <span class="section-actions">
       <span class="hint">Stopped until you decide</span>
+      {% if failed_requests|length > 1 %}<form class="inline" method="post" action="/wanted/retry-all" hx-post="/wanted/retry-all" hx-swap="none"><button class="btn" data-variant="outline" data-size="sm">Search again for all {{ failed_requests|length }}</button></form>{% endif %}
       {% if failed %}<form class="inline" method="post" action="/get/downloads/clear" hx-post="/get/downloads/clear" hx-target="#coming-list" hx-swap="innerHTML"><button class="btn" data-variant="ghost" data-size="sm">Clear failed downloads</button></form>{% endif %}
     </span>
   </div>

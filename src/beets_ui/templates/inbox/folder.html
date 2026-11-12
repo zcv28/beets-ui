@@ -15,12 +15,12 @@
   <h1{{ folder.path|lang }}>{{ folder.path }}</h1>
   {% if asked %}{% set stage, stopped = wanted_stage(asked) %}<div class="asked">{{ release_path(stage, stopped) }}<a class="hint" href="/wanted/{{ asked.id }}">You asked for <span{{ asked.album|lang }}>{{ asked.album }}</span></a></div>{% endif %}
   <div class="bar tight">
-    {{ status(folder.status, labels.get(folder.status, folder.status), badge=True) }}
+    {% if incoming %}{{ status('downloading', labels.downloading, badge=True) }}{% else %}{{ status(folder.status, labels.get(folder.status, folder.status), badge=True) }}{% endif %}
     <span class="hint">{{ {'albums': 'Albums, one per directory', 'grouped': 'Albums grouped by tags', 'tracks': 'Individual tracks'}[folder.mode] }}</span>
     {% if folder.job_id %}<a class="hint" href="/jobs/{{ folder.job_id }}">Last job #{{ folder.job_id }}</a>{% endif %}
     {% if not (folder.status == 'imported' or folder.library) %}
     <span class="spacer"></span>
-    <form class="inline" method="post" action="/inbox/folder/delete" data-confirm="{{ folder.path }} has not been imported. Delete it and all its files from the inbox? This cannot be undone." data-confirm-button="Delete folder">
+    <form class="inline" method="post" action="/inbox/folder/delete" data-confirm="{% if incoming %}{{ folder.path }} is still downloading. Deleting it removes the files that arrived, but the download carries on and writes the rest into the inbox again: cancel it under Coming in first. Delete it anyway?{% else %}{{ folder.path }} has not been imported. Delete it and all its files from the inbox? This cannot be undone.{% endif %}" data-confirm-button="Delete folder">
       <input type="hidden" name="f" value="{{ folder.path }}">
       <button class="btn" data-variant="outline" data-tone="destructive" data-size="sm" {% if busy %}disabled{% endif %}>Delete folder</button>
     </form>
@@ -32,6 +32,9 @@
 {% set audio = folder.files|selectattr('audio')|list %}
 
 {% if busy %}{% include "inbox/_busy.html" %}{% endif %}
+{% if incoming %}
+{% call alert('info', 'Still downloading') %}Its download hasn't finished, so it isn't looked up or counted for review yet: importing now would bring in only the files that have arrived.{% if sources_enabled %} <a href="/get/coming">Follow it under Coming in</a>{% endif %}{% endcall %}
+{% endif %}
 {% if folder.error and folder.status not in ('duplicate',) %}
 {% set NEXT = {
   'No music files found': 'beets found no audio files it can read in this folder. Check the folder files below; if it holds nothing you want, delete it.',
@@ -54,10 +57,11 @@
 {% endcall %}
 {% endif %}
 
-{% if folder.status == 'new' and not busy %}
+{% if folder.status == 'new' and not busy and not incoming %}
 {% call alert('info', 'Not looked up yet') %}Search below by artist and album, or paste a release ID. Leave the fields empty to look it up from its tags.{% endcall %}
 {% endif %}
-<details class="box" {% if not folder.tasks %}open{% endif %}>
+{# Closed while its download runs: a lookup now would only see the files that arrived. #}
+<details class="box" {% if not folder.tasks and not incoming %}open{% endif %}>
   <summary>{{ 'Look up' if not folder.tasks else 'Search again' }}</summary>
   <form method="post" action="/inbox/folder/preview" class="box-body">
     <input type="hidden" name="f" value="{{ folder.path }}">

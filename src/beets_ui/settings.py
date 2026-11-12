@@ -38,14 +38,7 @@ def _list(name: str, default: str) -> list[str]:
     return [p.strip() for p in raw.split(",") if p.strip()]
 
 
-THEMES = ("auto", "light", "dark")
-# Themes of the earlier niki.moe classic UI; all of them were dark.
-OLD_THEMES = ("graphite", "slate", "mahogany", "phosphor")
 LYRICS_ROMAJI = ("below", "inline", "only", "off")
-
-
-def _theme(value: str) -> str:
-    return "dark" if value in OLD_THEMES else value
 
 
 DEFAULT_COVER_SOURCES = (
@@ -91,7 +84,6 @@ class Settings:
     # Minutes a download may go without progress before another uploader is tried (0: never).
     stall_minutes: int = 15
     romanize: bool = False
-    theme: str = "auto"
     jellyfin_url: str = ""
     jellyfin_api_key: str = ""
     jellyfin_user: str = ""
@@ -146,7 +138,6 @@ class Settings:
             get_auto_import=min(100, max(0, _int("BEETSUI_GET_AUTO_IMPORT", 90))),
             stall_minutes=max(0, _int("BEETSUI_STALL_MINUTES", 15)),
             romanize=_bool("BEETSUI_ROMANIZE", False),
-            theme=_theme(_str("BEETSUI_THEME", "auto").lower() or "auto"),
             jellyfin_url=_str("JELLYFIN_URL").rstrip("/"),
             jellyfin_api_key=_str("JELLYFIN_API_KEY"),
             jellyfin_user=_str("JELLYFIN_USER"),
@@ -161,10 +152,6 @@ class Settings:
             raise SettingsError(
                 f"BEETSUI_LYRICS_ROMAJI must be one of {', '.join(LYRICS_ROMAJI)}, "
                 f"got {self.lyrics_romaji!r}"
-            )
-        if self.theme not in THEMES:
-            raise SettingsError(
-                f"BEETSUI_THEME must be one of {', '.join(THEMES)}, got {self.theme!r}"
             )
         if self.ldap_enabled:
             missing = [

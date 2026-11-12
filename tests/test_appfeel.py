@@ -36,7 +36,7 @@ def test_shell_boosts_and_keeps_player_and_toasts(client):
     assert page.count("hx-preserve") >= 2
     assert 'rel="manifest"' in page and 'name="theme-color"' in page
     # Logging out reloads the whole page.
-    assert 'action="/logout" class="sidebar-user" hx-boost="false"' in page
+    assert 'action="/logout" hx-boost="false"' in page
 
 
 def test_login_page_is_not_boosted(app):
@@ -154,4 +154,6 @@ def test_install_files(client):
 def test_live_regions_are_marked(client):
     assert 'data-refresh="jobs"' in client.get("/jobs").text
     page = client.get("/inbox").text
-    assert 'data-refresh="inbox"' in page and 'data-refresh="jobs downloads wanted"' in page
+    # The inbox table also follows downloads: a folder still downloading is not up for review.
+    assert 'data-refresh="inbox downloads"' in page
+    assert 'data-refresh="jobs downloads wanted"' in page

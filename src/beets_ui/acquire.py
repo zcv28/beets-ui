@@ -18,7 +18,9 @@ ordinary inbox folder you can review.
 
 It keeps at it before asking you: every search text in turn, the copies that look
 right (uploaders that answer with the folder's listing first), then another round
-of searches that waits longer for answers. Only when the rounds run out does a
+of searches that waits longer for answers. A release with a romanized name and one
+as written is searched under each before a copy is taken, so the best copy wins
+whichever name its folder uses. Only when the rounds run out does a
 request stop at "choosing" (copies were found, none clearly right) or "failed"
 (nothing found), where you can keep trying, choose a copy, or find it by hand.
 Each request keeps a short history of what was tried.
@@ -59,6 +61,10 @@ DRIVEN = ("queued", "searching", "downloading", "arrived")
 ADOPTABLE = ("queued", "searching", "choosing", "failed", "cancelled")
 OPEN = (*DRIVEN, "choosing", "lookup", "importing", "review", "failed")
 NEEDS_YOU = ("choosing", "review", "failed")
+# Requests whose folder is in the inbox, being looked up, imported or waiting for review.
+IN_INBOX = ("lookup", "importing", "review")
+# Requests you can stop: everything but a lookup or an import that is running.
+CANCELLABLE = ("queued", "searching", "choosing", "downloading", "arrived", "review")
 # Requests that stop until you act on them here (review is decided in the inbox).
 ASKS_YOU = ("choosing", "failed")
 MAX_SEARCHES = 2
@@ -66,6 +72,7 @@ MAX_ATTEMPTS = 6  # downloads started for one request before it asks you
 MAX_RESEARCH = 2  # rounds of searches after the first, each waiting longer for answers
 SEARCH_WAIT = 30  # seconds a request's first round of searches waits for answers
 MAX_LISTINGS = 6  # copies that look right whose listing is asked for, per search
+KEEP_OFFERS = 6  # the best copies found so far, kept with the request
 HISTORY_KEEP = 60  # entries kept in a request's history
 # A finished download whose folder never shows up in the inbox gives up after this.
 ARRIVAL_TIMEOUT = 600
@@ -239,6 +246,17 @@ def queries(w: dict[str, Any]) -> list[str]:
     """Search texts to try in turn: romanized names, then the names as written, then
     without bracketed parts ("(Remastered)", "[Disc 1]"), then the album alone when
     its name is distinctive enough to be found by itself."""
+    return _queries(w)[0]
+
+
+def spellings(w: dict[str, Any]) -> int:
+    """How many of the first search texts are the release's own name in another spelling
+    (romanized, as written). They are all searched before a copy is taken: the same
+    album is shared under either name, and the best copy may be under the other one."""
+    return _queries(w)[1]
+
+
+def _queries(w: dict[str, Any]) -> tuple[list[str], int]:
 
     def clean(s: str) -> str:
         # Soulseek drops words starting with "-" and matches whole words only.
@@ -258,12 +276,13 @@ def queries(w: dict[str, Any]) -> list[str]:
 
     for a, b in ((artist, album), (artist_o, album_o), (artist, w["album_original"])):
         add(f"{a} {b}", b)
+    names = len(out)
     for a, b in ((artist, bare(album)), (artist_o, bare(album_o))):
         add(f"{a} {b}", clean(b))
     for b in dict.fromkeys((clean(bare(album)), clean(bare(album_o)))):
         if distinctive(b):
             add(b, b)
-    return out
+    return out, names
 
 
 def distinctive(title: str) -> bool:
@@ -623,19 +642,24 @@ class Acquirer:
         info = self.source.search_info(w["search_id"])
         if info["running"]:
             return
-        texts = queries(w)
+        texts, names = _queries(w)
         text = texts[w["query_idx"]] if w["query_idx"] < len(texts) else info.get("text", "")
         tried = set(w["tried"] or [])
         # Uploaders already tried for this request let it down: skip their other folders too.
         tried_origins = {k.split("|", 1)[0] for k in tried}
+        # The copies kept from this request's earlier searches compete with the new ones:
+        # the best one may have been found under the release's other name.
+        found = self.source.offers(w["search_id"])
+        new = {f"{o['origin']}|{o['folder']}" for o in found}
+        earlier = [o for o in w["offers"] or [] if f"{o['origin']}|{o['folder']}" not in new]
         picks = [
             p
-            for p in rank(self.source.offers(w["search_id"]), w)
+            for p in rank(found + earlier, w)
             if f"{p.offer['origin']}|{p.offer['folder']}" not in tried
             and p.offer["origin"] not in tried_origins
         ]
         # Keep the best few for choosing by hand, whatever happens next.
-        keep = [self._slim(p) for p in picks[:5]]
+        keep = [self._slim(p) for p in picks[:KEEP_OFFERS]]
         offers = keep or w["offers"]
         self.state.update_wanted(w["id"], offers=offers)
         w["offers"] = offers
@@ -651,6 +675,18 @@ class Acquirer:
             f"{len(picks)} folder{'s' if len(picks) != 1 else ''}"
             + (f", {len(confident)} looked right" if confident else ", none clearly right"),
         )
+        if w["query_idx"] + 1 < names:
+            # The release has another spelling (romanized, as written): search under it
+            # too before taking a copy, so the best of both is downloaded.
+            self._set(
+                w,
+                "queued",
+                "Searching under its other name too, to take the best copy"
+                if confident
+                else "Trying its other name",
+                query_idx=w["query_idx"] + 1,
+            )
+            return
         # Uploaders who answer with the folder's listing are online and share all of
         # it: try them first, then the ones who didn't answer.
         silent = []
@@ -790,6 +826,18 @@ class Acquirer:
             ),
             None,
         )
+        if row is None:
+            # Not in the last list of downloads: one that only just started may not be in
+            # it yet, so the source is asked itself before the folder in the inbox (an
+            # earlier copy's, say) is taken for the finished download.
+            row = next(
+                (
+                    r
+                    for r in self.source.transfers()
+                    if r["origin"] == w["origin"] and r["folder"] == w["remote_folder"]
+                ),
+                None,
+            )
         if row is None:
             # Gone from the list (cleared): it counts as arrived if its folder is there.
             if self.inbox_folder_exists(w["folder"]):
@@ -1016,6 +1064,15 @@ def inbox_previewed(state: State, w: dict[str, Any], auto_import: bool, why: str
         text = f"In the inbox: {why}" if why else "In the inbox, waiting for you"
         state.update_wanted(w["id"], status="review", status_text=text)
         note(state, w, text)
+
+
+def inbox_gone(state: State, w: dict[str, Any]) -> None:
+    """A requested folder left the inbox before it was imported (deleted there, or by
+    hand): the request stops, where you can search again, find it by hand or remove it,
+    instead of waiting for a review that can no longer happen."""
+    text = "Its folder was deleted from the inbox"
+    state.update_wanted(w["id"], status="failed", status_text=text, folder="", error=None)
+    note(state, w, f"{text} before it was imported")
 
 
 def inbox_imported(state: State, w: dict[str, Any], ok: bool, why: str = "") -> None:

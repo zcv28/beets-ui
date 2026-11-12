@@ -28,6 +28,9 @@
   'chevron': '<path d="m9 18 6-6-6-6"/>',
   'trash': '<path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/>',
   'more': '<circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/>',
+  'sun': '<circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/>',
+  'moon': '<path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/>',
+  'monitor': '<rect width="20" height="14" x="2" y="3" rx="2"/><line x1="8" x2="16" y1="21" y2="21"/><line x1="12" x2="12" y1="17" y2="21"/>',
   'home': '<path d="M15 21v-8a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v8"/><path d="M3 10a2 2 0 0 1 .709-1.528l7-5.999a2 2 0 0 1 2.582 0l7 5.999A2 2 0 0 1 21 10v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>',
 } %}
 
@@ -118,9 +121,21 @@
 {%- endmacro %}
 
 
+{# Light, dark or the browser's setting: a small button in the sidebar that opens three
+   choices. app.js applies the choice at once and keeps it in a cookie, so the server
+   sends the next page already in it. theme is 'light', 'dark' or '' (the browser's). #}
+{% macro theme_menu(id, theme, size='icon-sm') -%}
+<button class="btn theme-button" data-variant="ghost" data-size="{{ size }}" type="button" popovertarget="{{ id }}" aria-label="Theme" title="Theme">{{ icon('sun', 'icon theme-icon-light') }}{{ icon('moon', 'icon theme-icon-dark') }}</button>
+<div class="menu-content theme-menu" id="{{ id }}" popover aria-label="Theme">
+  {% for value, label, ic in [('light', 'Light', 'sun'), ('dark', 'Dark', 'moon'), ('', 'Same as the browser', 'monitor')] %}
+  <button class="menu-item menu-choice" type="button" data-theme-set="{{ value }}" aria-pressed="{{ 'true' if theme == value else 'false' }}">{{ icon(ic) }}<span>{{ label }}</span>{{ icon('check', 'icon menu-check') }}</button>
+  {% endfor %}
+</div>
+{%- endmacro %}
+
 {# A release's small cover, or a quiet placeholder when there is none to fetch. #}
-{% macro cover(src, cls='cover') -%}
-{% if src %}<img class="{{ cls }}" src="{{ src }}" alt="" loading="lazy" decoding="async" width="48" height="48">{% else %}<span class="{{ cls }} cover-none" aria-hidden="true">{{ icon('music') }}</span>{% endif %}
+{% macro cover(src, cls='cover', alt='') -%}
+{% if src %}<img class="{{ cls }}" src="{{ src }}" alt="{{ alt }}" loading="lazy" decoding="async" width="48" height="48">{% else %}<span class="{{ cls }} cover-none" aria-hidden="true">{{ icon('music') }}</span>{% endif %}
 {%- endmacro %}
 
 {# A request's state as a dot and a word (not a link: for summaries and rows that are links). #}

@@ -10,7 +10,7 @@ import time
 from pathlib import Path
 from typing import Any
 
-from . import acquire, importer, romanize
+from . import acquire, importer, release_covers, romanize
 from .jobs import JobContext, JobQueue
 from .settings import Settings
 from .state import State
@@ -39,6 +39,8 @@ AUDIO_EXT = {
 }
 
 STATUS_LABELS = {
+    # Shown instead of the folder's own status while a download is still writing to it.
+    "downloading": "Downloading",
     "new": "Not looked up",
     "queued": "Queued",
     "previewing": "Looking up",
@@ -166,6 +168,12 @@ class Inbox:
         self._stop = threading.Event()
         self._thread: threading.Thread | None = None
         self._scan_lock = threading.Lock()
+        # Wired by the app. Names of the inbox folders a download is still writing to:
+        # they are left alone until it has finished.
+        self.in_flight: Any = lambda: set()
+        # Gives an album imported without a cover its release's own: called with the
+        # album and the release (source, id), returns a line for the job log or "".
+        self.cover_from_release: Any = None
         jobs.register("preview")(self._job_preview)
         jobs.register("import")(self._job_import)
 
@@ -230,16 +238,28 @@ class Inbox:
         for row in self.state.folders():
             if row["path"] not in seen and row["status"] not in ("previewing", "importing"):
                 self.state.delete_folder(row["path"])
+        self._requests_without_folder()
         self.refresh_library_matches()
+        flying = self.in_flight()
         for row in self.state.folders():
             # Folders you asked for (Get) are looked up even when auto-lookup is off.
             if not (self.settings.auto_preview or row.get("wanted_id")):
                 continue
+            if row["path"] in flying:
+                continue  # its download is still running: looked up once it has finished
             w = self._wanted(row)
             if w and w["status"] not in ("arrived", "lookup", "review"):
                 continue  # still downloading: the request looks it up when it arrives
             if row["status"] == "new" and now - row["changed_at"] >= self.settings.debounce:
                 self.queue_preview(row["path"], auto=True, **self._wanted_search(row))
+
+    def _requests_without_folder(self) -> None:
+        """Requests waiting on an inbox folder that is gone stop there (see inbox_gone)."""
+        for w in self.state.wanted_list(acquire.IN_INBOX):
+            name = w["folder"]
+            if name and (self.state.folder(name) is not None or (self.root / name).is_dir()):
+                continue
+            acquire.inbox_gone(self.state, w)
 
     def refresh_library_matches(self, only: str | None = None) -> None:
         """Re-check which inbox folders are already in the library (cheap SQL)."""
@@ -323,6 +343,8 @@ class Inbox:
     def delete_source(self, rel: str) -> None:
         shutil.rmtree(self.resolve(rel))
         self.state.delete_folder(rel)
+        # A request that was waiting for this folder's review has nothing to wait for.
+        self._requests_without_folder()
 
     # ------------------------------------------------------------------ jobs
 
@@ -342,6 +364,9 @@ class Inbox:
             )
         except Exception as e:
             self.state.upsert_folder(rel, status="failed", error=str(e))
+            asked = self._wanted(self.state.folder(rel))
+            if asked:  # not left "looking up" for ever: it waits in the inbox, with the reason
+                acquire.inbox_imported(self.state, asked, False, f"the lookup failed ({e})")
             raise
         sig, _ = folder_signature(path)
         old = self.state.folder(rel) or {}
@@ -379,7 +404,9 @@ class Inbox:
         imported = False
         if ctx.params.get("auto") and status == "ready":
             library = [] if wanted and wanted["kind"] == "upgrade" else row.get("library") or []
-            if not threshold:
+            if rel in self.in_flight():
+                why = "its download hasn't finished"
+            elif not threshold:
                 why = "automatic import is off"
             else:
                 why = auto_import_blocker(tasks, library, threshold)
@@ -405,6 +432,7 @@ class Inbox:
         if row is None:
             raise KeyError(rel)
         path = self.resolve(rel)
+        wanted = self._wanted(row)
         self.state.upsert_folder(rel, status="importing")
         try:
             outcomes = importer.apply_folder(
@@ -420,8 +448,9 @@ class Inbox:
                 romanize.copy_originals_to_albums()
         except Exception as e:
             self.state.upsert_folder(rel, status="failed", error=str(e))
+            if wanted:
+                acquire.inbox_imported(self.state, wanted, False, f"the import failed ({e})")
             raise
-        wanted = self._wanted(row)
         dups: dict[str, Any] = {}
         problems = []
         for key, o in outcomes.items():
@@ -457,6 +486,7 @@ class Inbox:
         from . import beets_ctx
 
         acquire.settle(self.state, beets_ctx.lib())
+        self._covers_from_releases(ctx, row["decisions"], outcomes)
         if path.exists() and self.settings.delete_after_import:
             ctx.log(f"Deleting source folder {path}")
             shutil.rmtree(path, ignore_errors=True)
@@ -467,6 +497,56 @@ class Inbox:
             rel, status="imported", signature=sig, files=files, error=None, duplicates={}
         )
         self.refresh_library_matches(only=rel)
+
+    def _covers_from_releases(self, ctx: JobContext, decisions: dict, outcomes: dict) -> None:
+        """An album imported against a release, but left without a cover, gets that
+        release's own: the one the inbox showed for the folder. Never fails the import."""
+        if self.cover_from_release is None:
+            return
+        from . import beets_ctx
+
+        lib = beets_ctx.lib()
+        for key, o in outcomes.items():
+            d = decisions.get(key) or {}
+            ref = release_covers.candidate_ref(d.get("source"), d.get("id"))
+            if o.result != "imported" or d.get("action") != "apply" or ref is None:
+                continue
+            for album in lib.albums(f"mb_albumid:={d['id']}"):
+                try:
+                    line = self.cover_from_release(album, *ref)
+                except Exception as e:  # noqa: BLE001 - the album is imported either way
+                    line = f"No cover set for {album.album}: {e}"
+                if line:
+                    ctx.log(line)
+
+
+def folder_cover(row: dict[str, Any], wanted: dict[str, Any] | None = None) -> dict | None:
+    """The cover to show for an inbox folder, as {"src", "label"}: the release it was
+    asked for (Get), or the release its lookup matched well enough to trust."""
+    if wanted:
+        from .web import wanted_cover
+
+        src = wanted_cover(wanted)
+        return {"src": src, "label": f"{wanted['artist']} – {wanted['album']}"} if src else None
+    chosen = row.get("decisions") or {}
+    for t in row.get("tasks") or []:
+        if not t.get("is_album") or not t.get("candidates"):
+            continue
+        d = chosen.get(t["key"]) or {}
+        c = next(
+            (c for c in t["candidates"] if d.get("action") == "apply" and c["id"] == d.get("id")),
+            t["candidates"][0],
+        )
+        ref = release_covers.candidate_ref(c.get("source"), c.get("id"))
+        if ref and (c.get("match") or 0) >= COVER_MATCH:
+            return {
+                "src": release_covers.path_for(*ref),
+                "label": f"{c.get('artist') or '?'} – {c.get('album') or '?'}",
+            }
+    return None
+
+
+COVER_MATCH = 75  # a lookup match this good shows its release's cover in the inbox
 
 
 def auto_import_blocker(tasks: list[dict], library: list[dict], threshold: float) -> str:

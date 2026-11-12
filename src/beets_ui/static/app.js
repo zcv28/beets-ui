@@ -88,6 +88,38 @@ const svg = (name, cls) => `<svg class="${cls}" xmlns="http://www.w3.org/2000/sv
   });
 })();
 
+// ------------------------------------------------------------------- theme
+// Light, dark or the browser's setting, chosen from the sidebar. The choice applies at
+// once and is kept in a cookie, so the server sends every later page already in it.
+(() => {
+  const BAR = { light: "#ffffff", dark: "#0a0a0a" };
+  const apply = (theme) => {
+    const root = document.documentElement;
+    const fixed = theme === "light" || theme === "dark";
+    if (fixed) root.dataset.theme = theme; else delete root.dataset.theme;
+    document.cookie = `beetsui_theme=${fixed ? theme : ""}; path=/; max-age=${fixed ? 31536000 : 0}; samesite=lax`;
+    // The browser's own bar (and the installed app's title bar) follows.
+    document.querySelectorAll('meta[name="theme-color"]').forEach((m) => m.remove());
+    for (const t of fixed ? [theme] : ["light", "dark"]) {
+      const m = document.createElement("meta");
+      m.name = "theme-color";
+      m.content = BAR[t];
+      if (!fixed) m.media = `(prefers-color-scheme: ${t})`;
+      document.head.append(m);
+    }
+    for (const b of document.querySelectorAll("[data-theme-set]")) {
+      b.setAttribute("aria-pressed", String(b.dataset.themeSet === (fixed ? theme : "")));
+    }
+  };
+  document.addEventListener("click", (e) => {
+    const b = e.target.closest && e.target.closest("[data-theme-set]");
+    if (!b) return;
+    apply(b.dataset.themeSet);
+    const menu = b.closest("[popover]");
+    if (menu) menu.hidePopover();
+  });
+})();
+
 // ---------------------------------------------------------- mobile sidebar
 // The sheet is part of the swapped page, so its buttons are found when clicked.
 document.addEventListener("click", (e) => {
@@ -442,7 +474,16 @@ const initArtists = (grid) => {
   const letters = document.getElementById("artist-letters");
   const none = document.getElementById("artist-none");
   const cards = [...grid.querySelectorAll(".tile")];
+  // The filter and the letter are kept in the address (?q=…#letter), so they are still
+  // there after opening an artist and coming back, by the Back button or the page's link.
   let letter = decodeURIComponent(location.hash.slice(1));
+  input.value = new URLSearchParams(location.search).get("q") || "";
+  const remember = () => {
+    const q = input.value.trim();
+    const url = location.pathname + (q ? `?q=${encodeURIComponent(q)}` : "") + (letter ? `#${encodeURIComponent(letter)}` : "");
+    history.replaceState(history.state, "", url);
+    try { sessionStorage.setItem("beetsui-artists", url); } catch { /* the address still has it */ }
+  };
 
   const apply = () => {
     const q = input.value.trim().toLowerCase();
@@ -459,15 +500,16 @@ const initArtists = (grid) => {
       if (on) a.setAttribute("aria-current", "true"); else a.removeAttribute("aria-current");
     }
   };
-  input.addEventListener("input", apply);
+  input.addEventListener("input", () => { remember(); apply(); });
   letters.addEventListener("click", (e) => {
     const a = e.target.closest("a[data-letter]");
     if (!a) return;
     e.preventDefault();
     letter = a.dataset.letter;
-    history.replaceState(history.state, "", letter ? `#${encodeURIComponent(letter)}` : location.pathname);
+    remember();
     apply();
   });
+  remember();
   apply();
 
   // Rename one ticked artist, or merge several into one name (typed or picked).
@@ -513,6 +555,16 @@ const init = (root) => {
 
   for (const form of within(root, "#import-form")) initReview(form);
   for (const grid of within(root, "#artist-grid")) initArtists(grid);
+  // An artist's Back link returns to the list as it was left: its filter and letter.
+  for (const a of within(root, 'a.back[href="/library/artists"]')) {
+    try {
+      const url = sessionStorage.getItem("beetsui-artists") || "";
+      if (!url.startsWith("/library/artists") || url === a.getAttribute("href")) continue;
+      a.setAttribute("href", url);
+      // htmx read the link's address when the page came in: have it read the new one.
+      if (window.htmx) htmx.process(a);
+    } catch { /* the plain list */ }
+  }
   for (const list of within(root, ".tab-list")) {
     const current = list.querySelector('[aria-current="page"]');
     if (current) list.scrollLeft = current.offsetLeft + current.offsetWidth - list.clientWidth + 24;

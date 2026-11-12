@@ -16,6 +16,7 @@ from .. import library as libsvc
 from ..sources import coming
 from ..web import partial, render
 from .inbox import REVIEW, _queue
+from .inbox import folders as inbox_folders
 
 router = APIRouter()
 
@@ -25,7 +26,8 @@ RECENT_FAILURES = 86400  # failed jobs show for a day
 def _now(app) -> dict:
     """The left column: what needs you, and what is on its way."""
     state = app.state.state
-    folders = state.folders()
+    # Folders a download is still writing to are not up for review, or for a lookup, yet.
+    folders = inbox_folders(app)
     queue = _queue(folders, "")
     needs = []
     watch = getattr(app.state, "source_watch", None)
@@ -57,7 +59,7 @@ def _now(app) -> dict:
                 "path": queue["next"],
             }
         )
-    unlooked = sum(1 for f in folders if f["status"] == "new")
+    unlooked = sum(1 for f in folders if f["shown"] == "new")
     if unlooked and not app.state.settings.auto_preview:
         needs.append(
             {

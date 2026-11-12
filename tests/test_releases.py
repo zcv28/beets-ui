@@ -200,8 +200,12 @@ def test_find_groups_searches_by_release(client, app, src):
         ("Garden", 1),
         ("Elma", 2),
     ]
+    # Searches for a release show first; the ones for nothing in particular are a click away.
     page = client.get("/get/find").text
-    assert "searched 2 times" in page and "a search for no release in particular" in page
+    assert "searched 2 times" in page and "Garden" in page and "random words" not in page
+    assert "For a release · 2" in page and "For nothing in particular · 1" in page
+    other = client.get("/get/find?show=other").text
+    assert "random words" in other and "searched 2 times" not in other
 
 
 def test_coming_in_is_one_list_of_releases(client, app, engine, src):

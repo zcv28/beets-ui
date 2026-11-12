@@ -41,8 +41,16 @@
   </details>
 </form>
 <p class="hint">A download shows under <a href="/get/coming">Coming in</a> while it arrives, then waits in the inbox for review like any other folder.</p>
+{# Searches for a release you want or have named (the default), or the ones for nothing in particular. #}
+{% set keep = ('&q=' ~ q|q if q) ~ ('&artist=' ~ release.artist|q ~ '&album=' ~ release.album|q if release) ~ ('&w=' ~ release.w.id if release and release.w) %}
+{% if counts.release or counts.other %}
+<div class="section-head"><h2>Searched</h2></div>
+<nav class="toggles" aria-label="Which searches">
+  <a class="toggle" data-variant="outline" href="/get/find?show=release{{ keep }}" {% if show == 'release' %}aria-current="page"{% endif %}>For a release · {{ counts.release }}</a>
+  <a class="toggle" data-variant="outline" href="/get/find?show=other{{ keep }}" {% if show == 'other' %}aria-current="page"{% endif %}>For nothing in particular · {{ counts.other }}</a>
+</nav>
+{% endif %}
 {% if groups %}
-<div class="section-head"><h2>Searched</h2><span class="hint">Grouped by the release they were for</span></div>
 <div class="release-list">
   {% for g in groups %}
   <details class="release" id="g-{{ g.key|uid }}">
@@ -52,7 +60,7 @@
       <span class="release-main">
         {% set loose = g.key.startswith('t:') %}
         <span class="release-title"{{ g.title|lang }}>{{ '“' ~ g.title ~ '”' if loose else g.title }}</span>
-        <span class="hint">{% if g.artist %}<span{{ g.artist|lang }}>{{ g.artist }}</span>, {% elif loose %}a search for no release in particular, {% endif %}searched {{ 'once' if g.searches|length == 1 else (g.searches|length ~ ' times') }}, {{ g.answers|plural('answer') }}</span>
+        <span class="hint">{% if g.artist %}<span{{ g.artist|lang }}>{{ g.artist }}</span>, {% endif %}searched {{ 'once' if g.searches|length == 1 else (g.searches|length ~ ' times') }}, {{ g.answers|plural('answer') }}</span>
       </span>
       <span class="release-progress">{% if g.running %}{{ status('running', 'Searching') }}{% endif %}</span>
       <span class="release-state">{% if g.w %}{{ wanted_status(g.w) }}{% endif %}</span>
@@ -77,6 +85,10 @@
   </details>
   {% endfor %}
 </div>
+{% elif show == 'release' and counts.other %}
+{% call empty() %}No searches for a release yet. Find by hand on a missing or suggested album, or on a request, makes one. <a href="/get/find?show=other{{ keep }}">Show the {{ counts.other|plural('other search', 'other searches') }}</a>{% endcall %}
+{% elif show == 'other' and counts.release %}
+{% call empty() %}Every search so far was for a release. <a href="/get/find?show=release{{ keep }}">Show them</a>{% endcall %}
 {% elif not error %}
 {% call empty() %}No searches yet. Search for an artist and album above, or use Find by hand on a missing album.{% endcall %}
 {% endif %}

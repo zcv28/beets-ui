@@ -1,4 +1,4 @@
-{% from "partials/macros.html" import icon, alert, nav_links %}<!doctype html>
+{% from "partials/macros.html" import icon, alert, nav_links, theme_menu %}<!doctype html>
 <html lang="en"{% if theme in ('light', 'dark') %} data-theme="{{ theme }}"{% endif %}>
 <head>
   <meta charset="utf-8">
@@ -27,10 +27,11 @@
       {% include "partials/jobs_pill.html" %}
     </div>
     <div class="sidebar-footer">
-      <form method="post" action="/logout" class="sidebar-user" hx-boost="false">
+      <div class="sidebar-user">
         <span class="sidebar-user-name">{{ user }}</span>
-        <button class="btn" data-variant="ghost" data-size="icon-sm" type="submit" aria-label="Log out" title="Log out">{{ icon('log-out') }}</button>
-      </form>
+        {{ theme_menu('theme-menu', theme) }}
+        <form class="inline" method="post" action="/logout" hx-boost="false"><button class="btn" data-variant="ghost" data-size="icon-sm" type="submit" aria-label="Log out" title="Log out">{{ icon('log-out') }}</button></form>
+      </div>
       <p class="hint mono">beets-ui {{ version }}</p>
     </div>
   </aside>
@@ -41,10 +42,11 @@
     {# The links sit at the bottom of the sheet, where a thumb reaches. #}
     <div class="sidebar-content">{{ nav_links(nav, source_status) }}</div>
     <div class="sidebar-footer">
-      <form method="post" action="/logout" class="sidebar-user" hx-boost="false">
+      <div class="sidebar-user">
         <span class="sidebar-user-name">{{ user }}</span>
-        <button class="btn" data-variant="ghost" data-size="sm" type="submit">{{ icon('log-out') }}Log out</button>
-      </form>
+        {{ theme_menu('theme-menu-sheet', theme) }}
+        <form class="inline" method="post" action="/logout" hx-boost="false"><button class="btn" data-variant="ghost" data-size="sm" type="submit">{{ icon('log-out') }}Log out</button></form>
+      </div>
     </div>
   </dialog>
 
