@@ -1,9 +1,13 @@
-"""Small covers for releases the library doesn't have (Missing, Coming in, Find).
+"""Small covers for releases the library doesn't have (Missing, Discover, Coming in,
+Find, and the inbox folders a lookup matched to a release).
 
 Fetched once from where the release was looked up (the Cover Art Archive for a
-MusicBrainz release group, the album picture for VocaDB, TouhouDB and UtaiteDB),
-kept on disk, and served from beets-ui so pages never link out. A release with
-no cover is remembered for a week before it is asked again.
+MusicBrainz release group or release, the album picture for VocaDB, TouhouDB and
+UtaiteDB), kept on disk, and served from beets-ui so pages never link out. A
+release with no cover is remembered for a week before it is asked again.
+
+``full_url`` is the same release's cover at full size, for an album that was
+imported without one.
 """
 
 from __future__ import annotations
@@ -29,6 +33,9 @@ TYPES = {
     b"RIFF": "image/webp",
 }
 DIGITS = re.compile(r"^\d{1,12}$")
+# A MusicBrainz release (what a lookup matches), next to "musicbrainz": a release group.
+MB_RELEASE = "musicbrainz-release"
+CAA = "https://coverartarchive.org"
 
 
 def remote_url(source: str, release_id: str) -> str | None:
@@ -36,8 +43,20 @@ def remote_url(source: str, release_id: str) -> str | None:
     if source in VOCADB and DIGITS.match(release_id):
         return f"{VOCADB[source]}/Album/CoverPictureThumb/{release_id}"
     if source == "musicbrainz" and UUID.match(release_id):
-        return f"https://coverartarchive.org/release-group/{release_id}/front-250"
+        return f"{CAA}/release-group/{release_id}/front-250"
+    if source == MB_RELEASE and UUID.match(release_id):
+        return f"{CAA}/release/{release_id}/front-250"
     return None
+
+
+def candidate_ref(source: object, release_id: object) -> tuple[str, str] | None:
+    """(source, id) as this module names them, for a lookup candidate's data source and
+    ID ("MusicBrainz" and a release ID, "VocaDB" and an album number); None for a source
+    whose covers can't be fetched by ID."""
+    src, rid = str(source or "").lower(), str(release_id or "")
+    if src == "musicbrainz":
+        src = MB_RELEASE
+    return (src, rid) if remote_url(src, rid) else None
 
 
 def path_for(source: str, release_id: str) -> str | None:
@@ -63,6 +82,23 @@ class ReleaseCovers:
                 headers={"User-Agent": USER_AGENT}, timeout=10, follow_redirects=True
             )
         return self._http
+
+    def full_url(self, source: str, release_id: str) -> str | None:
+        """Where the release's cover is at full size, or None when it has none."""
+        if remote_url(source, release_id) is None:
+            return None
+        if source in VOCADB:
+            try:
+                r = self.http.get(
+                    f"{VOCADB[source]}/api/albums/{release_id}", params={"fields": "MainPicture"}
+                )
+                pic = (r.json() if r.status_code == 200 else {}).get("mainPicture") or {}
+            except (httpx.HTTPError, ValueError) as e:
+                log.info("cover for %s %s: %s", source, release_id, e)
+                return None
+            return pic.get("urlOriginal") or None
+        kind = "release" if source == MB_RELEASE else "release-group"
+        return f"{CAA}/{kind}/{release_id}/front"
 
     def _file(self, source: str, release_id: str) -> Path:
         key = hashlib.sha1(f"{source}:{release_id}".encode()).hexdigest()

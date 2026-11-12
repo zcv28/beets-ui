@@ -339,7 +339,9 @@ def test_search_options_are_remembered(slsk):
 
 def test_stop_search_and_recent_list(slsk):
     c, fake, _ = slsk
-    page = c.get("/get/find")
+    # A search for no release in particular is listed apart from the ones for a release.
+    assert "Delete search artist album" not in c.get("/get/find").text
+    page = c.get("/get/find?show=other")
     assert "Searching" in page.text and "Delete search artist album" in page.text
     c.post("/get/find/s/s1/stop")
     assert fake.stopped == ["s1"]

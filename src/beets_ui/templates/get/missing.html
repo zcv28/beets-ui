@@ -101,7 +101,7 @@
         </td>
         <td class="table-cell hide-sm nowrap mono">{{ rel.date or '?' }}</td>
         <td class="table-cell hide-sm hint">{{ rel.type }}</td>
-        <td class="table-cell nowrap col-actions">
+        <td class="table-cell col-actions"><span class="row-actions">
           {% set w = wanted.get(r.source ~ ':' ~ rel.id) %}
           {% if title == 'Upcoming' and not (w and w.status != 'cancelled') %}<span class="hint">Not out yet</span>
           {% elif get_enabled %}<span class="get-slot">{% if w and w.status != 'cancelled' %}{% include "wanted/_chip.html" %}{% else %}<form class="inline" method="post" action="/wanted/release" hx-post="/wanted/release" hx-target="closest .get-slot" hx-swap="innerHTML">
@@ -122,7 +122,7 @@
               <button class="menu-item">Dismiss<span class="hint">Not interested: hide this release</span></button>
             </form>
           {% endcall %}
-        </td>
+        </span></td>
       </tr>
       {% endfor %}
       </tbody>

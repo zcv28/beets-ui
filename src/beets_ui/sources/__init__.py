@@ -15,6 +15,7 @@ __all__ = [
     "Watcher",
     "build",
     "coming",
+    "folders_in_flight",
     "incoming",
     "requests_in_flight",
 ]
@@ -46,6 +47,25 @@ def incoming(app) -> list[dict]:
         for r in (watch.rows if watch else [])
         if r["state"] != "done" and (r["origin"], r["folder"]) not in mine
     ]
+
+
+def folders_in_flight(state, watch) -> set[str]:
+    """Inbox folders a download is still writing to (their names).
+
+    The inbox leaves these alone: they are not looked up, imported on their own or
+    counted as waiting for review until their download has finished.
+    """
+    names = {
+        r["folder_name"]
+        for r in (watch.rows if watch else [])
+        if r["state"] in ("downloading", "queued") and r.get("folder_name")
+    }
+    names |= {w["folder"] for w in state.wanted_list(("downloading",)) if w["folder"]}
+    # A download from Find between two uploaders: the next one is being looked for.
+    for f in (state.meta("fetches") or {}).values():
+        if f.get("searching") and f.get("folder_name"):
+            names.add(f["folder_name"])
+    return names
 
 
 def requests_in_flight(app) -> list[dict]:

@@ -39,7 +39,7 @@
     <td class="table-cell nowrap mono">{{ rel.date or '?' }}</td>
     <td class="table-cell col-main"><a href="{{ rel.url }}" target="_blank" rel="noopener noreferrer"{{ rel.title|lang }}>{{ rel.title }}</a>{% if rel.original and rel.original != rel.title %}<span class="original"{{ rel.original|lang }}>{{ rel.original }}</span>{% endif %}</td>
     <td class="table-cell hide-sm hint">{{ rel.type }}</td>
-    <td class="table-cell nowrap col-actions">
+    <td class="table-cell col-actions"><span class="row-actions">
       {% if get_enabled %}<span class="get-slot">{% if w and w.status != 'cancelled' %}{% include "wanted/_chip.html" %}{% else %}<form class="inline" method="post" action="/wanted/release" hx-post="/wanted/release" hx-target="closest .get-slot" hx-swap="innerHTML">
         <input type="hidden" name="source" value="{{ r.source }}"><input type="hidden" name="artist_id" value="{{ r.artist_id }}"><input type="hidden" name="release_id" value="{{ rel.id }}"><input type="hidden" name="back" value="{{ request.url.path }}?name={{ artist|q }}">
         <button class="btn" data-size="xs" title="Search, download and import {{ rel.title }}">Get</button>
@@ -48,7 +48,7 @@
         <input type="hidden" name="source" value="{{ r.source }}"><input type="hidden" name="release_id" value="{{ rel.id }}"><input type="hidden" name="label" value="{{ artist }} – {{ rel.title }}">
         <button class="btn" data-variant="ghost" data-size="xs" title="Not interested: hide this release" aria-label="Dismiss {{ rel.title }}">Dismiss</button>
       </form>
-    </td>
+    </span></td>
   </tr>
   {% endfor %}
   </tbody>

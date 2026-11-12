@@ -179,6 +179,18 @@ templates.env.globals["open_ids"] = lambda wanted, source: [
 ]
 
 
+THEME_COOKIE = "beetsui_theme"
+
+
+def theme_of(request: Request) -> str:
+    """The theme chosen in the sidebar ("light" or "dark"), or "" to follow the browser.
+
+    It is kept in a cookie (set by app.js), so the page comes with it already applied.
+    """
+    value = request.cookies.get(THEME_COOKIE, "")
+    return value if value in ("light", "dark") else ""
+
+
 def flash(request: Request, message: str, kind: str = "msg") -> None:
     msgs = request.session.get("flash", [])
     msgs.append([kind, message])
@@ -199,7 +211,7 @@ def render(request: Request, name: str, status_code: int = 200, **ctx: Any):
         "running": len(app.state.jobs.running()),
         "pending": app.state.jobs.pending(),
         "since": time.time(),
-        "theme": app.state.settings.theme,
+        "theme": theme_of(request),
     }
     return templates.TemplateResponse(request, name, {**base, **ctx}, status_code=status_code)
 

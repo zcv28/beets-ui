@@ -312,9 +312,13 @@ class State:
         """Mark an inbox folder as the download for a request."""
         self._exec("UPDATE folders SET wanted_id=? WHERE path=?", (wanted_id, path))
 
+    def unlink_wanted(self, wanted_id: int) -> None:
+        """Its inbox folder is an ordinary folder again (the request was stopped or removed)."""
+        self._exec("UPDATE folders SET wanted_id=NULL WHERE wanted_id=?", (wanted_id,))
+
     def delete_wanted(self, wanted_id: int) -> None:
         self._exec("DELETE FROM wanted WHERE id=?", (wanted_id,))
-        self._exec("UPDATE folders SET wanted_id=NULL WHERE wanted_id=?", (wanted_id,))
+        self.unlink_wanted(wanted_id)
 
     # ---------------------------------------------------------------- searches
 

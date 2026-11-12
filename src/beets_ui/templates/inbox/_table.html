@@ -1,14 +1,16 @@
-{% from "partials/macros.html" import empty, icon, match, status as state %}
+{% from "partials/macros.html" import cover, empty, icon, match, status as state %}
 {# Reloads when the inbox changes (live updates, or every 60s); the server answers 204 when nothing changed, and nothing reloads while focus is inside. #}
-<div id="inbox-table" hx-get="/inbox/table?status={{ status }}&v={{ table_version }}" hx-trigger="refresh[!this.matches(':focus-within')], every 60s [!document.hidden && !this.matches(':focus-within')]" hx-swap="outerHTML" data-refresh="inbox">
+<div id="inbox-table" hx-get="/inbox/table?status={{ status }}&v={{ table_version }}" hx-trigger="refresh[!this.matches(':focus-within')], every 60s [!document.hidden && !this.matches(':focus-within')]" hx-swap="outerHTML" data-refresh="inbox downloads">
 {% if folders %}
 <div class="table-container">
 <table class="table inbox-table">
-  <thead><tr><th class="table-head">Folder</th><th class="table-head">Status</th><th class="table-head">Best match</th><th class="table-head">In library</th><th class="table-head hide-sm">Updated</th><th class="table-head"><span class="sr-only">Actions</span></th></tr></thead>
+  <thead><tr><th class="table-head cover-col"><span class="sr-only">Cover</span></th><th class="table-head">Folder</th><th class="table-head">Status</th><th class="table-head">Best match</th><th class="table-head">In library</th><th class="table-head hide-sm">Updated</th><th class="table-head"><span class="sr-only">Actions</span></th></tr></thead>
   <tbody>
   {% for f in folders %}
   {% set audio = f.files|selectattr('audio')|list %}
   <tr class="table-row">
+    {# The cover of the release the folder was matched to (or asked for), once that is known. #}
+    <td class="table-cell cover-col">{% if f.cover %}{{ cover(f.cover.src, alt='Cover of ' ~ f.cover.label) }}{% else %}{{ cover(None) }}{% endif %}</td>
     <td class="table-cell col-folder">
       <a class="strong folder-link" href="/inbox/folder?f={{ f.path|q }}"{{ f.path|lang }}>{{ f.path }}</a>
       {% if f.error %}<p class="hint">{{ f.error }}</p>{% endif %}
@@ -19,7 +21,7 @@
       </details>
       {% endif %}
     </td>
-    <td class="table-cell nowrap col-status">{{ state(f.status, labels.get(f.status, f.status)) }}</td>
+    <td class="table-cell nowrap col-status">{{ state(f.shown, labels.get(f.shown, f.shown)) }}</td>
     <td class="table-cell col-match">{% if f.best is not none %}{{ match(f.best) }}{% endif %}</td>
     <td class="table-cell col-library">{% for a in f.library %}<a href="/library/album/{{ a.id }}" title="{{ a.how }}"{{ (a.albumartist ~ a.album)|lang }}>{{ a.albumartist }} – {{ a.album }}</a>{% if not loop.last %}<br>{% endif %}{% endfor %}</td>
     <td class="table-cell hide-sm nowrap mono hint">{{ f.updated_at|ts }}</td>

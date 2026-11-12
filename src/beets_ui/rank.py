@@ -119,11 +119,24 @@ def score(offer: dict[str, Any], want: dict[str, Any]) -> Pick:
     return Pick(offer, s, confident and not offer.get("locked"), why)
 
 
+def quality(offer: dict[str, Any]) -> int:
+    """How good the audio is, in steps: lossless, 320 kbps, 256 kbps, less."""
+    if offer.get("lossless"):
+        return 3
+    rate = _bitrate(offer)
+    return 2 if rate >= 320 else 1 if rate >= 256 else 0
+
+
 def rank(offers: list[dict[str, Any]], want: dict[str, Any]) -> list[Pick]:
-    """Every offer that names the album, best first (confident ones before the rest)."""
+    """Every offer that names the album, best first.
+
+    The copies that can be taken unasked come before the rest, and among them the
+    better audio wins (lossless, then the higher bitrate) before how well the tracks
+    fit and how soon the copy would arrive. The rest are in order of their score.
+    """
     picks = [score(o, want) for o in offers]
     picks = [p for p in picks if "album name not in the folder" not in p.why]
-    picks.sort(key=lambda p: (not p.confident, -p.score))
+    picks.sort(key=lambda p: (not p.confident, -quality(p.offer) if p.confident else 0, -p.score))
     return picks
 
 

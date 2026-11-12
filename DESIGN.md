@@ -103,7 +103,7 @@ components:
 
 ## Overview
 
-beets-ui is an Operate surface end to end: one owner, at a desktop, working through a library session (see PRODUCT.md). The look is the shadcn-derived design system shipped in `src/beets_ui/static/ds/`: a neutral greyscale with colour reserved for status, system fonts, quiet borders and soft shadows. Ambition shows as precision and calm, not decoration. Light is the default; dark follows the system or `BEETSUI_THEME`.
+beets-ui is an Operate surface end to end: one owner, at a desktop, working through a library session (see PRODUCT.md). The look is the shadcn-derived design system shipped in `src/beets_ui/static/ds/`: a neutral greyscale with colour reserved for status, system fonts, quiet borders and soft shadows. Ambition shows as precision and calm, not decoration. Light is the default; dark follows the system, or the owner's choice from the theme button in the sidebar footer (Light, Dark, Same as the browser; kept in a cookie so pages arrive in it).
 
 Cascade: `@layer base, components, app` (declared in `ds/tokens.css`). `ds/bundle.css` is the components layer; `static/app.css` adds element defaults (base) and the app's own pieces (app), built only from the tokens.
 
@@ -144,9 +144,10 @@ Radii from the tokens: inputs and buttons `md` (0.5rem), cards, boxes, tables an
 - **Toasts:** bottom right; successes leave after 4s (8s with Undo), failures stay. Server responses send them with an `HX-Trigger: {"toast": …}` header.
 - **Menus:** `details.menu` with `.menu-item`s (label plus a hint line); "More actions" and "Tidy up".
 - **Tabs:** line tabs under the page header for sibling views (Get: Missing / Discover / Coming in / Find; Library: Albums / Artists / Tracks / Covers / Artist pictures; Insights). A section page's h1 is the section; the tab names the page in `<title>`.
-- **Row menus:** `row_menu()` macro, a ghost "more" button and a `[popover]` menu in the top layer, so a scrolling table never clips it. For a row's secondary actions; the row's one main action stays visible.
+- **Row menus:** `row_menu()` macro, a ghost "more" button and a `[popover]` menu in the top layer, so a scrolling table never clips it. For a row's secondary actions; the row's one main action stays visible. The two sit together in `.row-actions`, right-aligned on one line, whether the main action is a button or the request's state.
 - **Release path:** `release_path(stage)` macro, Missing → Getting → Review → In your library, on a request's page and on the review page of a folder that came from one.
 - **Tiles:** square cover, title, muted sub-lines; used for album and artist grids.
+- **Covers in lists:** `cover()` macro, a 48px square that leads a row about a release (Missing, Discover, Coming in, Find, the inbox). A release with no cover, or a row with no release yet, shows the quiet placeholder so rows stay aligned.
 - **Icons:** Lucide, inline SVG through the `icon()` macro, 16px, stroke 2.
 
 ## Do's and Don'ts

@@ -572,6 +572,9 @@
   a.wanted-state { color: inherit; text-decoration: none; }
   a.wanted-state:hover { text-decoration: underline; text-underline-offset: 4px; }
   .get-slot { display: inline-flex; align-items: center; vertical-align: middle; }
+  /* A row's actions: Get (or where its request stands) and the row's menu, on one line
+     at the row's right edge, whichever of the two is showing. */
+  .row-actions { display: flex; align-items: center; justify-content: flex-end; gap: 0.375rem; white-space: nowrap; }
   .request-state { margin-top: 0; }
 }
 @layer app {
@@ -632,15 +635,6 @@
 @layer app {
   .page-header .asked { display: flex; flex-wrap: wrap; align-items: center; gap: 0.25rem 1rem; margin: 0.25rem 0 0.5rem; }
   .page-header .asked .release-path { margin: 0; }
-}
-@layer app {
-  /* New releases and Upcoming line up with each other. */
-  @media (min-width: 768px) {
-    .release-table { table-layout: fixed; }
-    .release-table th:first-child { width: 8.5rem; }
-    .release-table th:nth-child(3) { width: 9rem; }
-    .release-table th:last-child { width: 7.5rem; }
-  }
 }
 
 /* ==================================================================== jobs */
@@ -772,24 +766,28 @@
   .for-release > p { flex: 1 1 16rem; margin: 0; }
   .for-line { margin: 0 0 0.5rem; }
 
-  /* Missing: each artist opens into its releases, with covers. */
+  /* Missing and Discover: tables of releases that lead with the cover. On Missing each
+     artist opens into its releases. */
   .gap-artist { display: flex; align-items: center; gap: 0.5rem; }
   .gap > summary { align-items: center; }
   .gap-avatar { flex: none; width: 1.5rem; height: 1.5rem; border-radius: 50%; object-fit: cover; background: var(--muted); }
   .gap-artist .original { margin-left: 0; }
-  .missing-table .cover-col { width: 4rem; }
+  .missing-table .cover-col { width: 4.5rem; }
+  .cover { max-width: none; }
   .missing-table td.cover-col { padding-top: 0.375rem; padding-bottom: 0.375rem; }
   .missing-table .col-main .original { display: block; }
   @media (min-width: 768px) {
     .missing-table { table-layout: fixed; }
     .missing-table th:nth-child(3) { width: 7.5rem; }
     .missing-table th:nth-child(4) { width: 9rem; }
-    .missing-table th:last-child { width: 11rem; }
+    /* Room for the longest state ("Waiting for your pick") beside the row's menu. */
+    .missing-table th:last-child { width: 13.5rem; }
+    .suggested-table th:nth-child(3) { width: 42%; }
   }
   /* Phone: cover and names take the width; Get and the menu sit on a line beneath. */
   @media (max-width: 767px) {
     .missing-table .table-row { flex-wrap: wrap; align-items: flex-start; }
-    .missing-table td.cover-col { padding: 0; }
+    .missing-table td.cover-col { width: auto; padding: 0; }
     .missing-table .col-main { flex: 1 1 0; order: 0; min-width: 0; }
     .missing-table .col-actions { flex-basis: 100%; display: flex; justify-content: flex-end; gap: 0.5rem; }
   }
@@ -803,4 +801,39 @@
   .gap > .box-body > .table-container { border: 0; border-radius: 0; box-shadow: none; background: transparent; }
   .gap > .box-body > .table-container .table-head:first-child { border-radius: var(--radius-sm) 0 0 var(--radius-sm); }
   .gap > .box-body > .table-container .table-head:last-child { border-radius: 0 var(--radius-sm) var(--radius-sm) 0; }
+}
+
+/* ============================================================ inbox: covers */
+@layer app {
+  /* A folder matched to a release (or asked for) leads with that release's cover. */
+  .inbox-table .cover-col { width: 4.5rem; padding-right: 0; }
+  .inbox-table td.cover-col { padding-top: 0.375rem; padding-bottom: 0.375rem; }
+  @media (max-width: 767px) {
+    .inbox-table .table-row { grid-template-columns: 2.5rem minmax(0, 1fr) auto; }
+    .inbox-table .table-cell.cover-col { grid-column: 1; grid-row: 1 / span 3; align-self: start; width: auto; padding: 0.25rem 0 0; }
+    .inbox-table .cover-col .cover { width: 2.5rem; height: 2.5rem; }
+    .inbox-table :is(.col-folder, .col-library) { grid-column: 2 / -1; }
+    .inbox-table .col-status { grid-column: 2; }
+    .inbox-table .col-actions { grid-column: 3; }
+  }
+}
+
+/* =================================================================== theme */
+@layer app {
+  /* The sidebar's theme button shows a sun in the light theme and a moon in the dark one. */
+  .theme-icon-dark { display: none; }
+  :root[data-theme="dark"] .theme-icon-light { display: none; }
+  :root[data-theme="dark"] .theme-icon-dark { display: inline; }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) .theme-icon-light { display: none; }
+    :root:not([data-theme="light"]) .theme-icon-dark { display: inline; }
+  }
+  /* A menu of choices: one line each, a tick on the current one. */
+  .theme-menu { min-width: 13rem; }
+  .menu-choice { flex-direction: row; align-items: center; gap: 0.5rem; }
+  .menu-choice > span { flex: 1; }
+  .menu-choice .icon { color: var(--muted-foreground); }
+  .menu-choice .menu-check { visibility: hidden; color: var(--foreground); }
+  .menu-choice[aria-pressed="true"] { font-weight: 500; }
+  .menu-choice[aria-pressed="true"] .menu-check { visibility: visible; }
 }

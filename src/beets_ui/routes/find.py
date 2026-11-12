@@ -141,7 +141,13 @@ def group_searches(state, searches: list[dict]) -> list[dict]:
         g["answers"] = sum(s["answers"] or 0 for s in g["searches"])
         g["latest"] = g["searches"][0]
         g["cover"] = wanted_cover(g["w"]) if g["w"] else None
+        # For a release (a request, or one named when searching by hand), or for none.
+        g["loose"] = g["key"].startswith("t:")
     return out
+
+
+# Which searches Find lists: those made for a release (the default), or the others.
+SHOWS = ("release", "other")
 
 
 # -------------------------------------------------------------------- find
@@ -149,7 +155,12 @@ def group_searches(state, searches: list[dict]) -> list[dict]:
 
 @router.get("/find")
 def find_page(
-    request: Request, q: str = "", artist: str = "", album: str = "", w: int | None = None
+    request: Request,
+    q: str = "",
+    artist: str = "",
+    album: str = "",
+    w: int | None = None,
+    show: str = "release",
 ):
     source = _source(request)
     error = None
@@ -157,13 +168,21 @@ def find_page(
         searches = source.searches()[:60]
     except SourceError as e:
         searches, error = [], str(e)
+    show = show if show in SHOWS else "release"
+    groups = group_searches(request.app.state.state, searches)
+    counts = {
+        "release": sum(1 for g in groups if not g["loose"]),
+        "other": sum(1 for g in groups if g["loose"]),
+    }
     return render(
         request,
         "find/index.html",
         nav="get",
         q=q,
         release=_release(request, artist, album, w),
-        groups=group_searches(request.app.state.state, searches),
+        groups=[g for g in groups if g["loose"] == (show == "other")],
+        counts=counts,
+        show=show,
         error=error,
         opts=_options(request),
         wait_choices=WAIT_CHOICES,

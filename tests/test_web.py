@@ -141,21 +141,29 @@ def test_console_rejects_interactive(client):
     assert "interactive" in r.text
 
 
-def test_theme_setting_and_bundled_assets(env, fake_source, monkeypatch):
+def test_theme_is_chosen_in_the_page_and_bundled_assets(env, fake_source, monkeypatch):
     from beets_ui.main import create_app
-    from beets_ui.settings import SettingsError
 
     # The default follows the browser's colour scheme: no data-theme on <html>.
     app = create_app(Settings.from_env(), background=False)
     assert "data-theme" not in TestClient(app).get("/login").text
-    monkeypatch.setenv("BEETSUI_THEME", "dark")
-    app = create_app(Settings.from_env(), background=False)
     c = TestClient(app)
-    login = c.get("/login")
-    assert 'data-theme="dark"' in login.text and "Log in" in login.text
     c.post("/login", data={"password": "secret"})
     page = c.get("/inbox").text
-    assert 'data-theme="dark"' in page and 'class="app-sidebar"' in page
+    assert '<html lang="en">' in page and 'class="app-sidebar"' in page
+    # The sidebar has the choice: light, dark, or the browser's (the one in use is ticked).
+    for value in ("light", "dark", ""):
+        assert f'data-theme-set="{value}"' in page
+    assert 'data-theme-set="" aria-pressed="true"' in page
+    # app.js keeps the choice in a cookie, and the next page comes in it, the login page too.
+    c.cookies.set("beetsui_theme", "dark")
+    page = c.get("/inbox").text
+    assert '<html lang="en" data-theme="dark">' in page
+    assert 'data-theme-set="dark" aria-pressed="true"' in page
+    assert '<meta name="theme-color" content="#0a0a0a">' in page
+    assert 'data-theme="dark"' in c.get("/login").text
+    c.cookies.set("beetsui_theme", "neon")  # anything else means the browser's
+    assert '<html lang="en">' in c.get("/inbox").text
     for path in (
         "/static/ds/tokens.css",
         "/static/ds/bundle.css",
@@ -164,9 +172,6 @@ def test_theme_setting_and_bundled_assets(env, fake_source, monkeypatch):
     ):
         assert c.get(path).status_code == 200, path
     assert "fonts.googleapis" not in page and "/static/fonts/" not in page
-    # Themes of the old UI were all dark and still start.
-    monkeypatch.setenv("BEETSUI_THEME", "phosphor")
-    assert Settings.from_env().theme == "dark"
+    # The old BEETSUI_THEME setting is gone: whatever it holds, the app starts and ignores it.
     monkeypatch.setenv("BEETSUI_THEME", "neon")
-    with pytest.raises(SettingsError):
-        Settings.from_env()
+    assert not hasattr(Settings.from_env(), "theme")
