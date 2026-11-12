@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% from "partials/macros.html" import alert, cover, empty, icon, status, wanted_status %}
 {% block title %}Find{% endblock %}
-{% block header %}<header class="page-header"><h1>Get</h1></header>{% endblock %}
+{% block header %}{% include "get/_header.html" %}{% endblock %}
 {% block content %}
 {% set tab = 'find' %}{% include "get/_tabs.html" %}
 <div class="tab-content">

@@ -123,7 +123,7 @@ System sans for everything (`--font-sans`); monospace only for data: numbers in 
 ## Layout
 
 - Sidebar (16rem) plus a content column capped at 80rem with 2rem side padding (1rem on phones). Below 768px the sidebar becomes a top bar and a bottom-reaching sheet.
-- Page anatomy: a back link where there is a parent, h1 with a muted description line, an optional tab list, then content in bars (`.bar`, `.toolbar`) and tables. The page header keeps one height with or without the description line, so tabs never move between sibling pages. A page reached from several places (a catalogue artist or release) links back to where you came from.
+- Page anatomy: a back link where there is a parent, h1 with a muted description line (on every Get tab, where getting stands: "2 need you · 2 on their way"; a tab's own counts go under its lead), an optional tab list, then content in bars (`.bar`, `.toolbar`) and tables. The page header keeps one height with or without the description line, so tabs never move between sibling pages. A page reached from several places (a catalogue artist or release) links back to where you came from.
 - Tables are the default container for lists. On phones, tables with actions use `.stack-sm`: each row stacks, the main cell first and the actions on the right.
 - Links in tables: a row's bold name is its link and underlines on hover; secondary links (an artist, the release a track is from) carry a quiet underline so they read as links.
 - Long-running pages use a sticky action bar at the bottom (`.sticky-bar`) for the primary decision (import, download).

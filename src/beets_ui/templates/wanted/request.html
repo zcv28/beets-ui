@@ -21,15 +21,15 @@
 {% if asks %}
 {# Stopped: what happened, once, and the ways on. #}
 <div class="ask" data-boxed data-tone="{{ {'choosing': 'warning', 'failed': 'destructive'}.get(w.status, '') }}">
-  <p class="ask-title">{% if w.status == 'cancelled' %}You stopped getting it{% else %}{{ w.status_text or wanted_label(w)[1] }}{% endif %}</p>
+  <p class="ask-title">{% if w.status == 'cancelled' %}You stopped getting it{% else %}{{ wanted_reason(w) }}{% endif %}</p>
   {# The title says what happened; this says only how each way on works. #}
-  <p class="hint">{% if w.status == 'choosing' and w.offers %}Pick a copy below, or search again: it{% elif w.status == 'choosing' %}The copies it found are no longer listed. Search again{% else %}Search again{% endif %} starts over and skips copies that already failed. A copy you download under Find by hand comes back to this request; Import by hand takes the files from the inbox.</p>
+  <p class="hint">{% if w.status == 'choosing' and w.offers %}Pick a copy below, or search again: it{% else %}Search again{% endif %} starts over and skips copies that already failed. A copy you download under Find by hand comes back to this request; Import by hand takes the files from the inbox.</p>
   <div class="bar tight">
     <form class="inline" method="post" action="/wanted/{{ w.id }}/retry"><button class="btn" data-variant="{{ 'outline' if w.offers and w.status == 'choosing' else 'default' }}" data-size="sm">Search again</button></form>
     {% if sources_enabled %}<a class="btn" data-variant="outline" data-size="sm" href="{{ find_url }}">Find by hand</a>{% endif %}
     <a class="btn" data-variant="ghost" data-size="sm" href="/inbox">Import by hand</a>
     <span class="spacer"></span>
-    {% if w.status == 'choosing' %}<form class="inline" method="post" action="/wanted/{{ w.id }}/cancel" data-confirm="Stop getting {{ w.album }}?" data-confirm-button="Stop getting it"><button class="btn" data-variant="ghost" data-size="sm">Cancel</button></form>{% else %}<form class="inline" method="post" action="/wanted/{{ w.id }}/remove"><button class="btn" data-variant="ghost" data-size="sm">Remove from the list</button></form>{% endif %}
+    {% if w.status == 'choosing' %}<form class="inline" method="post" action="/wanted/{{ w.id }}/cancel" data-confirm="Stop getting {{ w.album }}?" data-confirm-button="Stop getting it"><button class="btn" data-variant="outline" data-tone="destructive" data-size="sm">Cancel</button></form>{% else %}<form class="inline" method="post" action="/wanted/{{ w.id }}/remove"><button class="btn" data-variant="outline" data-tone="destructive" data-size="sm">Remove from the list</button></form>{% endif %}
   </div>
 </div>
 {% else %}
@@ -44,8 +44,8 @@
   {% if w.status == 'review' and folder %}<a class="btn" href="/inbox/folder?f={{ w.folder|q }}">Review it in the inbox{{ icon('arrow-right') }}</a>{% endif %}
   {% if w.status == 'downloading' %}<form class="inline" method="post" action="/wanted/{{ w.id }}/skip"><button class="btn" data-variant="outline" data-size="sm">Get it from someone else</button></form>{% endif %}
   {% if sources_enabled and not asks and w.status != 'done' %}<a class="btn" data-variant="outline" data-size="sm" href="{{ find_url }}">Find by hand</a>{% endif %}
-  {% if w.status in ('queued', 'searching', 'downloading', 'arrived', 'review') %}<form class="inline" method="post" action="/wanted/{{ w.id }}/cancel" data-confirm="Stop getting {{ w.album }}?{% if w.status == 'downloading' %} Its download stops too.{% elif w.status in ('arrived', 'review') %} What it downloaded stays in the inbox as a folder like any other.{% endif %}" data-confirm-button="Stop getting it"><button class="btn" data-variant="ghost" data-size="sm">Cancel</button></form>{% endif %}
-  {% if w.status == 'done' %}<form class="inline" method="post" action="/wanted/{{ w.id }}/remove"><button class="btn" data-variant="ghost" data-size="sm">Remove from the list</button></form>{% endif %}
+  {% if w.status in ('queued', 'searching', 'downloading', 'arrived', 'review') %}<form class="inline" method="post" action="/wanted/{{ w.id }}/cancel" data-confirm="Stop getting {{ w.album }}?{% if w.status == 'downloading' %} Its download stops too.{% elif w.status in ('arrived', 'review') %} What it downloaded stays in the inbox as a folder like any other.{% endif %}" data-confirm-button="Stop getting it"><button class="btn" data-variant="outline" data-tone="destructive" data-size="sm">Cancel</button></form>{% endif %}
+  {% if w.status == 'done' %}<form class="inline" method="post" action="/wanted/{{ w.id }}/remove"><button class="btn" data-variant="outline" data-tone="destructive" data-size="sm">Remove from the list</button></form>{% endif %}
 </div>
 {% endif %}
 

@@ -476,3 +476,49 @@ def test_better_copies_in_one_go(web, app):
     assert r.headers["location"] == "/insights/upgrades"
     (w,) = app.state.state.wanted_list()
     assert (w["kind"], w["album_id"]) == ("upgrade", a.id)
+
+
+# ------------------------------------------------------------ open items
+
+
+def test_a_pick_whose_copies_are_gone_says_so_everywhere(web, app):
+    state = app.state.state
+    wid = want(
+        state, album="Gone", status="choosing", status_text="Found 4 copies, none clearly right"
+    )
+    coming = web.get("/get/coming").text
+    assert "Its copies are gone" in coming and "The copies it found are no longer listed" in coming
+    # The request page says why it stopped (the label shows where its state is a chip).
+    request = web.get(f"/wanted/{wid}").text
+    assert "The copies it found are no longer listed" in request
+    for page in (coming, request):
+        assert "Found 4 copies" not in page and "Waiting for your pick" not in page
+    home = web.get("/home/now").text
+    assert "Search again for Gone" in home and "no longer listed" in home
+
+
+def test_remove_can_be_undone(web, app):
+    state = app.state.state
+    wid = want(state, album="Old", status="failed", status_text="Nothing found")
+    state.update_wanted(wid, history=[{"at": 1.0, "text": "Searched"}])
+    r = web.post(f"/wanted/{wid}/remove", headers=FRAGMENT)
+    undo = json.loads(r.headers["HX-Trigger"])["toast"]["undo"]
+    assert undo["url"] == f"/wanted/{wid}/restore" and state.wanted(wid) is None
+    web.post(undo["url"], headers=FRAGMENT)
+    w = state.wanted(wid)
+    assert (w["album"], w["status"], w["history"][0]["text"]) == ("Old", "failed", "Searched")
+    # Only once: it is back already.
+    assert "can&#39;t be brought back" in web.post(f"/wanted/{wid}/restore").text
+    # Cancel and Remove read as destructive.
+    page = web.get("/get/coming").text
+    assert 'data-tone="destructive" data-size="sm">Remove from the list</button>' in page
+
+
+def test_every_get_tab_says_where_getting_stands(web, app):
+    state = app.state.state
+    want(state, album="Stuck", status="failed", status_text="Nothing found", release_id="s1")
+    want(state, album="Moving", status="searching", release_id="s2")
+    want(state, album="Waiting", release_id="s3")
+    for url in ("/get/missing", "/get/discover", "/get/coming", "/get/find"):
+        page = web.get(url).text
+        assert '<a href="/get/coming">1 needs you</a> · 2 on their way' in page, url

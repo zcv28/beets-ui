@@ -5,6 +5,7 @@ from __future__ import annotations
 import contextlib
 
 from fastapi import APIRouter, Form, HTTPException, Request
+from fastapi.responses import HTMLResponse
 
 from .. import acquire, beets_ctx, catalog, discography, discover
 from ..sources import SourceError
@@ -454,7 +455,22 @@ def cancel(request: Request, wanted_id: int):
 @router.post("/{wanted_id}/remove")
 def remove(request: Request, wanted_id: int):
     w = _wanted_or_404(request, wanted_id)
-    request.app.state.state.delete_wanted(wanted_id)
+    request.app.state.state.remove_wanted(wanted_id)
+    undo = {"url": f"/wanted/{wanted_id}/restore", "vals": {}}
     if is_fragment(request):
-        return toast(f"Removed {w['album']}")
+        return toast(f"Removed {w['album']}", undo=undo)
+    flash(request, f"Removed {w['album']} from the list.", "ok", undo)
     return redirect("/get/coming")
+
+
+@router.post("/{wanted_id}/restore")
+def restore(request: Request, wanted_id: int):
+    """Undo for Remove: the request comes back as it was."""
+    if not request.app.state.state.restore_wanted(wanted_id):
+        if is_fragment(request):
+            return toast("It can't be brought back", kind="destructive")
+        flash(request, "That request can't be brought back.", "warn")
+        return redirect("/get/coming")
+    if is_fragment(request):
+        return HTMLResponse("")
+    return redirect(f"/wanted/{wanted_id}")

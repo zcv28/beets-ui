@@ -1,12 +1,7 @@
 {% extends "base.html" %}
 {% from "partials/macros.html" import alert, cover, empty, icon, row_menu %}
 {% block title %}Discover{% endblock %}
-{% block header %}
-<header class="page-header">
-  <h1>Get</h1>
-  {% if enabled and data.synced %}<p class="page-description">From ListenBrainz for {{ data.user }} · read {{ data.synced|ts }}</p>{% endif %}
-</header>
-{% endblock %}
+{% block header %}{% include "get/_header.html" %}{% endblock %}
 {% block content %}
 {% set tab = 'discover' %}{% include "get/_tabs.html" %}
 {% set here = request.url.path ~ ('?' ~ request.url.query if request.url.query else '') %}
@@ -83,7 +78,7 @@
 
 <form class="bar" method="post" action="/get/discover/sync">
   <button class="btn" data-variant="outline" data-size="sm" {% if busy %}disabled{% endif %}>{{ 'Read again' if data.synced else 'Read ListenBrainz' }}</button>
-  <span class="hint">Opening this page reads again when the last read is over 6 hours old.</span>
+  <span class="hint">{% if data.synced %}Read for {{ data.user }} {{ data.synced|ts }}. {% endif %}Opening this page reads again when the last read is over 6 hours old.</span>
 </form>
 
 {% if data.synced %}

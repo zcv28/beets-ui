@@ -41,7 +41,7 @@
     {% set find_url = '/get/find?q=' ~ (w.artist ~ ' ' ~ w.album)|q ~ '&artist=' ~ w.artist|q ~ '&album=' ~ w.album|q ~ '&w=' ~ w.id %}
     {% if w.status in ('choosing', 'failed') %}
     <div class="ask">
-      <p class="hint">{% if w.status == 'choosing' %}It found {{ w.offers|length }} cop{{ 'ies' if w.offers|length != 1 else 'y' }} but wasn't sure of any, so nothing was downloaded. {% endif %}Search again starts over and skips copies that already failed. Or find it yourself, or put the files in the inbox and import them there: either way this closes once the album is in your library.</p>
+      <p class="hint">{% if w.status == 'choosing' and w.offers %}It found {{ w.offers|length }} cop{{ 'ies' if w.offers|length != 1 else 'y' }} but wasn't sure of any, so nothing was downloaded. {% endif %}Search again starts over and skips copies that already failed. Or find it yourself, or put the files in the inbox and import them there: either way this closes once the album is in your library.</p>
       <div class="bar tight">
         {% if w.status == 'choosing' and w.offers %}<form class="inline" method="post" action="/wanted/{{ w.id }}/retry" hx-post="/wanted/{{ w.id }}/retry" hx-swap="none"><button class="btn" data-variant="outline" data-size="sm">Search again</button></form>{% endif %}
         {% if sources_enabled %}<a class="btn" data-variant="outline" data-size="sm" href="{{ find_url }}">Find by hand</a>{% endif %}
@@ -66,9 +66,9 @@
       <span class="spacer"></span>
       {% if w.status == 'downloading' %}<form class="inline" method="post" action="/wanted/{{ w.id }}/skip" hx-post="/wanted/{{ w.id }}/skip" hx-swap="none"><button class="btn" data-variant="outline" data-size="sm">Get it from someone else</button></form>{% endif %}
       {% if w.status in ('queued', 'searching', 'choosing', 'downloading', 'arrived', 'review') %}
-      <form class="inline" method="post" action="/wanted/{{ w.id }}/cancel" hx-post="/wanted/{{ w.id }}/cancel" hx-swap="none" data-confirm="Stop getting {{ w.album }}?{% if w.status == 'downloading' %} Its download stops too.{% elif w.status in ('arrived', 'review') %} What it downloaded stays in the inbox as a folder like any other.{% endif %}" data-confirm-button="Stop getting it"><button class="btn" data-variant="ghost" data-size="sm">Cancel</button></form>
+      <form class="inline" method="post" action="/wanted/{{ w.id }}/cancel" hx-post="/wanted/{{ w.id }}/cancel" hx-swap="none" data-confirm="Stop getting {{ w.album }}?{% if w.status == 'downloading' %} Its download stops too.{% elif w.status in ('arrived', 'review') %} What it downloaded stays in the inbox as a folder like any other.{% endif %}" data-confirm-button="Stop getting it"><button class="btn" data-variant="outline" data-tone="destructive" data-size="sm">Cancel</button></form>
       {% elif w.status == 'failed' %}
-      <form class="inline" method="post" action="/wanted/{{ w.id }}/remove" hx-post="/wanted/{{ w.id }}/remove" hx-target="closest .release-row" hx-swap="delete"><button class="btn" data-variant="ghost" data-size="sm">Remove from the list</button></form>
+      <form class="inline" method="post" action="/wanted/{{ w.id }}/remove" hx-post="/wanted/{{ w.id }}/remove" hx-target="closest .release-row" hx-swap="delete"><button class="btn" data-variant="outline" data-tone="destructive" data-size="sm">Remove from the list</button></form>
       {% endif %}
     </div>
   {% else %}
@@ -89,7 +89,7 @@
       <form class="inline" method="post" action="/get/downloads/cancel" hx-post="/get/downloads/cancel" hx-target="#coming-list" hx-swap="innerHTML" data-confirm="Stop downloading {{ r.folder_name }}? Files that already finished stay in the inbox." data-confirm-button="Cancel download">
         <input type="hidden" name="username" value="{{ r.origin }}"><input type="hidden" name="name" value="{{ r.folder_name }}">
         {% for f in r.files %}{% if f.kind in ('queued', 'active') %}<input type="hidden" name="id" value="{{ f.id }}">{% endif %}{% endfor %}
-        <button class="btn" data-variant="ghost" data-size="sm">Cancel</button>
+        <button class="btn" data-variant="outline" data-tone="destructive" data-size="sm">Cancel</button>
       </form>
       {% else %}
       {% if r.failed_files %}<form class="inline" method="post" action="/get/downloads/retry" hx-post="/get/downloads/retry" hx-target="#coming-list" hx-swap="innerHTML">
@@ -100,7 +100,7 @@
       <form class="inline" method="post" action="/get/downloads/cancel" hx-post="/get/downloads/cancel" hx-target="#coming-list" hx-swap="innerHTML">
         <input type="hidden" name="username" value="{{ r.origin }}"><input type="hidden" name="name" value="{{ r.folder_name }}"><input type="hidden" name="remove" value="1">
         {% for f in r.files %}<input type="hidden" name="id" value="{{ f.id }}">{% endfor %}
-        <button class="btn" data-variant="ghost" data-size="sm">Remove from the list</button>
+        <button class="btn" data-variant="outline" data-tone="destructive" data-size="sm">Remove from the list</button>
       </form>
       {% endif %}
     </div>

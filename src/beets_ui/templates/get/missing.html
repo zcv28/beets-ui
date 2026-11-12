@@ -1,17 +1,13 @@
 {% extends "base.html" %}
 {% from "partials/macros.html" import alert, cover, empty, icon, row_menu %}
 {% block title %}Missing{% endblock %}
-{% block header %}
-<header class="page-header">
-  <h1>Get</h1>
-  {% if artists %}<p class="page-description">{% if looked %}{{ missing }} release{{ 's' if missing != 1 }} missing · {% endif %}{{ looked }} of {{ artists }} artist{{ 's' if artists != 1 }} looked up</p>{% endif %}
-</header>
-{% endblock %}
+{% block header %}{% include "get/_header.html" %}{% endblock %}
 {% block content %}
 {% set tab = 'missing' %}{% include "get/_tabs.html" %}
 {% set here = request.url.path ~ ('?' ~ request.url.query if request.url.query else '') %}
 <div class="tab-content">
 <p class="lead">Releases by your artists that the library doesn't have.</p>
+{% if artists %}<p class="hint tab-status">{% if looked %}{{ missing }} release{{ 's' if missing != 1 }} missing · {% endif %}{{ looked }} of {{ artists }} artist{{ 's' if artists != 1 }} looked up</p>{% endif %}
 <details class="about">
   <summary>How this is worked out</summary>
   <p class="hint">Each artist is looked up where its albums were tagged from: VocaDB, TouhouDB or UtaiteDB by the artist's own releases, MusicBrainz by release group. An album counts as owned by its ID or by its title.</p>

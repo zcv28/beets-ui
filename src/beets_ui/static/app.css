@@ -907,3 +907,8 @@
   .maybe-line { margin: 0.25rem 0 0; font-size: 0.8125rem; }
   .maybe-line a { color: inherit; }
 }
+@layer app {
+  /* A tab's own status (Missing: how much is missing) sits under its lead, the section's
+     status being in the header above. */
+  .lead + .tab-status { margin-top: -0.5rem; }
+}

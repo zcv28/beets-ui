@@ -78,12 +78,33 @@ HISTORY_KEEP = 60  # entries kept in a request's history
 ARRIVAL_TIMEOUT = 600
 
 
+# A request waiting for your pick whose copies have gone (none kept): nothing is left to
+# pick, so every page says the same thing and offers searching again.
+COPIES_GONE = ("warning", "Its copies are gone")
+COPIES_GONE_WHY = "The copies it found are no longer listed."
+
+
+def copies_gone(w: dict[str, Any]) -> bool:
+    return w["status"] == "choosing" and not w.get("offers")
+
+
 def label(w: dict[str, Any]) -> tuple[str, str]:
+    if copies_gone(w):
+        return COPIES_GONE
     return STATES.get(w["status"], ("", w["status"]))
+
+
+def reason(w: dict[str, Any]) -> str:
+    """Why a request stopped, in one sentence (its status text, unless that is stale)."""
+    if copies_gone(w):
+        return COPIES_GONE_WHY
+    return w.get("status_text") or label(w)[1]
 
 
 def detail(w: dict[str, Any]) -> str:
     """What a request's status text adds to its label ("" when it only repeats it)."""
+    if copies_gone(w):
+        return COPIES_GONE_WHY
     text = (w.get("status_text") or "").strip()
     name = label(w)[1]
     if not text or text == name:

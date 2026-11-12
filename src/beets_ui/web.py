@@ -159,6 +159,7 @@ templates.env.globals["lyric_lines"] = grouped
 templates.env.globals["wanted_label"] = acquire.label
 templates.env.globals["wanted_stage"] = acquire.stage
 templates.env.globals["wanted_detail"] = acquire.detail
+templates.env.globals["wanted_reason"] = acquire.reason
 templates.env.globals["history_view"] = history_view
 
 
@@ -169,6 +170,16 @@ def wanted_cover(w: dict) -> str | None:
     return release_covers.path_for(w.get("source") or "", w.get("release_id") or "")
 
 
+def get_summary(request: Request) -> dict[str, int]:
+    """Where getting stands, for the Get pages' header: what stopped for you, what moves."""
+    from .sources import coming
+
+    items = coming(request.app)
+    needs = sum(1 for i in items if i["group"] == "needs")
+    return {"needs": needs, "moving": len(items) - needs}
+
+
+templates.env.globals["get_summary"] = get_summary
 templates.env.globals["release_cover"] = release_covers.path_for
 templates.env.globals["wanted_cover"] = wanted_cover
 # Release ids from one source with a request still under way (gaps page).

@@ -107,8 +107,10 @@ def _request_item(w: dict) -> dict:
         "reason": "",
         "primary": None,
     }
+    from ..acquire import reason
+
     if w["status"] == "choosing":
-        item.update(tone="warning", reason=w["status_text"])
+        item.update(tone="warning", reason=reason(w))
         if w["offers"]:
             item["primary"] = {"label": "Pick a copy", "href": f"/wanted/{wid}#copies"}
         else:
