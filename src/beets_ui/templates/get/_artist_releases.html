@@ -1,5 +1,5 @@
 {% from "partials/macros.html" import alert, cover, empty, icon %}
-{% from "get/_catalog.html" import get_slot with context %}
+{% from "get/_catalog.html" import get_slot, maybe_line with context %}
 {# An artist's releases of the kinds picked, newest first: tick some to get them, or get them all. #}
 {% set part = '/get/artist/' ~ source ~ '/' ~ artist_id ~ '/releases?name=' ~ artist_name|q %}
 {% set kinds_q %}{% for k in picked %}&amp;kinds={{ k }}{% endfor %}{% endset %}
@@ -16,18 +16,17 @@
   <p class="hint">{{ rows|length }} release{{ 's' if rows|length != 1 }} of these types{% if data.total != rows|length %} ({{ data.total }} in all){% endif %} · {{ owned|length }} in your library{% if maybe %} · {{ maybe|length }} maybe{% endif %} · looked up {{ data.looked_up|ts }}</p>
   <button class="btn" data-variant="link" data-size="sm" hx-get="{{ part }}{{ kinds_q }}&amp;fresh=1" hx-target="#artist-releases" hx-swap="innerHTML">Look up again</button>
 </div>
-{# Albums of theirs in the library that no release here claims: most likely the "maybe"
-   rows under another name, so Get all leaves those out and says why. #}
-{% if data.unmatched or maybe %}
-{% call alert('wip' if maybe else 'info', 'Check what you have before getting them all' if maybe else 'Some of your albums matched none of these releases') %}
-  {% if data.unmatched %}{{ data.unmatched|length }} of your albums by {{ data.library_name }} matched no release here:
-  {% for a in data.unmatched[:6] %}<a href="/library/album/{{ a.id }}"{{ a.album|lang }}>{{ a.album }}</a>{% if a.year %} <span class="mono">({{ a.year }})</span>{% endif %}{{ ', ' if not loop.last }}{% endfor %}{% if data.unmatched|length > 6 %} and {{ data.unmatched|length - 6 }} more{% endif %}. {% endif %}
-  {% if maybe %}{{ maybe|length }} release{{ ' is' if maybe|length == 1 else 's are' }} marked <strong>Maybe yours</strong>: the same title in another edition or credit, or one of theirs from the same year under its other name. Get all leaves {{ 'it' if maybe|length == 1 else 'them' }} out; tick {{ 'it' if maybe|length == 1 else 'them' }} if you're sure.{% endif %}
+{# Get all leaves the maybes out (each names the album it may be); albums of theirs that
+   no release here claims at all are named once. #}
+{% if maybe or data.unmatched %}
+{% call alert('wip' if maybe else 'info') %}
+  {% if maybe %}Get all leaves out the {{ maybe|length }} marked <strong>Maybe your …</strong>; tick any that aren't.{% endif %}
+  {% if data.unmatched %}{% for a in data.unmatched[:6] %}<a href="/library/album/{{ a.id }}"{{ a.album|lang }}>{{ a.album }}</a>{% if a.year %} <span class="mono">({{ a.year }})</span>{% endif %}{{ ', ' if not loop.last }}{% endfor %}{% if data.unmatched|length > 6 %} and {{ data.unmatched|length - 6 }} more{% endif %} in your library matched nothing here.{% endif %}
 {% endcall %}
 {% endif %}
 {% if get_enabled and gettable %}
 <div class="bar tight pick-bar">
-  <form class="inline" method="post" action="/wanted/catalog-artist" data-confirm="Get {{ gettable|length }} release{{ 's' if gettable|length != 1 }} by {{ artist_name }}? Each one is searched, downloaded and imported; anything it isn't sure of waits for you.{% if maybe %} The {{ maybe|length }} marked Maybe yours {{ 'is' if maybe|length == 1 else 'are' }} left out.{% endif %}" data-confirm-button="Get {{ gettable|length }}" data-confirm-kind="default">
+  <form class="inline" method="post" action="/wanted/catalog-artist" data-confirm="Get {{ gettable|length }} release{{ 's' if gettable|length != 1 }} by {{ artist_name }}? Each one is searched, downloaded and imported; anything it isn't sure of waits for you.{% if maybe %} The {{ maybe|length }} that may already be yours {{ 'is' if maybe|length == 1 else 'are' }} left out.{% endif %}" data-confirm-button="Get {{ gettable|length }}" data-confirm-kind="default">
     <input type="hidden" name="source" value="{{ source }}"><input type="hidden" name="artist_id" value="{{ artist_id }}"><input type="hidden" name="name" value="{{ artist_name }}"><input type="hidden" name="back" value="{{ back }}"><input type="hidden" name="all" value="1">
     {% for k in picked %}<input type="hidden" name="kinds" value="{{ k }}">{% endfor %}
     <button class="btn" data-size="sm">Get all {{ gettable|length }} you don't have</button>
@@ -56,6 +55,7 @@
       <a class="strong" href="/get/release/{{ source }}/{{ rel.id }}"{{ rel.title|lang }}>{{ rel.title }}</a>{% if rel.original and rel.original != rel.title %}<span class="original"{{ rel.original|lang }}>{{ rel.original }}</span>{% endif %}
       {% if (rel.artists and rel.artists != artist_name) or rel.catalog %}<p class="hint">{% if rel.artists and rel.artists != artist_name %}<span{{ rel.artists|lang }}>{{ rel.artists }}</span>{% endif %}{% if rel.catalog %}{{ ' · ' if rel.artists and rel.artists != artist_name }}<span class="mono">{{ rel.catalog }}</span>{% endif %}</p>{% endif %}
       <p class="hint show-sm"><span class="mono">{{ rel.date or '?' }}</span> · {{ rel.type }}</p>
+      {{ maybe_line(rel.owned, rel.suspect) }}
     </td>
     <td class="table-cell hide-sm nowrap mono">{{ rel.date or '?' }}</td>
     <td class="table-cell hide-sm hint">{{ rel.type }}</td>

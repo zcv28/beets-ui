@@ -95,11 +95,13 @@ def library_artist(lib: Any, source: str, artist_id: str, *names: str) -> str:
     return next((known[discography.norm(n)] for n in names if discography.norm(n) in known), "")
 
 
-def _owned(index: dict[str, Any], rel: dict[str, Any] | None, *artists: str) -> str:
-    """ "yours", "maybe" or "" (see discography.ownership)."""
+def _owned(
+    index: dict[str, Any], rel: dict[str, Any] | None, *artists: str
+) -> tuple[str, dict[str, Any] | None]:
+    """("yours" | "maybe" | "", the library album a maybe suspects); see discography.match."""
     if not rel:
-        return ""
-    return discography.ownership(
+        return "", None
+    return discography.match(
         index, [rel["id"]], _artist_names(rel, *artists), _titles(rel), rel.get("date") or ""
     )
 
@@ -190,7 +192,7 @@ def find_lookup(request: Request, kind: str = "releases", q: str = "", src: str 
         requests = Requests(request.app.state.state)
         for r in found:
             rel = r if kind == "releases" else r.get("release")
-            r["owned"] = _owned(index, rel)
+            r["owned"], r["suspect"] = _owned(index, rel)
             r["w"] = requests.find(rel)
             if kind == "tracks" and rel:
                 # A track from a compilation (or someone else's album): getting the
@@ -307,7 +309,7 @@ def artist_releases(
         if rel["kind"] not in kinds:
             continue
         row = {**rel, "source": source, "upcoming": bool(rel["date"] and rel["date"] > today)}
-        row["owned"] = discography.ownership(
+        row["owned"], row["suspect"] = discography.match(
             index, [rel["id"]], names, rel.get("names") or [rel["title"]], rel["date"]
         )
         row["w"] = requests.find({**row, "artist": name, "artists": []}, *names)
@@ -321,11 +323,14 @@ def artist_releases(
         for r in rows
         if not r["owned"] and not r["upcoming"] and (not r["w"] or r["w"]["status"] == "failed")
     ]
+    maybe = [r for r in rows if r["owned"] == discography.MAYBE and not r["upcoming"]]
+    # Albums a maybe row already names are accounted for; the rest matched nothing.
+    suspected = {r["suspect"]["id"] for r in maybe if r["suspect"]}
     return {
         "rows": rows,
         "gettable": gettable,
-        "maybe": [r for r in rows if r["owned"] == discography.MAYBE and not r["upcoming"]],
-        "unmatched": _unmatched(lib, libname, releases),
+        "maybe": maybe,
+        "unmatched": [a for a in _unmatched(lib, libname, releases) if a.id not in suspected],
         "library_name": libname,
         "looked_up": looked_up,
         "total": len(releases),
@@ -404,6 +409,7 @@ def release_page(request: Request, source: str, release_id: str):
     lib = beets_ctx.lib()
     index = discography.owned_index(lib)
     w = Requests(request.app.state.state).find(rel)
+    owned, suspect = _owned(index, rel)
     back_url, back_label = _came_from(request)
     return render(
         request,
@@ -413,7 +419,8 @@ def release_page(request: Request, source: str, release_id: str):
         back_label=back_label,
         rel=rel,
         source_name=NAMES.get(source, source),
-        owned=_owned(index, rel),
+        owned=owned,
+        suspect=suspect,
         w=w,
         upcoming=bool(rel["date"] and rel["date"] > time.strftime("%Y-%m-%d")),
         get_enabled=_get_enabled(request),

@@ -902,3 +902,8 @@
   .grid.recent > * { scroll-snap-align: start; }
   @media (max-width: 767px) { .grid.recent { grid-auto-columns: 42%; } }
 }
+@layer app {
+  /* "Maybe your Elma (2019)": under a release's name, the album it may already be. */
+  .maybe-line { margin: 0.25rem 0 0; font-size: 0.8125rem; }
+  .maybe-line a { color: inherit; }
+}

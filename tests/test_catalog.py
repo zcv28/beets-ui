@@ -389,7 +389,7 @@ def test_japanese_artists_show_romanized():
 def test_ownership_is_yours_maybe_or_not(web, app):
     from beets_ui import discography
 
-    own_test_album(app)  # Test Artist – Test Album, 2020
+    a = own_test_album(app)  # Test Artist – Test Album, 2020
     index = discography.owned_index(beets_ctx.lib())
     own = discography.ownership
     assert own(index, ["x"], ["Test Artist"], ["Test Album"]) == "yours"
@@ -399,6 +399,9 @@ def test_ownership_is_yours_maybe_or_not(web, app):
     assert own(index, ["x"], ["Test Artist"], ["テストアルバム"], "2020-05-01") == "maybe"
     # Another album of theirs that year, in the same script: not.
     assert own(index, ["x"], ["Test Artist"], ["Other Album"], "2020-05-01") == ""
+    # A maybe names the album it suspects.
+    state, suspect = discography.match(index, ["x"], ["Test Artist"], ["テストアルバム"], "2020")
+    assert (state, suspect) == ("maybe", {"id": a.id, "album": "Test Album", "year": 2020})
 
 
 def test_artist_page_leaves_maybe_out_of_get_all(web, app):
@@ -408,7 +411,7 @@ def test_artist_page_leaves_maybe_out_of_get_all(web, app):
     part = web.get(f"/get/artist/musicbrainz/{ARTIST}/releases?name=Test+Artist").text
     # Big Album is from 2021 like the library's Test Album, but both are romanized: not
     # a maybe. Test Album itself is yours by title.
-    assert "In your library" in part and "Maybe yours" not in part
+    assert "In your library" in part and "Maybe your" not in part
     # Rename the library's album to its "romanized" self and the catalogue's to Japanese.
     a["album"] = "Biggu Arubamu"
     a.store()
@@ -418,8 +421,10 @@ def test_artist_page_leaves_maybe_out_of_get_all(web, app):
         part = web.get(f"/get/artist/musicbrainz/{ARTIST}/releases?name=Test+Artist").text
     finally:
         GROUPS[0]["title"] = "Big Album"
-    assert "Maybe yours" in part and "Get all 2 you don't have" in part
-    assert "matched no release here" in part and "Biggu Arubamu" in part
+    assert "Get all 2 you don't have" in part
+    # The row names the album it may be, linked; that album isn't listed as unmatched.
+    assert f'Maybe your <a href="/library/album/{a.id}">Biggu Arubamu</a>' in part
+    assert "matched nothing here" not in part
     data = {"source": "musicbrainz", "artist_id": ARTIST, "name": "Test Artist"}
     web.post("/wanted/catalog-artist", data={**data, "all": "1"})
     assert sorted(w["album"] for w in app.state.state.wanted_list()) == ["Small EP", "Test Album"]

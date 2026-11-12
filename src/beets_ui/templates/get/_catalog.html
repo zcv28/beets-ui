@@ -8,15 +8,20 @@
 {%- else %}<span{{ r.artist|lang }}>{{ r.artist }}</span>{% endif %}
 {%- endmacro %}
 
+{# "Maybe yours", naming the library album it may be (another edition or credit, or
+   the artist's album from that year under its other name), so you can tell at a glance. #}
+{% macro maybe_line(owned, suspect) -%}
+{% if owned == 'maybe' %}<p class="maybe-line"><span class="status" data-status="warning"><span>{% if suspect %}Maybe your <a href="/library/album/{{ suspect.id }}"{{ suspect.album|lang }}>{{ suspect.album }}</a>{% if suspect.year %} <span class="mono">({{ suspect.year }})</span>{% endif %}{% else %}Maybe yours{% endif %}</span></span></p>{% endif %}
+{%- endmacro %}
+
 {# Get a release, or where it stands: in the library ("yours"), asked for, or not out yet.
-   "maybe": something in the library looks like it, so Get stays but says so first. #}
+   A "maybe" keeps its Get; the row says which album it may be (maybe_line). #}
 {% macro get_slot(rel, owned, w, back, size='xs', variant='outline', label='Get') -%}
 <span class="get-slot">
 {%- if owned == 'yours' %}<span class="status" data-status="success">In your library</span>
 {%- elif w %}{% include "wanted/_chip.html" %}
 {%- elif rel.date and rel.date > today %}<span class="hint">Not out yet</span>
 {%- else %}
-  {%- if owned == 'maybe' %}<span class="status" data-status="warning">Maybe yours</span>{% endif %}
   {%- if get_enabled %}<form class="inline" method="post" action="/wanted/catalog" hx-post="/wanted/catalog" hx-target="closest .get-slot" hx-swap="innerHTML">
   <input type="hidden" name="source" value="{{ rel.source }}"><input type="hidden" name="release_id" value="{{ rel.id }}"><input type="hidden" name="back" value="{{ back }}">
   <button class="btn" data-variant="{{ variant }}" data-size="{{ size }}" aria-label="{{ label }}: {{ rel.title }}">{{ label }}</button>

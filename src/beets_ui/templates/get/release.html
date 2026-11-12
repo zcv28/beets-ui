@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 {% from "partials/macros.html" import back, cover, icon %}
-{% from "get/_catalog.html" import artist_links, get_slot with context %}
+{% from "get/_catalog.html" import artist_links, get_slot, maybe_line with context %}
 {% block title %}{{ rel.title }}{% endblock %}
 {% block header %}{% endblock %}
 {% block content %}
@@ -12,6 +12,7 @@
   <div class="meta">
     <h1{{ rel.title|lang }}>{{ rel.title }}{% if rel.original %}<span class="original"{{ rel.original|lang }}>{{ rel.original }}</span>{% endif %}</h1>
     <p class="subtitle">{{ artist_links(rel) }}{% if rel.date %} · <span class="mono">{{ rel.date }}</span>{% endif %}</p>
+    {{ maybe_line(owned, suspect) }}
     <p class="album-facts">{{ rel.type or 'Release' }}{% if rel.catalog %} · <span class="mono">{{ rel.catalog }}</span>{% endif %} · from {{ source_name }}</p>
     <div class="bar">
       {{ get_slot(rel, owned, w, here, size='sm', variant='default') }}
