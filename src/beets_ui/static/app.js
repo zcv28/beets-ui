@@ -634,6 +634,47 @@ if (window.htmx) {
   document.addEventListener("htmx:sendError", () => {
     window.beetsToast({ title: "Can't reach beets-ui", text: "Check the connection and try again.", kind: "destructive" });
   });
+
+  // Something you started (a page, a button) that takes a moment shows a bar along the
+  // top, and the button you pressed spins. Polling and parts that load themselves say
+  // so in place instead. Quick answers show nothing: the bar waits 150 ms.
+  // A page change replaces the body, bar and all: it is made again when missing.
+  const bar = () => {
+    let el = document.querySelector(".page-progress");
+    if (!el) {
+      el = document.createElement("div");
+      el.className = "page-progress";
+      el.setAttribute("aria-hidden", "true");
+      document.body.prepend(el);
+    }
+    return el;
+  };
+  let waiting = 0;
+  let timer = 0;
+  const started = (d) => {
+    const type = d.requestConfig && d.requestConfig.triggeringEvent && d.requestConfig.triggeringEvent.type;
+    return d.boosted || type === "click" || type === "submit" || type === "change";
+  };
+  document.addEventListener("htmx:beforeSend", (e) => {
+    const d = e.detail;
+    if (!started(d)) return;
+    const ev = d.requestConfig.triggeringEvent;
+    const button = ev && ev.type === "submit" ? ev.submitter : ev && ev.type === "click" ? ev.target.closest(".btn") : null;
+    if (button) button.setAttribute("aria-busy", "true");
+    const main = document.getElementById("main");
+    if (++waiting === 1) {
+      timer = setTimeout(() => bar().classList.add("active"), 150);
+      if (main && d.boosted) main.setAttribute("aria-busy", "true");
+    }
+    // Ends however the request ends: answered, failed, timed out or aborted.
+    d.xhr.addEventListener("loadend", () => {
+      if (button) button.removeAttribute("aria-busy");
+      if (--waiting > 0) return;
+      clearTimeout(timer);
+      bar().classList.remove("active");
+      if (main) main.removeAttribute("aria-busy");
+    }, { once: true });
+  });
 }
 
 // ------------------------------------------------------------- live updates
