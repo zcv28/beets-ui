@@ -20,7 +20,10 @@ lists "Yorushika" as an English alias. The artist is found by its
 MusicBrainz ID, or else by an exact name/alias search that must match
 exactly one artist. Lookups are cached in beets-ui's state database.
 
-When no romanized name is found nothing changes.
+When no romanized name is found nothing changes. Such an album can be romanized
+by hand: the album page offers every name still in its own script with a machine
+reading (cutlet) to start from, or the romanization another album already uses for
+the same artist. The reading is only a suggestion; nothing is applied unchecked.
 """
 
 from __future__ import annotations
@@ -424,6 +427,118 @@ def library_status(lib: Any | None = None) -> dict[str, Any]:
     }
 
 
+# -------------------------------------------------------------- by hand
+
+_reader: Any = None
+
+
+def reading(text: str) -> str:
+    """A machine reading of Japanese text in romaji, to start from; "" if there is none."""
+    global _reader
+    if _reader is None:
+        from .lyrics import Romanizer
+
+        _reader = Romanizer()
+    try:
+        out = _reader(text)
+    except Exception as e:  # noqa: BLE001 - only a suggestion
+        log.info("no reading for %r: %s", text, e)
+        return ""
+    return out if out != text else ""
+
+
+def known_romanizations(lib: Any) -> dict[str, str]:
+    """Artist names as written, and how the library already romanizes them."""
+    with lib.transaction() as tx:
+        rows = tx.query(
+            "SELECT f.value, a.albumartist FROM albums a JOIN album_attributes f "
+            "ON f.entity_id = a.id AND f.key = 'albumartist_original'"
+        )
+        rows += tx.query(
+            "SELECT f.value, i.artist FROM items i JOIN item_attributes f "
+            "ON f.entity_id = i.id AND f.key = 'artist_original'"
+        )
+    return {o: r for o, r in rows if o and r and o != r and is_latin(r)}
+
+
+def by_hand(album: Any, items: list[Any], lib: Any | None = None) -> list[dict[str, Any]]:
+    """The names to romanize by hand: each one still in its own script, or romanized
+    before (to correct), with the name as written and a name to start from: the one it
+    has, the library's own for the same artist, else a machine reading (``guess``).
+
+    A track artist that is the album's artist is left out: it follows the album artist."""
+    known = known_romanizations(lib or beets_ctx.lib())
+    rows: list[dict[str, Any]] = []
+
+    def add(key: str, label: str, obj: Any, field: str, artist: bool = False) -> None:
+        current = str(obj.get(field) or "")
+        original = str(obj.get(f"{field}_original") or "")
+        if not current or (is_latin(current) and not original):
+            return
+        written = original or current
+        if is_latin(current):
+            value, guess = current, False
+        elif artist and known.get(written):
+            value, guess = known[written], False
+        else:
+            value, guess = reading(written), True
+        rows.append(
+            {"key": key, "label": label, "written": written, "value": value, "guess": guess}
+        )
+
+    add("album", "Album", album, "album")
+    add("albumartist", "Album artist", album, "albumartist", artist=True)
+    for it in sorted(items, key=lambda i: (i.disc or 0, i.track or 0)):
+        add(f"title-{it.id}", f"Track {it.track}", it, "title")
+        if it.artist != album.albumartist:
+            add(f"artist-{it.id}", f"Track {it.track} artist", it, "artist", artist=True)
+    return rows
+
+
+def typed_names(form: Any, album: Any, items: list[Any]) -> dict[str, Any]:
+    """The names typed on the by-hand page, as the romanize job takes them."""
+
+    def get(key: str) -> str:
+        return str(form.get(key) or "").strip()
+
+    albumartist = get("albumartist")
+    names: dict[str, Any] = {"album": get("album"), "albumartist": albumartist, "items": {}}
+    for it in items:
+        artist = get(f"artist-{it.id}")
+        if not artist and it.artist == album.albumartist:
+            artist = albumartist  # the album's artist: follows it
+        names["items"][str(it.id)] = {"title": get(f"title-{it.id}"), "artist": artist}
+    return names
+
+
+def _typed_plan(album: Any, items: list[Any], names: dict[str, Any]) -> tuple[dict, dict]:
+    """Field changes for names typed by hand; the names as written are kept alongside."""
+
+    def change(obj: Any, field: str, new: str, artist_prefix: str = "") -> dict[str, Any]:
+        new, current = (new or "").strip(), str(obj.get(field) or "")
+        if not new or new == current:
+            return {}
+        ch = _artist_fields(artist_prefix, new) if artist_prefix else {field: new}
+        ch[f"{field}_original"] = obj.get(f"{field}_original") or current
+        return ch
+
+    album_changes = {
+        **change(album, "album", names.get("album", "")),
+        **change(album, "albumartist", names.get("albumartist", ""), "albumartist"),
+    }
+    typed = names.get("items") or {}
+    item_changes: dict[int, dict[str, Any]] = {}
+    for it in items:
+        t = typed.get(str(it.id)) or {}
+        ch = {
+            **change(it, "title", t.get("title", "")),
+            **change(it, "artist", t.get("artist", ""), "artist"),
+        }
+        if ch:
+            item_changes[it.id] = ch
+    return album_changes, item_changes
+
+
 # ----------------------------------------------------------------- jobs
 
 
@@ -454,6 +569,24 @@ def _album_plan(album: Any, items: list[Any], pair: tuple[Any, Any]) -> tuple[di
         if ch:
             item_changes[item.id] = ch
     return album_changes, item_changes
+
+
+def _resolve_artists(
+    album: Any, items: list[Any], album_changes: dict, item_changes: dict, artists: Any
+) -> None:
+    """Romanize the artists a release left in their own script (or of any other source)."""
+    current = album_changes.get("albumartist", album.albumartist)
+    if new := artists.resolve(current, album.mb_albumartistid):
+        album_changes.update(_artist_fields("albumartist", new))
+        album_changes.setdefault(
+            "albumartist_original", album.get("albumartist_original") or current
+        )
+    for item in items:
+        ch = item_changes.setdefault(item.id, {})
+        current = ch.get("artist", item.artist)
+        if new := artists.resolve(current, item.mb_artistid):
+            ch.update(_artist_fields("artist", new))
+            ch.setdefault("artist_original", item.get("artist_original") or current)
 
 
 def _final_albumartist(
@@ -496,27 +629,19 @@ def register_jobs(jobs: JobQueue, settings: Any) -> None:
             if only_new and all(is_latin(n) for n in names):
                 latin += 1
                 continue
-            pair = None
-            if source.lower() in SUPPORTED and album.mb_albumid:
-                try:
-                    pair = fetch_pair(source, album.mb_albumid)
-                except Exception as e:  # noqa: BLE001 - one album must not stop the job
-                    failed += 1
-                    ctx.log(f"{name}: {source} lookup failed ({type(e).__name__}: {e})")
-            album_changes, item_changes = _album_plan(album, items, pair) if pair else ({}, {})
-            # Artists the release left in their own script (or albums from any other source).
-            current = album_changes.get("albumartist", album.albumartist)
-            if new := artists.resolve(current, album.mb_albumartistid):
-                album_changes.update(_artist_fields("albumartist", new))
-                album_changes.setdefault(
-                    "albumartist_original", album.get("albumartist_original") or current
-                )
-            for item in items:
-                ch = item_changes.setdefault(item.id, {})
-                current = ch.get("artist", item.artist)
-                if new := artists.resolve(current, item.mb_artistid):
-                    ch.update(_artist_fields("artist", new))
-                    ch.setdefault("artist_original", item.get("artist_original") or current)
+            typed = (ctx.params.get("names") or {}) if ids and len(ids) == 1 else {}
+            if typed:
+                album_changes, item_changes = _typed_plan(album, items, typed)
+            else:
+                pair = None
+                if source.lower() in SUPPORTED and album.mb_albumid:
+                    try:
+                        pair = fetch_pair(source, album.mb_albumid)
+                    except Exception as e:  # noqa: BLE001 - one album must not stop the job
+                        failed += 1
+                        ctx.log(f"{name}: {source} lookup failed ({type(e).__name__}: {e})")
+                album_changes, item_changes = _album_plan(album, items, pair) if pair else ({}, {})
+                _resolve_artists(album, items, album_changes, item_changes, artists)
             if "albumartist" in album_changes:
                 final = _final_albumartist(
                     album_changes["albumartist"],
@@ -535,9 +660,15 @@ def register_jobs(jobs: JobQueue, settings: Any) -> None:
                 if all(is_latin(n) for n in names):
                     latin += 1
                     ctx.log(f"{name}: already romanized")
+                elif typed:
+                    unchanged += 1
+                    ctx.log(f"{name}: the names typed are the ones it has")
                 else:
                     unchanged += 1
-                    ctx.log(f"{name}: no romanized names found")
+                    ctx.log(
+                        f"{name}: no romanized names found (romanize it by hand: "
+                        "album page › More actions › Romanize by hand)"
+                    )
                 continue
             before = {i.id: i.filepath.parent.parent for i in items}
             if move:

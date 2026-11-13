@@ -10,7 +10,7 @@
   <li><strong>VocaDB, UtaiteDB, TouhouDB:</strong> their Romaji names. Names without a romanization on the site stay as they are.</li>
   <li><strong>MusicBrainz:</strong> the release's Latin-script pseudo-release ("transliterated tracklisting"), when there is one.</li>
   <li><strong>Artists</strong> still in their own script, on albums from any source (also as-is imports): the artist's Latin name on MusicBrainz, its English alias or its sort name ("ヨルシカ" → "Yorushika"). The artist is found by its MusicBrainz ID, or by an exact name search that matches exactly one artist.</li>
-  <li>Names nobody has romanized stay as they are. To fix one artist by hand, select it on the <a href="/library/artists">Artists</a> page and type the new name.</li>
+  <li>Names nobody has romanized stay as they are. To romanize them yourself, open the album and pick <em>More actions › Romanize by hand</em>: it starts each name from a dictionary reading for you to correct. To rename one artist everywhere, select it on the <a href="/library/artists">Artists</a> page and type the new name.</li>
 </ul>
 {% if enabled %}{% call alert('ok') %}New imports are romanized (<code>BEETSUI_ROMANIZE=true</code>).{% endcall %}{% else %}{% call alert('info') %}New imports keep the source's names. Set <code>BEETSUI_ROMANIZE=true</code> to romanize them on import too.{% endcall %}{% endif %}
 

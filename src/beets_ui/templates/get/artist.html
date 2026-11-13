@@ -6,7 +6,8 @@
 {# An artist as the catalogue knows them, owned or not: every release, to get all or some. #}
 {{ back(back_url, back_label) }}
 <div class="album-head head-compact">
-  {% if has_picture %}<div class="art"><img class="art-img artist-img" src="/artwork/artist/image?name={{ in_library|q }}&amp;size=300" alt="Picture of {{ info.name }}"></div>{% endif %}
+  {# Their picture in the library when there is one, else the catalogue's own. #}
+  <div class="art"><img class="art-img artist-img" src="{% if has_picture %}/artwork/artist/image?name={{ in_library|q }}&amp;size=300{% else %}/get/artist/{{ source }}/{{ artist_id }}/picture{% endif %}" alt="Picture of {{ info.name }}"></div>
   <div class="meta">
     <h1{{ info.name|lang }}>{{ info.name or 'Unknown artist' }}{% if info.original %}<span class="original"{{ info.original|lang }}>{{ info.original }}</span>{% endif %}</h1>
     <p class="subtitle">{% if info.detail %}{{ info.detail }} · {% endif %}from {{ source_name }}</p>

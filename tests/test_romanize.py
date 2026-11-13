@@ -552,3 +552,78 @@ def test_renaming_by_hand_keeps_the_picture(app, client, env):
 def test_missing_artist_picture_is_not_cached(client):
     r = client.get("/artwork/artist/image?name=nobody")
     assert r.headers["cache-control"] == "no-store"
+
+
+def test_romanize_by_hand_starts_from_a_reading_and_can_be_undone(app, client, env, monkeypatch):
+    """Yorushika's 二人称: no source romanizes it, so the album page offers it by hand."""
+    lib = beets_ctx.lib()
+    folder = make_album(env["inbox"] / "y", artist="Yorushika", album="二人称", n=2)
+    key = importer.preview_folder(str(folder))[0]["key"]
+    importer.apply_folder(str(folder), {key: {"action": "asis"}})
+    album = lib.albums()[0]
+    items = sorted(album.items(), key=lambda i: i.track)
+    items[0].title = "火星人"
+    items[0].store()
+    # Another album already romanizes this circle: its name is offered as it is.
+    other = make_album(env["inbox"] / "z", artist="ヨルシカ", album="Other", n=1)
+    key = importer.preview_folder(str(other))[0]["key"]
+    importer.apply_folder(str(other), {key: {"action": "asis"}})
+    items[1].artist = "ヨルシカ"
+    items[1].store()
+    o = next(a for a in lib.albums() if a.album == "Other")
+    o.albumartist, o.albumartist_original = "Yorushika", "ヨルシカ"
+    o.store(inherit=False)
+
+    assert "Romanize by hand" in client.get(f"/library/album/{album.id}").text
+    rows = {r["key"]: r for r in romanize.by_hand(album, items, lib)}
+    assert set(rows) == {"album", f"title-{items[0].id}", f"artist-{items[1].id}"}
+    assert rows["album"]["guess"] and rows["album"]["value"] == "Ni ninshou"
+    assert rows[f"artist-{items[1].id}"] == {
+        "key": f"artist-{items[1].id}",
+        "label": "Track 2 artist",
+        "written": "ヨルシカ",
+        "value": "Yorushika",
+        "guess": False,
+    }
+    page = client.get(f"/library/album/{album.id}/romanize").text
+    assert "Check the machine readings" in page and 'value="Ni ninshou"' in page
+
+    r = client.post(
+        f"/library/album/{album.id}/romanize/names",
+        data={
+            "album": "Nininshou",
+            f"title-{items[0].id}": "Kaseijin",
+            f"artist-{items[1].id}": "Yorushika",
+            "write": "1",
+        },
+        follow_redirects=False,
+    )
+    job_id = int(r.headers["location"].rsplit("/", 1)[1])
+    run_jobs(app)
+    job = app.state.state.job(job_id)
+    assert job["status"] == "done", job["log"]
+    album = lib.get_album(album.id)
+    assert (album.album, album.album_original) == ("Nininshou", "二人称")
+    items = sorted(album.items(), key=lambda i: i.track)
+    assert (items[0].title, items[0].title_original) == ("Kaseijin", "火星人")
+    assert (items[1].artist, items[1].artist_original) == ("Yorushika", "ヨルシカ")
+    assert MediaFile(str(items[0].filepath)).title_original == "火星人"
+    # Romanized names can be corrected later: the page shows them, as written alongside.
+    rows = {r["key"]: r for r in romanize.by_hand(album, items, lib)}
+    assert rows["album"] == {**rows["album"], "written": "二人称", "value": "Nininshou"}
+    assert not rows["album"]["guess"]
+
+    client.post(f"/jobs/{job_id}/undo")
+    run_jobs(app)
+    album = lib.get_album(album.id)
+    assert album.album == "二人称" and "album_original" not in album
+
+
+def test_romanize_by_hand_with_nothing_to_do(app, client, env):
+    folder = make_album(env["inbox"] / "l", artist="Latin", album="Latin")
+    key = importer.preview_folder(str(folder))[0]["key"]
+    importer.apply_folder(str(folder), {key: {"action": "asis"}})
+    album = beets_ctx.lib().albums()[0]
+    page = client.get(f"/library/album/{album.id}/romanize").text
+    assert "in Latin script already" in page
+    assert client.get("/library/album/999/romanize").status_code == 404

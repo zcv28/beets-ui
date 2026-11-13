@@ -26,6 +26,7 @@ from . import (
 )
 from . import artists as artists_svc
 from .acquire import Acquirer
+from .artist_pictures import ArtistPictures
 from .artwork.service import Artwork
 from .auth import RateLimiter
 from .catalog import Catalog
@@ -139,6 +140,7 @@ def create_app(settings: Settings | None = None, background: bool = True) -> Fas
     app.state.acquirer = acquirer
     app.state.limiter = RateLimiter()
     app.state.release_covers = release_covers
+    app.state.artist_pictures = ArtistPictures(settings.data_dir / "artist-pictures", artwork)
     app.state.catalog = Catalog(state)
 
     # Order matters: the session middleware must wrap the auth middleware.

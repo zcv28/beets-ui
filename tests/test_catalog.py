@@ -282,6 +282,78 @@ def test_artist_page_gets_some_or_all_of_their_releases(web, app):
     assert "Get all" not in part and "Waiting to search" in part
 
 
+PNG = b"\x89PNG\r\n\x1a\n" + bytes(32)
+
+
+class _Artwork:
+    """Artwork's MBID sources, as far as artist pictures need them."""
+
+    def __init__(self, found):
+        self.found, self.asked = found, []
+
+    def enabled(self, kind, override=None):
+        from beets_ui.artwork.sources import ImageCandidate
+
+        outer = self
+
+        class Src:
+            def artist_images(self, q):
+                outer.asked.append((kind, tuple(override or ()), q.mb_artistid, q.name))
+                if isinstance(outer.found, Exception):
+                    raise outer.found
+                return [
+                    ImageCandidate(url=u, thumb=u + "?thumb", source="x", match=m)
+                    for u, m in outer.found
+                ]
+
+        return [Src()]
+
+
+@respx.mock
+def test_artist_pictures_come_by_id_and_are_kept(tmp_path):
+    from beets_ui.artist_pictures import ArtistPictures
+
+    respx.get("https://vocadb.net/api/artists/77").mock(
+        return_value=httpx.Response(200, json={"mainPicture": {"urlThumb": "https://s/77.png"}})
+    )
+    respx.get("https://vocadb.net/api/artists/78").mock(return_value=httpx.Response(200, json={}))
+    img = respx.get("https://s/77.png").mock(return_value=httpx.Response(200, content=PNG))
+    pics = ArtistPictures(tmp_path, _Artwork([]), httpx.Client())
+    path, kind = pics.get("vocadb", "77")
+    assert kind == "image/png" and path.read_bytes() == PNG
+    pics.get("vocadb", "77")
+    assert img.call_count == 1
+    assert pics.get("vocadb", "78") is None  # no picture: remembered
+    assert pics.get("vocadb", "78") is None
+    assert respx.calls.call_count == 3
+    assert pics.get("vocadb", "../x") is None and pics.get("musicbrainz", "nope") is None
+
+    # MusicBrainz: only a picture found through the artist's ID, never a name search.
+    aw = _Artwork([("https://n/by-name.png", "name"), ("https://i/by-id.png", "id")])
+    respx.get("https://i/by-id.png?thumb").mock(return_value=httpx.Response(200, content=PNG))
+    pics = ArtistPictures(tmp_path / "mb", aw, httpx.Client())
+    assert pics.get("musicbrainz", ARTIST)[1] == "image/png"
+    assert aw.asked == [("artist", ("fanarttv", "wikidata"), ARTIST, "")]
+    only_name = ArtistPictures(tmp_path / "n", _Artwork([("https://n/x.png", "name")]))
+    assert only_name.get("musicbrainz", OTHER) is None
+    # A source that couldn't be asked is asked again next time.
+    down = _Artwork(RuntimeError("timeout"))
+    pics = ArtistPictures(tmp_path / "d", down, httpx.Client())
+    assert pics.get("musicbrainz", ARTIST) is None and pics.get("musicbrainz", ARTIST) is None
+    assert len(down.asked) == 2
+
+
+def test_artist_page_shows_a_picture_without_their_albums(web, app, tmp_path):
+    from beets_ui.artist_pictures import ArtistPictures
+
+    page = web.get(f"/get/artist/musicbrainz/{ARTIST}?name=Test+Artist").text
+    assert f'src="/get/artist/musicbrainz/{ARTIST}/picture"' in page
+    app.state.artist_pictures = ArtistPictures(tmp_path / "p", _Artwork([]))
+    r = web.get(f"/get/artist/musicbrainz/{ARTIST}/picture")
+    assert r.status_code == 200 and r.headers["content-type"].startswith("image/svg")
+    assert web.get("/get/artist/musicbrainz/nope/picture").status_code == 404
+
+
 def test_artist_of_a_release_opens_their_page(web):
     r = web.get(f"/get/artist/of/musicbrainz/{RG_ALBUM}", follow_redirects=False)
     assert r.headers["location"] == f"/get/artist/musicbrainz/{ARTIST}?name=Test%20Artist"

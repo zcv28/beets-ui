@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% from "partials/macros.html" import alert, back, empty %}
+{% block title %}Romanize {{ album.album }}{% endblock %}
+{% block header %}{% endblock %}
+{% block content %}
+{# Names nobody has romanized (the source has none): typed in by hand, from a reading. #}
+{{ back('/library/album/' ~ album.id, album.album) }}
+<header class="page-header">
+  <h1>Romanize by hand</h1>
+  <p class="page-description"><span{{ album.albumartist|lang }}>{{ album.albumartist }}</span> · <span{{ album.album|lang }}>{{ album.album }}</span></p>
+</header>
+{% if rows %}
+<p class="lead">Type each name as it should read in Latin script. The name as written is kept alongside, and the change can be undone from its job.</p>
+{% if rows|selectattr('guess')|list %}
+{% call alert('wip', 'Check the machine readings') %}Names marked <em>Reading</em> come from a dictionary reading of the Japanese. It often misreads names (火星人 comes out as “Kaseinin”, not “Kaseijin”), so correct them before saving. A field left empty keeps its name.{% endcall %}
+{% endif %}
+<form method="post" action="/library/album/{{ album.id }}/romanize/names">
+  <div class="table-container" data-density="compact"><table class="table stack-sm romanize-table">
+    <thead><tr><th class="table-head">Name</th><th class="table-head">As written</th><th class="table-head">Romanized</th></tr></thead>
+    <tbody>
+    {% for r in rows %}
+    <tr class="table-row">
+      <td class="table-cell nowrap hint">{{ r.label }}{% if r.guess and r.value %} <span class="badge" data-variant="outline">Reading</span>{% endif %}</td>
+      <td class="table-cell"><label for="r-{{ r.key }}"{{ r.written|lang }}>{{ r.written }}</label></td>
+      <td class="table-cell col-main"><input class="input" type="text" id="r-{{ r.key }}" name="{{ r.key }}" value="{{ r.value }}" autocomplete="off" spellcheck="false" placeholder="Keep {{ r.written }}"></td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table></div>
+  <div class="bar">
+    <label class="checkbox-item"><input class="checkbox" type="checkbox" name="write" value="1" checked>Write tags</label>
+    <label class="checkbox-item" title="Folder names follow your path format, so they change to the romanized names. Jellyfin sees moved files as new (play counts and favourites do not follow)."><input class="checkbox" type="checkbox" name="move" value="1" checked>Rename folders and files</label>
+    <span class="spacer"></span>
+    <button class="btn" data-size="sm">Save names</button>
+  </div>
+</form>
+{% if romanizable %}<p class="hint">The names {{ album.get('data_source') }} has are looked up first by <em>Romanize names</em> on the album page; this page is for what it doesn't have.</p>{% endif %}
+{% else %}
+{% call empty() %}Every name on this album is in Latin script already.{% endcall %}
+{% endif %}
+{% endblock %}

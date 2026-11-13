@@ -301,6 +301,36 @@ def album_romanize(request: Request, album_id: int):
     return redirect(f"/jobs/{job}")
 
 
+@router.get("/album/{album_id}/romanize")
+def album_romanize_by_hand(request: Request, album_id: int):
+    """Names nobody has romanized, to type in: each with a reading to start from."""
+    a = _album_or_404(album_id)
+    return render(
+        request,
+        "library/romanize_album.html",
+        nav="library",
+        album=a,
+        rows=romanize.by_hand(a, list(a.items()), beets_ctx.lib()),
+        romanizable=_romanizable(a),
+    )
+
+
+@router.post("/album/{album_id}/romanize/names")
+async def album_romanize_typed(request: Request, album_id: int):
+    a = _album_or_404(album_id)
+    form = await request.form()
+    names = romanize.typed_names(form, a, list(a.items()))
+    job = _queue_romanize(
+        request,
+        [album_id],
+        f"Romanize {a.albumartist} - {a.album} by hand",
+        names=names,
+        write=bool(form.get("write")),
+        move=bool(form.get("move")),
+    )
+    return redirect(f"/jobs/{job}")
+
+
 @router.post("/album/{album_id}/lyrics")
 def album_lyrics(request: Request, album_id: int, force: str = Form("")):
     a = _album_or_404(album_id)

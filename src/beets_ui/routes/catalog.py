@@ -12,14 +12,15 @@ from typing import Any
 from urllib.parse import parse_qs, quote, urlsplit
 
 from fastapi import APIRouter, HTTPException, Query, Request
-from fastapi.responses import HTMLResponse
+from fastapi.responses import FileResponse, HTMLResponse
 
 from .. import beets_ctx, discography
 from ..catalog import KINDS, NAMES, SOURCES, Catalog, CatalogError, valid
 from ..discography import norm
-from ..web import flash, partial, redirect, render
+from ..web import HERE, flash, partial, redirect, render
 
 router = APIRouter(prefix="/get")
+NOARTIST = HERE / "static" / "noartist.svg"
 
 
 def _catalog(request: Request) -> Catalog:
@@ -287,6 +288,21 @@ def artist_page(
             if source == "musicbrainz"
             else f"{discography.VOCADB[source]}/Ar/{artist_id}"
         ),
+    )
+
+
+@router.get("/artist/{source}/{artist_id}/picture")
+def artist_picture(request: Request, source: str, artist_id: str):
+    """The artist's picture from the catalogue (found by ID; fetched once, then kept)."""
+    _check(source, artist_id)
+    got = request.app.state.artist_pictures.get(source, artist_id)
+    if got is None:
+        return FileResponse(
+            NOARTIST, media_type="image/svg+xml", headers={"Cache-Control": "private, max-age=3600"}
+        )
+    path, media_type = got
+    return FileResponse(
+        path, media_type=media_type, headers={"Cache-Control": "private, max-age=604800"}
     )
 
 

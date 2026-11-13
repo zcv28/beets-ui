@@ -16,6 +16,7 @@ import hashlib
 import logging
 import re
 import time
+from collections.abc import Callable
 from pathlib import Path
 
 import httpx
@@ -70,7 +71,9 @@ def kind(data: bytes) -> str | None:
     return next((t for magic, t in TYPES.items() if data.startswith(magic)), None)
 
 
-class ReleaseCovers:
+class ImageCache:
+    """Small images kept on disk by key; a key without an image is remembered for a week."""
+
     def __init__(self, cache_dir: Path, http: httpx.Client | None = None):
         self.dir = cache_dir
         self._http = http
@@ -83,6 +86,53 @@ class ReleaseCovers:
             )
         return self._http
 
+    def _file(self, key: str) -> Path:
+        h = hashlib.sha1(key.encode()).hexdigest()
+        return self.dir / h[:2] / h
+
+    def _cached(
+        self,
+        key: str,
+        url: Callable[[], str],
+        real: Callable[[httpx.Response], bool] = lambda r: True,
+    ) -> tuple[Path, str] | None:
+        """(file, media type) for ``key``, fetched from ``url()`` the first time.
+
+        ``url()`` returns "" when there is no image (remembered), and raises
+        ``httpx.HTTPError`` when it couldn't tell (asked again next time). ``real`` tells
+        an image apart from a source's placeholder."""
+        f = self._file(key)
+        miss = f.with_suffix(".none")
+        if f.exists():
+            t = kind(f.read_bytes()[:8])
+            if t:
+                return f, t
+        if miss.exists() and time.time() - miss.stat().st_mtime < MISS_KEEP:
+            return None
+        try:
+            where = url()
+            r = self.http.get(where) if where else None
+        except (httpx.HTTPError, ValueError) as e:
+            log.info("image for %s: %s", key, e)
+            return None  # not remembered: the next page asks again
+        f.parent.mkdir(parents=True, exist_ok=True)
+        if r is None:
+            miss.touch()
+            return None
+        data = r.content[: MAX_BYTES + 1]
+        t = kind(data[:8]) if r.status_code == 200 and len(data) <= MAX_BYTES else None
+        if t is not None and not real(r):
+            t = None
+        if t is None:
+            if r.status_code in (200, 404):
+                miss.touch()
+            return None
+        f.write_bytes(data)
+        miss.unlink(missing_ok=True)
+        return f, t
+
+
+class ReleaseCovers(ImageCache):
     def full_url(self, source: str, release_id: str) -> str | None:
         """Where the release's cover is at full size, or None when it has none."""
         if remote_url(source, release_id) is None:
@@ -100,39 +150,12 @@ class ReleaseCovers:
         kind = "release" if source == MB_RELEASE else "release-group"
         return f"{CAA}/{kind}/{release_id}/front"
 
-    def _file(self, source: str, release_id: str) -> Path:
-        key = hashlib.sha1(f"{source}:{release_id}".encode()).hexdigest()
-        return self.dir / key[:2] / key
-
     def get(self, source: str, release_id: str) -> tuple[Path, str] | None:
         """(file, media type) of the cover, fetching it the first time; None if there is none."""
         url = remote_url(source, release_id)
         if url is None:
             return None
-        f = self._file(source, release_id)
-        miss = f.with_suffix(".none")
-        if f.exists():
-            t = kind(f.read_bytes()[:8])
-            if t:
-                return f, t
-        if miss.exists() and time.time() - miss.stat().st_mtime < MISS_KEEP:
-            return None
-        try:
-            r = self.http.get(url)
-        except httpx.HTTPError as e:
-            log.info("cover for %s %s: %s", source, release_id, e)
-            return None  # not remembered: the next page asks again
-        data = r.content[: MAX_BYTES + 1]
-        t = kind(data[:8]) if r.status_code == 200 and len(data) <= MAX_BYTES else None
-        if source in VOCADB and not r.history:
-            # A real picture redirects to the site's image host; an album without one
-            # gets the site's "?" placeholder straight away.
-            t = None
-        f.parent.mkdir(parents=True, exist_ok=True)
-        if t is None:
-            if r.status_code in (200, 404):
-                miss.touch()
-            return None
-        f.write_bytes(data)
-        miss.unlink(missing_ok=True)
-        return f, t
+        # A real VocaDB picture redirects to the site's image host; an album without one
+        # gets the site's "?" placeholder straight away.
+        real = (lambda r: bool(r.history)) if source in VOCADB else (lambda r: True)
+        return self._cached(f"{source}:{release_id}", lambda: url, real)
