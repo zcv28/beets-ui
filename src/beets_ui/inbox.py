@@ -86,9 +86,15 @@ def scan_folder(path: Path) -> tuple[str, list[dict[str, Any]]]:
     return f"{count}:{size}:{int(newest)}", files
 
 
-def folder_signature(path: Path) -> tuple[str, int]:
-    sig, files = scan_folder(path)
-    return sig, sum(1 for f in files if f["audio"])
+def lookup_is_stale(path: Path, files: list[dict[str, Any]], tasks: list[dict]) -> bool:
+    """True when the folder's music files are not the ones its last lookup saw: some
+    arrived (or went) after it ran, so its matches describe part of the folder."""
+    if not tasks or len(files) >= MAX_LISTED_FILES:
+        return False
+    base = path.resolve()
+    now = {os.path.normpath(base / f["path"]) for f in files if f["audio"]}
+    seen = {os.path.normpath(i["path"]) for t in tasks for i in t.get("items") or []}
+    return bool(now - seen) or bool(seen - now)
 
 
 def read_tag_keys(path: Path, files: list[dict[str, Any]]) -> dict[str, Any]:
@@ -186,16 +192,19 @@ class Inbox:
             raise ValueError("path outside inbox")
         return p
 
-    def scan(self) -> None:
+    def scan(self, force: bool = False) -> list[str]:
+        """Bring the inbox up to date. ``force`` (Rescan) also looks up again every
+        idle folder whose files are not the ones its last lookup saw; returns those."""
         with self._scan_lock:
-            self._scan()
+            return self._scan(force)
 
-    def _scan(self) -> None:
+    def _scan(self, force: bool = False) -> list[str]:
         if not self.root.is_dir():
             log.warning("inbox %s does not exist", self.root)
-            return
+            return []
         now = time.time()
         seen = set()
+        relook: list[str] = []
         for entry in sorted(self.root.iterdir()):
             if not entry.is_dir() or entry.name.startswith("."):
                 continue
@@ -232,6 +241,25 @@ class Inbox:
                     files=files,
                     tagkeys=read_tag_keys(entry, files),
                 )
+            elif (
+                force
+                and row["status"] in ("ready", "attention", "failed")
+                and lookup_is_stale(entry, files, row["tasks"])
+            ):
+                # Looked up while it was still filling up: its matches miss files.
+                self.state.upsert_folder(
+                    rel,
+                    status="new",
+                    signature=sig,
+                    changed_at=now,
+                    tasks=[],
+                    best=None,
+                    duplicates={},
+                    error=None,
+                    files=files,
+                    tagkeys=read_tag_keys(entry, files),
+                )
+                relook.append(rel)
             elif not row["files"] and files:
                 # Folder recorded before file listings existed.
                 self.state.upsert_folder(rel, files=files, tagkeys=read_tag_keys(entry, files))
@@ -252,6 +280,12 @@ class Inbox:
                 continue  # still downloading: the request looks it up when it arrives
             if row["status"] == "new" and now - row["changed_at"] >= self.settings.debounce:
                 self.queue_preview(row["path"], auto=True, **self._wanted_search(row))
+        for rel in relook:
+            row = self.state.folder(rel)
+            if row and row["status"] == "new" and rel not in flying:
+                # Asked for by hand: looked up again now, whatever auto-lookup says.
+                self.queue_preview(rel, auto=True, **self._wanted_search(row))
+        return relook
 
     def _requests_without_folder(self) -> None:
         """Requests waiting on an inbox folder that is gone stop there (see inbox_gone)."""
@@ -354,6 +388,9 @@ class Inbox:
         path = self.resolve(rel)
         self.state.upsert_folder(rel, status="previewing")
         ctx.log(f"Looking up candidates for {rel} ({mode})")
+        # Taken before beets reads the folder: files that land during the lookup
+        # must show up as a change, not be folded into what it saw.
+        sig, _ = scan_folder(path)
         try:
             tasks = importer.preview_folder(
                 str(path),
@@ -368,7 +405,24 @@ class Inbox:
             if asked:  # not left "looking up" for ever: it waits in the inbox, with the reason
                 acquire.inbox_imported(self.state, asked, False, f"the lookup failed ({e})")
             raise
-        sig, _ = folder_signature(path)
+        after, files = scan_folder(path)
+        if after != sig:
+            msg = "Files changed during the lookup: it is looked up again once they settle"
+            ctx.log(msg)
+            ctx.note = msg
+            self.state.upsert_folder(
+                rel,
+                status="new",
+                signature=after,
+                changed_at=time.time(),
+                tasks=[],
+                best=None,
+                duplicates={},
+                error=msg,
+                files=files,
+                tagkeys=read_tag_keys(path, files),
+            )
+            return
         old = self.state.folder(rel) or {}
         if ctx.params.get("merge") and old.get("tasks"):
             tasks = _merge_candidates(old["tasks"], tasks)
@@ -387,6 +441,7 @@ class Inbox:
             best=best,
             error=err,
             signature=sig,
+            files=files,
             duplicates={},
             decisions=_default_decisions(tasks),
         )
