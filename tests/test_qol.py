@@ -381,3 +381,71 @@ def test_lang_attribute_marks_japanese_names():
     assert lang_attr("東方紅魔郷") == ' lang="ja"'
     assert lang_attr("Yorushika") == ""
     assert lang_attr(None) == ""
+
+
+# ------------------------------------------- folders still filling up at lookup
+
+
+def _track(folder, i, n=4):
+    from conftest import make_mp3
+
+    make_mp3(
+        folder / f"{i:02d} Track {i}.mp3",
+        title=f"Track {i}",
+        artist="Test Artist",
+        albumartist="Test Artist",
+        album="Test Album",
+        track=i,
+        tracktotal=n,
+    )
+
+
+def test_files_landing_during_a_lookup_are_not_folded_into_it(app, env, monkeypatch):
+    folder = make_album(env["inbox"] / "filling", n=2)
+    app.state.inbox.scan()
+    real = importer.preview_folder
+
+    def slow_download(path, **kw):
+        tasks = real(path, **kw)  # beets saw two files...
+        _track(folder, 3)  # ...and a third lands before the lookup is done
+        return tasks
+
+    monkeypatch.setattr("beets_ui.importer.preview_folder", slow_download)
+    app.state.inbox.queue_preview("filling")
+    run_jobs(app)
+    row = app.state.state.folder("filling")
+    assert row["status"] == "new" and not row["tasks"]
+    assert "changed during the lookup" in row["error"]
+    assert sum(f["audio"] for f in row["files"]) == 3
+
+    monkeypatch.setattr("beets_ui.importer.preview_folder", real)
+    app.state.inbox.queue_preview("filling")
+    run_jobs(app)
+    row = app.state.state.folder("filling")
+    assert row["status"] == "ready"
+    assert len(row["tasks"][0]["items"]) == 3
+
+
+def test_rescan_looks_up_again_a_folder_looked_up_too_early(client, app, env, monkeypatch):
+    folder = make_album(env["inbox"] / "early", n=2)
+    app.state.inbox.scan()
+    app.state.inbox.queue_preview("early")
+    run_jobs(app)
+    row = app.state.state.folder("early")
+    # As left by the old race: the lookup saw two files, the signature already has three.
+    _track(folder, 3)
+    from beets_ui.inbox import scan_folder
+
+    sig, files = scan_folder(folder)
+    app.state.state.upsert_folder("early", signature=sig, files=files)
+    app.state.inbox.scan()  # a plain scan sees nothing new
+    assert app.state.state.folder("early")["tasks"] == row["tasks"]
+
+    r = client.post("/inbox/scan", follow_redirects=True)
+    assert "Looking up 1 folder(s) again" in r.text
+    run_jobs(app)
+    row = app.state.state.folder("early")
+    assert row["status"] == "ready" and len(row["tasks"][0]["items"]) == 3
+
+    r = client.post("/inbox/scan", follow_redirects=True)  # up to date: nothing to redo
+    assert "Looking up" not in r.text

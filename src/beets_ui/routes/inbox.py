@@ -132,8 +132,15 @@ def delete_imported(request: Request):
 
 @router.post("/scan")
 def scan(request: Request):
-    request.app.state.inbox.scan()
-    flash(request, "Inbox rescanned.")
+    relook = request.app.state.inbox.scan(force=True)
+    if relook:
+        flash(
+            request,
+            f"Inbox rescanned. Looking up {len(relook)} folder(s) again: "
+            "files arrived after their last lookup.",
+        )
+    else:
+        flash(request, "Inbox rescanned.")
     return redirect("/inbox")
 
 
